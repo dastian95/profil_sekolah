@@ -1,0 +1,27 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "PHP Debug",
+            "type": "php",
+            "request": "launch",
+            "port": 9003,
+            "pathMapping": {
+                "/": "${workspaceRoot}"
+            },
+            "runtimeArgs": [
+                "-S",
+                "127.0.0.1:8000"
+            ]
+        },
+        {
+            "name": "Listen for Xdebug",
+            "type": "php",
+            "request": "listen",
+            "port": 9003,
+            "pathMapping": {
+                "/profil_sekolah": "${workspaceRoot}"
+            }
+        }
+    ]
+}

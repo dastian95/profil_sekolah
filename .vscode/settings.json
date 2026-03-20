@@ -1,0 +1,20 @@
+{
+    "php.validate.executablePath": "G:\\laragon\\bin\\php\\php-8.3.30-Win32-vs16-x64\\php.exe",
+    "php.format.provider": "intelephense",
+    "[php]": {
+        "editor.defaultFormatter": "bmewburn.vscode-intelephense-client",
+        "editor.formatOnSave": true
+    },
+    "intelephense.environment.includePath": [
+        "${workspaceFolder}",
+        "G:\\laragon\\www\\vendor"
+    ],
+    "files.exclude": {
+        "**/.git": true,
+        "**/node_modules": true
+    },
+    "search.exclude": {
+        "**/vendor": true,
+        "**/.git": true
+    }
+}

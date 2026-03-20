@@ -1,0 +1,253 @@
+{
+  "school": {
+    "name": "SMK Laboratorium Jakarta",
+    "nameEnglish": "Jakarta Laboratory Vocational High School",
+    "npsn": "20107068",
+    "accreditation": "A",
+    "type": "Sekolah Menengah Kejuruan (SMK) - Vocational High School",
+    "founded": 1980,
+    "status": "Negeri (State)",
+    "district": "Jakarta Timur",
+    "subdistrict": "Kampung Melayu",
+    "city": "Jakarta",
+    "province": "DKI Jakarta",
+    "addressFull": "Jl. H. Bape No. 1, Kampung Melayu, Kec. Jatinegara, Kota Jakarta Timur, DKI Jakarta 13410",
+    "coordinates": {
+      "latitude": -6.2088,
+      "longitude": 106.8752
+    },
+    "contact": {
+      "phone": "+62 21 4712922",
+      "fax": "+62 21 4712922",
+      "email": "info@smklabjakarta.sch.id",
+      "website": "https://www.smklabjakarta.sch.id",
+      "wa": "+62 812-3456-7890"
+    },
+    "headmaster": {
+      "name": "Drs. H. Sutrisno, M.Pd",
+      "title": "Kepala Sekolah",
+      "since": 2019
+    },
+    "facilities": [
+      "Laboratorium Komputer",
+      "Laboratorium Jaringan",
+      "Laboratorium Perangkat Lunak",
+      "Workshop Teknik",
+      "Perpustakaan Digital",
+      "Ruang Multimedia",
+      "Ruang Praktik Kecantikan",
+      "Ruang Praktik Perawatan",
+      "Fasilitas Olahraga (Lapangan Basket, Voli)",
+      "Cafeteria",
+      "Asrama (untuk siswa tertentu)"
+    ],
+    "majors": [
+      {
+        "id": 1,
+        "name": "Rekayasa Perangkat Lunak (RPL)",
+        "nameEnglish": "Software Engineering",
+        "description": "Program keahlian di bidang pengembangan perangkat lunak, aplikasi desktop, web, dan mobile",
+        "capacity": 120,
+        "skills": [
+          "Web Development",
+          "Mobile Application Development",
+          "Database Management",
+          "UI/UX Design",
+          "Cloud Computing"
+        ]
+      },
+      {
+        "id": 2,
+        "name": "Teknik Komputer dan Jaringan (TKJ)",
+        "nameEnglish": "Computer and Network Engineering",
+        "description": "Program keahlian di bidang instalasi, konfigurasi, dan administrasi jaringan komputer",
+        "capacity": 120,
+        "skills": [
+          "Network Administration",
+          "Server Management",
+          "Cybersecurity",
+          "IT Support",
+          "Infrastructure Design"
+        ]
+      },
+      {
+        "id": 3,
+        "name": "Asisten Keperawatan (AP)",
+        "nameEnglish": "Nursing Assistant",
+        "description": "Program keahlian di bidang kesehatan dan perawatan pasien",
+        "capacity": 80,
+        "skills": [
+          "Patient Care",
+          "Health Safety",
+          "Medical Equipment Operation",
+          "First Aid",
+          "Patient Communication"
+        ]
+      },
+      {
+        "id": 4,
+        "name": "Tata Kecantikan Kulit dan Rambut (TKKR)",
+        "nameEnglish": "Beauty and Hair Care",
+        "description": "Program keahlian di bidang kecantikan kulit dan perawatan rambut profesional",
+        "capacity": 80,
+        "skills": [
+          "Skin Care",
+          "Hair Treatment",
+          "Beauty Therapy",
+          "Makeup Artistry",
+          "Customer Service"
+        ]
+      }
+    ],
+    "admissionRoutes": [
+      {
+        "id": 1,
+        "name": "Jalur Prestasi",
+        "nameEnglish": "Achievement/Merit Track",
+        "description": "Penerimaan berdasarkan prestasi akademik dan non-akademik",
+        "quota": 30,
+        "requirements": [
+          "Nilai rata-rata rapor minimal 7.5",
+          "Sertifikat prestasi (akademik/non-akademik)",
+          "Wawancara dengan panitia seleksi"
+        ]
+      },
+      {
+        "id": 2,
+        "name": "Jalur Zonasi",
+        "nameEnglish": "Regional/Zone Track",
+        "description": "Penerimaan berdasarkan lokasi tempat tinggal (kawasan terdekat)",
+        "quota": 50,
+        "requirements": [
+          "Domisili sesuai zona akademik",
+          "Nilai rata-rata rapor minimal 6.5",
+          "Dokumen kependudukan yang valid"
+        ]
+      },
+      {
+        "id": 3,
+        "name": "Jalur Afirmasi",
+        "nameEnglish": "Affirmative Action Track",
+        "description": "Penerimaan untuk siswa dari keluarga kurang mampu atau kondisi khusus",
+        "quota": 15,
+        "requirements": [
+          "Surat Keterangan Tidak Mampu (SKTM)",
+          "Nilai rata-rata rapor minimal 6.0",
+          "Dokumen bukti keadaan sosial"
+        ]
+      },
+      {
+        "id": 4,
+        "name": "Jalur Perpindahan Orang Tua",
+        "nameEnglish": "Parent Transfer Track",
+        "description": "Penerimaan khusus dengan pertimbangan perpindahan pekerjaan orang tua",
+        "quota": 5,
+        "requirements": [
+          "Surat mutasi orang tua dari perusahaan/instansi",
+          "Dokumen surat pindah",
+          "Nilai rata-rata rapor minimal 6.5"
+        ]
+      }
+    ],
+    "statistics": {
+      "totalStudents": 1200,
+      "totalTeachers": 85,
+      "totalAdministration": 20,
+      "classrooms": 42,
+      "laboratoriums": 12,
+      "libraries": 2,
+      "studentsPerYear": 400
+    },
+    "achievements": [
+      {
+        "year": 2023,
+        "title": "Juara 1 Kompetisi Robotika Nasional",
+        "level": "Nasional"
+      },
+      {
+        "year": 2023,
+        "title": "Sertifikasi ISO 9001:2015",
+        "level": "Internasional"
+      },
+      {
+        "year": 2022,
+        "title": "Juara 2 Lomba LKS (Lomba Kompetensi Siswa) Bidang TKJ",
+        "level": "Propinsi"
+      },
+      {
+        "year": 2022,
+        "title": "School of Excellent - Penghargaan Sekolah Unggulan",
+        "level": "Nasional"
+      },
+      {
+        "year": 2021,
+        "title": "Penghargaan Program Green School (Sekolah Hijau)",
+        "level": "Nasional"
+      }
+    ],
+    "partnerships": [
+      {
+        "name": "PT. Telkom Indonesia",
+        "field": "Jaringan & Teknologi Informasi",
+        "since": 2015
+      },
+      {
+        "name": "Google Developer Community Jakarta",
+        "field": "Pengembangan Perangkat Lunak",
+        "since": 2018
+      },
+      {
+        "name": "IBM Innovation Lab",
+        "field": "Cloud Computing & AI",
+        "since": 2020
+      },
+      {
+        "name": "Rumah Sakit Besar Jakarta",
+        "field": "Keperawatan",
+        "since": 2016
+      },
+      {
+        "name": "Beauty Academy International",
+        "field": "Tata Kecantikan",
+        "since": 2017
+      }
+    ],
+    "academicCalendar": {
+      "year": 2026,
+      "registrationStart": "2026-06-01",
+      "registrationEnd": "2026-07-15",
+      "selectionStart": "2026-07-20",
+      "selectionEnd": "2026-08-10",
+      "studentVerification": "2026-08-15",
+      "academicYearStart": "2026-09-01",
+      "academicYearEnd": "2027-06-30",
+      "semester1Start": "2026-09-01",
+      "semester1End": "2026-12-20",
+      "semester2Start": "2027-01-10",
+      "semester2End": "2027-06-30"
+    },
+    "tuition": {
+      "currency": "IDR",
+      "annual": {
+        "description": "Biaya Pendaftaran dan Administrasi per tahun",
+        "amount": 1500000
+      },
+      "monthlyOperational": {
+        "description": "Biaya Operasional Bulanan",
+        "amount": 200000
+      },
+      "specialProgram": {
+        "description": "Program Khusus (Keterampilan Lanjut, Asrama)",
+        "amount": 300000
+      },
+      "notes": "Tersedia bantuan untuk siswa kurang mampu (beasiswa)"
+    },
+    "admissionSchedule": {
+      "phoneContact": "021-4712922",
+      "email": "admisi@smklabjakarta.sch.id",
+      "officeHours": "08:00 - 16:00 (Senin-Jumat)",
+      "visitByAppointment": true
+    },
+    "description": "SMK Laboratorium Jakarta adalah sekolah menengah kejuruan negeri yang telah berdiri sejak tahun 1980. Sekolah ini berkomitmen untuk menghasilkan lulusan yang berkompeten, profesional, dan siap bersaing di industri modern. Dengan fasilitas pembelajaran terkini dan tenaga pengajar berpengalaman, SMK Lab Jakarta menyiapkan siswa untuk menjadi tenaga kerja terampil di berbagai bidang teknologi, kesehatan, dan kecantikan."
+  }
+}

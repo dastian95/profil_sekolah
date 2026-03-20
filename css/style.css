@@ -1,0 +1,353 @@
+:root {
+ --bg: #2f8258;
+ --other: #A1BC98;
+ --primary: #B4DEBD;
+}
+
+* {
+    font-family: 'poppins', sans-serif;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    outline: none;
+    border: none;
+    text-decoration: none;
+}
+
+body {
+    font-family: 'poppins', sans-serif;
+    background-color: var(--bg);
+    color: #fff;
+    min-height: 2000px;
+}
+
+/* Navbar */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.4rem 7%;
+    background-color: var(--bg) ;
+    border-bottom: 1px solid var(--primary);
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+}
+
+.navbar .navbar-logo {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #fff;
+    font-style: italic;
+}
+
+.navbar .navbar-logo span {
+    color: var(--primary);
+}
+
+.navbar .navbar-nav a {
+    color: #fff;
+    display: inline-block;
+    font-size: 1.3rem;
+    margin: 0 1rem;
+
+}
+
+.navbar .navbar-nav a:hover {
+    color: var(--primary);
+}
+
+.navbar .navbar-nav a::after {
+    content: '';
+    display: block;
+    padding-bottom: 0.5rem;
+    border-bottom: 0.1rem solid var(--primary);
+    transform: scaleX(0);
+    transition: 0.2s linear ;
+}
+
+.navbar .navbar-nav a:hover::after {
+    transform: scaleX(0.5);
+}
+
+.navbar .navbar-extra a{
+    color: #fff;
+    margin: 0 0.5rem;
+}
+
+.navbar .navbar-extra a:hover {
+    color: var(--primary);
+}
+
+#hamburger-menu {
+    display: none;
+}
+
+/* ======== HERO SECTION ======== */
+.hero {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    background-image: url('../assets/labterima.jpg');
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center;
+    position: relative;
+}
+
+.hero::after {
+    content: '';
+    display: block;
+    position: absolute;
+    width: 100%;
+    height: 30%;
+    bottom: 0;
+    background: linear-gradient(0deg, rgba(47,130,88,1) 5%, rgba(255, 255, 255, 0) 50%);
+
+}
+
+.hero .content {
+    padding: 1.4rem 7%;
+    max-width: 62%;
+}
+
+.hero .content h1 {
+    font-size: 2.7rem;
+    color: #fff;
+    line-height: 1.2;
+}
+
+.hero .content h2 {
+    font-size: 1.8rem;
+    color: #fff;
+    line-height: 1.5;
+}
+
+.hero .content p {
+    font-size: 1.3rem;
+    color: #fff;
+    line-height: 1.2;
+    font-weight: 500;
+}
+
+.hero .content .cta {
+    margin-top: 1rem;
+    display: inline-block;
+    padding: 1rem 3rem;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--bg);
+    background-color: var(--primary);
+    border-radius: 0.5rem;
+    box-shadow: 1px 1px 3px (rgba(1, 1, 3, 0.5));
+
+}
+
+/* ==== Info Section ====*/
+.info {
+    padding: 8rem 7% 1.4rem;
+}
+
+.info h2 {
+    text-align: center;
+    font-size: 2.6rem;
+    margin-bottom: 3rem;
+}
+
+.info h2 span {
+    color: var(--primary);
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+}
+
+.card {
+  background: white;
+  padding: 2rem;
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  color: var(--bg);
+}
+
+.card h3 {
+  color: var(--bg);
+  margin-bottom: 0.5rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.card li, .card p{
+    font-size: 1.2rem;
+    font-weight: 400;
+}
+
+/* ======== JADWAL TABLE ======== */
+.jadwal {
+    padding: 8rem 7% 1.4rem;
+    margin-bottom: 8rem;
+}
+
+.jadwal h2 {
+    text-align: center;
+    font-size: 2.6rem;
+    margin-bottom: 3rem;
+}
+
+.jadwal h2 span {
+    color: var(--primary);
+}
+
+.jadwal table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow-x: auto;
+}
+
+.jadwal th,
+.jadwal td {
+  padding: 0.8rem;
+  border: 1px solid white;
+  text-align: center;
+
+}
+
+.jadwal th {
+  background-color: var(--primary);
+  color: var(--bg);
+  font-size: 1.2rem; 
+  font-weight: 800;    
+}
+
+.jadwal td {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+/* ==== Jadwal Section ====*/
+.daftar {
+  padding: 50px 20px;
+  max-width: 600px;
+  background-color: var(--primary);
+  margin: 0 auto;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.daftar h2 {
+  text-align: center;
+  margin-bottom: 20px;
+  color: var(--bg);
+  font-size: 3rem;
+  font-weight: 800;
+}
+
+.daftar form {
+  display: flex;
+  flex-direction: column;
+}
+
+.daftar label {
+  margin: 10px 0 5px;
+  font-weight: 800;
+  font-size: 1.2rem;
+  color: var(--bg);
+}
+
+.daftar input,
+.daftar textarea,
+.daftar select {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  margin-bottom: 15px;
+  font-size: 1rem;
+}
+
+.btn-primary {
+  background-color: var(--bg);
+  color: white;
+  border: none;
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.3s ease;
+}
+
+.btn-primary:hover {
+  background-color: var(--primary);
+}
+
+/* ======== FOOTER ======== */
+footer {
+  background-color: var(--primary);
+  color: white;
+  text-align: center;
+  padding: 1rem 0;
+  margin-top: 10rem;
+}
+
+
+/* ====Media Queries==== */
+
+/* Laptop */
+@media (max-width: 1366px) {
+    html {
+        font-size: 75%;
+    }
+}
+
+/* Tablet */
+@media (max-width: 768px) {
+    html {
+        font-size: 62.5%;
+    }
+
+    #hamburger-menu {
+    display: inline-block;
+}
+
+.navbar .navbar-nav {
+    position: absolute;
+    top: 100%;
+    right: -100%;
+    background-color: #fff;
+    width: 30rem;
+    height: 100vh;
+    transition: 0.5s;
+}
+
+.navbar .navbar-nav.active {
+    right: 0;
+}
+
+.navbar .navbar-nav a {
+    color: var(--bg);
+    display: block;
+    margin: 1.5rem;
+    padding: 0.5rem;
+    font-size: 2rem;
+}
+
+.navbar .navbar-nav a::after {
+    transform-origin: 0 0;
+}
+
+.navbar .navbar-nav a:hover::after {
+    transform: scaleX(0.3);
+}
+
+}
+
+/* Mobile Phone */
+@media (max-width: 450px) {
+    html {
+        font-size: 55%;
+    }
+}

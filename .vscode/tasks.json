@@ -1,0 +1,60 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Run PHP Development Server",
+            "type": "shell",
+            "command": "G:\\laragon\\bin\\php\\php-8.3.30-Win32-vs16-x64\\php.exe",
+            "args": [
+                "-S",
+                "localhost:8000",
+                "-t",
+                "."
+            ],
+            "isBackground": true,
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "",
+                    "file": 1,
+                    "location": 2,
+                    "message": 3
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^\\[.*\\] Development Server \\(http://localhost:8000\\) started.*",
+                    "endsPattern": "^Listening on.*"
+                }
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Run via Laragon (Apache)",
+            "type": "shell",
+            "command": "start",
+            "args": [
+                "http://localhost/profil_sekolah"
+            ],
+            "windows": {
+                "command": "cmd",
+                "args": [
+                    "/c",
+                    "start",
+                    "http://localhost/profil_sekolah"
+                ]
+            },
+            "presentation": {
+                "reveal": "silent"
+            },
+            "group": {
+                "kind": "build"
+            }
+        }
+    ]
+}
