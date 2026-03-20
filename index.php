@@ -34,87 +34,194 @@ require_once __DIR__ . '/../src/conn.php';
 
   <style>
     /* ============================================================
-       ENHANCEMENTS INLINE STYLES: Dark Mode, Mobile, Form Validation
+       DARK MODE / LIGHT MODE SYSTEM
        ============================================================ */
 
-    /* DARK MODE SYSTEM */
     :root {
-      --enable-dark-mode: 0;
+      color-scheme: light;
+      --bg-primary: #ffffff;
+      --bg-secondary: #f8f9fa;
+      --text-primary: #2c3e50;
+      --text-secondary: #7f8c8d;
+      --border-color: #ecf0f1;
+      --accent-color: #667eea;
+      --accent-dark: #5568d3;
     }
 
     [data-theme="dark"] {
-      --background-color: #1a1a1a;
-      --default-color: #e0e0e0;
-      --heading-color: #ffffff;
-      --accent-color: #66bb6a;
-      --surface-color: #2d2d2d;
-      --contrast-color: #ffffff;
-      --nav-color: #e0e0e0;
-      --nav-hover-color: #66bb6a;
-      --nav-hover-bg: rgba(102, 187, 106, 0.1);
-      --nav-mobile-background-color: #1a1a1a;
-      --nav-dropdown-background-color: #2d2d2d;
-      --nav-dropdown-color: #e0e0e0;
-      --nav-dropdown-hover-color: #66bb6a;
+      color-scheme: dark;
+      --bg-primary: #1a1a2e;
+      --bg-secondary: #16213e;
+      --text-primary: #ecf0f1;
+      --text-secondary: #bdc3c7;
+      --border-color: #2c3e50;
+      --accent-color: #ffc107;
+      --accent-dark: #ffb300;
+    }
+
+    * {
+      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
     }
 
     body[data-theme="dark"] {
-      background-color: var(--background-color);
-      color: var(--default-color);
-      transition: background-color 0.3s ease, color 0.3s ease;
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
     }
 
-    body[data-theme="dark"] .navbar,
-    body[data-theme="dark"] nav,
-    body[data-theme="dark"] header {
-      background-color: var(--surface-color) !important;
-      border-color: #3a3a3a;
+    /* Header & Navigation */
+    header {
+      background-color: var(--bg-secondary) !important;
+      border-bottom: 1px solid var(--border-color);
     }
 
-    body[data-theme="dark"] .card {
-      background-color: var(--surface-color);
-      border-color: #3a3a3a;
-      color: var(--default-color);
+    nav, .navmenu {
+      background-color: var(--bg-secondary) !important;
     }
 
-    body[data-theme="dark"] .form-control,
-    body[data-theme="dark"] .form-select {
-      background-color: #2d2d2d;
-      border-color: #3a3a3a;
-      color: var(--default-color);
+    .nav-link {
+      color: var(--text-primary) !important;
     }
 
-    body[data-theme="dark"] .form-control:focus,
-    body[data-theme="dark"] .form-select:focus {
-      background-color: #2d2d2d;
+    .nav-link:hover {
+      color: var(--accent-color) !important;
+    }
+
+    /* Cards & Containers */
+    .card, .section {
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      border-color: var(--border-color);
+    }
+
+    /* Forms */
+    .form-control, .form-select, input, textarea {
+      background-color: var(--bg-secondary);
+      color: var(--text-primary);
+      border-color: var(--border-color);
+    }
+
+    .form-control:focus, .form-select:focus {
+      background-color: var(--bg-secondary);
+      color: var(--text-primary);
       border-color: var(--accent-color);
-      color: var(--default-color);
       box-shadow: 0 0 0 0.2rem rgba(102, 187, 106, 0.25);
     }
 
-    body[data-theme="dark"] .table {
-      color: var(--default-color);
-      border-color: #3a3a3a;
+    /* Text elements */
+    h1, h2, h3, h4, h5, h6 {
+      color: var(--text-primary);
     }
 
-    body[data-theme="dark"] .modal-content {
-      background-color: var(--surface-color);
-      border-color: #3a3a3a;
+    p, a {
+      color: var(--text-primary);
     }
 
-    .dark-mode-toggle {
+    /* Tables */
+    .table {
+      color: var(--text-primary);
+      border-color: var(--border-color);
+    }
+
+    .table th {
+      background-color: var(--bg-secondary);
+      color: var(--text-primary);
+      border-color: var(--border-color);
+    }
+
+    /* Dark Mode Toggle Button */
+    .theme-toggle-btn {
       background: none;
-      border: none;
+      border: 2px solid var(--accent-color);
+      color: var(--accent-color);
+      font-size: 18px;
+      padding: 8px 12px;
       cursor: pointer;
-      font-size: 1.5rem;
-      color: var(--nav-color);
-      transition: color 0.3s ease;
-      padding: 5px 10px;
-      border-radius: 5px;
+      border-radius: 50%;
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+      margin-left: 15px;
     }
 
-    .dark-mode-toggle:hover {
+    .theme-toggle-btn:hover {
+      background-color: rgba(102, 187, 106, 0.1);
+      transform: scale(1.1);
+    }
+
+    [data-theme="dark"] .theme-toggle-btn {
+      border-color: #ffc107;
+      color: #ffc107;
+    }
+
+    [data-theme="dark"] .theme-toggle-btn:hover {
+      background-color: rgba(255, 193, 7, 0.1);
+    }
+
+    /* Buttons */
+    .btn {
+      border-color: var(--accent-color);
+      color: var(--text-primary);
+    }
+
+    .btn-primary {
+      background-color: var(--accent-color);
+      border-color: var(--accent-color);
+    }
+
+    .btn-outline-primary {
+      border-color: var(--accent-color);
       color: var(--accent-color);
+    }
+
+    .btn-outline-primary:hover {
+      background-color: var(--accent-color);
+      border-color: var(--accent-color);
+    }
+
+    /* Badges & Labels */
+    .badge, .label {
+      background-color: var(--accent-color);
+      color: var(--bg-primary);
+    }
+
+    /* Modal */
+    .modal-content {
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      border-color: var(--border-color);
+    }
+
+    .modal-header {
+      background-color: var(--bg-secondary);
+      border-color: var(--border-color);
+    }
+
+    /* List */
+    li {
+      color: var(--text-primary);
+    }
+
+    /* Links */
+    a {
+      color: var(--accent-color);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    /* Horizontal Rule */
+    hr {
+      border-color: var(--border-color);
     }
 
     /* MOBILE RESPONSIVENESS */
@@ -266,6 +373,11 @@ require_once __DIR__ . '/../src/conn.php';
           <li><a href="#jurusan" class="nav-link">📚 Jurusan</a></li>
           <li><a href="#daftar" class="nav-link">📝 Buat Akun</a></li>
           <li><a href="login.php">🔑 Login</a></li>
+          <li>
+            <button class="theme-toggle-btn" id="themeToggle" title="Toggle Dark/Light Mode">
+              <i class="bi bi-moon-stars-fill"></i>
+            </button>
+          </li>
         </ul>
         <i class="mobile-nav-toggle d-xl-none bi bi-list"></i>
       </nav>
@@ -1141,8 +1253,69 @@ require_once __DIR__ . '/../src/conn.php';
       });
     }
 
+    // DARK MODE / LIGHT MODE HANDLER
+    class ThemeManager {
+      constructor() {
+        this.themeKey = 'smk-theme-preference';
+        this.init();
+      }
+
+      init() {
+        // Load saved theme or use system preference
+        const savedTheme = localStorage.getItem(this.themeKey);
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const theme = savedTheme || (prefersDark ? 'dark' : 'light');
+        
+        this.setTheme(theme);
+        this.setupToggleButton();
+      }
+
+      setTheme(theme) {
+        const html = document.documentElement;
+        html.setAttribute('data-theme', theme);
+        localStorage.setItem(this.themeKey, theme);
+        this.updateToggleIcon(theme);
+      }
+
+      getTheme() {
+        return document.documentElement.getAttribute('data-theme') || 'light';
+      }
+
+      toggleTheme() {
+        const currentTheme = this.getTheme();
+        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+        this.setTheme(newTheme);
+      }
+
+      updateToggleIcon(theme) {
+        const toggleBtn = document.getElementById('themeToggle');
+        if (!toggleBtn) return;
+        
+        if (theme === 'dark') {
+          toggleBtn.innerHTML = '<i class="bi bi-sun-fill"></i>';
+          toggleBtn.title = 'Switch to Light Mode';
+        } else {
+          toggleBtn.innerHTML = '<i class="bi bi-moon-stars-fill"></i>';
+          toggleBtn.title = 'Switch to Dark Mode';
+        }
+      }
+
+      setupToggleButton() {
+        const toggleBtn = document.getElementById('themeToggle');
+        if (toggleBtn) {
+          toggleBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.toggleTheme();
+          });
+        }
+      }
+    }
+
     // INITIALIZE ALL ON PAGE LOAD
     document.addEventListener('DOMContentLoaded', function() {
+      // Initialize theme manager
+      new ThemeManager();
+
       // Password toggles
       setupPasswordToggle('reg_password', 'toggleRegPassword');
       setupPasswordToggle('reg_password_verify', 'toggleRegPasswordVerify');
