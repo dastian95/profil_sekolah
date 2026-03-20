@@ -33,7 +33,6 @@ require_once __DIR__ . '/../src/conn.php';
   <link href="assets/css/main.css?v=20260117" rel="stylesheet">
 
   <style>
-
     /* MOBILE RESPONSIVENESS */
     @media (max-width: 768px) {
 
@@ -135,7 +134,6 @@ require_once __DIR__ . '/../src/conn.php';
       border-bottom: 3px solid #667eea;
       padding-bottom: 5px;
     }
-
   </style>
 
   <!-- =======================================================
@@ -206,18 +204,17 @@ require_once __DIR__ . '/../src/conn.php';
 
           <div class="col-lg-6 content" data-aos="fade-up" data-aos-delay="100">
             <p>
-              Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore
-              magna aliqua.
+              SMK Laboratorium Jakarta adalah sekolah menengah kejuruan yang berdedikasi untuk menghasilkan lulusan berkompeten di bidang teknologi, kesehatan, dan kecantikan. Kami berkomitmen memberikan pendidikan berkualitas dengan menggunakan fasilitas laboratorium modern dan metode pembelajaran yang relevan dengan industri.
             </p>
             <ul>
-              <li><i class="bi bi-check2-circle"></i> <span>Ullamco laboris nisi ut aliquip ex ea commodo consequat.</span></li>
-              <li><i class="bi bi-check2-circle"></i> <span>Duis aute irure dolor in reprehenderit in voluptate velit.</span></li>
-              <li><i class="bi bi-check2-circle"></i> <span>Ullamco laboris nisi ut aliquip ex ea commodo</span></li>
+              <li><i class="bi bi-check2-circle"></i> <span>Program pendidikan yang sesuai dengan standar industri dan kurikulum nasional</span></li>
+              <li><i class="bi bi-check2-circle"></i> <span>Fasilitas laboratorium dan praktik yang lengkap dan modern</span></li>
+              <li><i class="bi bi-check2-circle"></i> <span>Tenaga pengajar berpengalaman dan profesional di bidangnya</span></li>
             </ul>
           </div>
 
           <div class="col-lg-6" data-aos="fade-up" data-aos-delay="200">
-            <p>Ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. </p>
+            <p>Dengan berbagai kejuruan yang kami tawarkan, kami mempersiapkan peserta didik untuk siap bekerja dan bersaing di era digital. Kami juga mendorong siswa untuk mengembangkan sikap profesional, etika kerja yang baik, dan kemampuan kepemimpinan. Kesuksesan lulusan kami adalah bukti komitmen kami terhadap keunggulan pendidikan.</p>
           </div>
 
         </div>
@@ -270,22 +267,20 @@ require_once __DIR__ . '/../src/conn.php';
           <div class="tab-pane fade active show" id="features-tab-1">
             <div class="row">
               <div class="col-lg-6 order-2 order-lg-1 mt-3 mt-lg-0">
-                <h3>Voluptatem dignissimos provident quasi corporis voluptates sit assumenda.</h3>
+                <h3>Rekayasa Perangkat Lunak (RPL)</h3>
                 <p class="fst-italic">
-                  Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore
-                  magna aliqua.
+                  Mempersiapkan siswa untuk menjadi software developer profesional yang mampu mengembangkan, menguji, dan memelihara aplikasi perangkat lunak.
                 </p>
                 <ul>
                   <li><i class="bi bi-check2-all"></i>
-                    <span>Ullamco laboris nisi ut aliquip ex ea commodo consequat.</span>
+                    <span>Pemrograman web, desktop, dan mobile</span>
                   </li>
-                  <li><i class="bi bi-check2-all"></i> <span>Duis aute irure dolor in reprehenderit in voluptate velit</span>.</li>
-                  <li><i class="bi bi-check2-all"></i> <span>Ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate trideta storacalaperda mastiro dolore eu fugiat nulla pariatur.</span></li>
+                  <li><i class="bi bi-check2-all"></i> <span>Database design dan management</span></li>
+                  <li><i class="bi bi-check2-all"></i> <span>Framework pengembangan aplikasi modern</span></li>
+                  <li><i class="bi bi-check2-all"></i> <span>Praktik industry-standard dan project-based learning</span></li>
                 </ul>
                 <p>
-                  Ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate
-                  velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in
-                  culpa qui officia deserunt mollit anim id est laborum
+                  Lulusan RPL kami siap bekerja sebagai programmer, developer, atau mendirikan startup teknologi. Program ini dilengkapi dengan sertifikasi profesional dan kesempatan magang di perusahaan IT terkemuka.
                 </p>
               </div>
               <div class="col-lg-6 order-1 order-lg-2 text-center">
@@ -297,21 +292,18 @@ require_once __DIR__ . '/../src/conn.php';
           <div class="tab-pane fade" id="features-tab-2">
             <div class="row">
               <div class="col-lg-6 order-2 order-lg-1 mt-3 mt-lg-0">
-                <h3>Neque exercitationem debitis soluta quos debitis quo mollitia officia est</h3>
+                <h3>Teknik Komputer dan Jaringan (TKJ)</h3>
                 <p>
-                  Ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate
-                  velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in
-                  culpa qui officia deserunt mollit anim id est laborum
+                  Program TKJ memencetak teknisi dan administrator jaringan yang kompeten dalam mengelola infrastruktur IT, keamanan jaringan, dan sistem komputer modern.
                 </p>
                 <p class="fst-italic">
-                  Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore
-                  magna aliqua.
+                  Dengan fasilitas lab networking terlengkap, siswa mendapat pengalaman langsung dalam setup, konfigurasi, dan troubleshooting sistem jaringan.
                 </p>
                 <ul>
-                  <li><i class="bi bi-check2-all"></i> <span>Ullamco laboris nisi ut aliquip ex ea commodo consequat.</span></li>
-                  <li><i class="bi bi-check2-all"></i> <span>Duis aute irure dolor in reprehenderit in voluptate velit.</span></li>
-                  <li><i class="bi bi-check2-all"></i> <span>Provident mollitia neque rerum asperiores dolores quos qui a. Ipsum neque dolor voluptate nisi sed.</span></li>
-                  <li><i class="bi bi-check2-all"></i> <span>Ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate trideta storacalaperda mastiro dolore eu fugiat nulla pariatur.</span></li>
+                  <li><i class="bi bi-check2-all"></i> <span>Administrator jaringan dan sistem</span></li>
+                  <li><i class="bi bi-check2-all"></i> <span>Cybersecurity dan keamanan data</span></li>
+                  <li><i class="bi bi-check2-all"></i> <span>Server management dan cloud computing</span></li>
+                  <li><i class="bi bi-check2-all"></i> <span>Sertifikasi Cisco, CompTIA, dan vendor lainnya</span></li>
                 </ul>
               </div>
               <div class="col-lg-6 order-1 order-lg-2 text-center">
@@ -323,20 +315,18 @@ require_once __DIR__ . '/../src/conn.php';
           <div class="tab-pane fade" id="features-tab-3">
             <div class="row">
               <div class="col-lg-6 order-2 order-lg-1 mt-3 mt-lg-0">
-                <h3>Voluptatibus commodi ut accusamus ea repudiandae ut autem dolor ut assumenda</h3>
+                <h3>Asisten Keperawatan (AP)</h3>
                 <p>
-                  Ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate
-                  velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in
-                  culpa qui officia deserunt mollit anim id est laborum
+                  Program AP melatih tenaga medis profesional yang siap memberikan pelayanan kesehatan berkualitas di berbagai fasilitas kesehatan dengan standar etika dan kompetensi tinggi.
                 </p>
                 <ul>
-                  <li><i class="bi bi-check2-all"></i> <span>Ullamco laboris nisi ut aliquip ex ea commodo consequat.</span></li>
-                  <li><i class="bi bi-check2-all"></i> <span>Duis aute irure dolor in reprehenderit in voluptate velit.</span></li>
-                  <li><i class="bi bi-check2-all"></i> <span>Provident mollitia neque rerum asperiores dolores quos qui a. Ipsum neque dolor voluptate nisi sed.</span></li>
+                  <li><i class="bi bi-check2-all"></i> <span>Asisten perawat rumah sakit dan klinik</span></li>
+                  <li><i class="bi bi-check2-all"></i> <span>Perawatan dasar pasien dan monitoring vital signs</span></li>
+                  <li><i class="bi bi-check2-all"></i> <span>Praktik laboratorium kesehatan dan farmasi</span></li>
+                  <li><i class="bi bi-check2-all"></i> <span>Etika profesi dan komunikasi pasien</span></li>
                 </ul>
                 <p class="fst-italic">
-                  Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore
-                  magna aliqua.
+                  Lulusan AP kami tersebar di rumah sakit, puskesmas, dan fasilitas kesehatan lainnya dengan peluang karir yang menjanjikan dan kontribusi nyata terhadap kesehatan masyarakat.
                 </p>
               </div>
               <div class="col-lg-6 order-1 order-lg-2 text-center">
@@ -348,20 +338,18 @@ require_once __DIR__ . '/../src/conn.php';
           <div class="tab-pane fade" id="features-tab-4">
             <div class="row">
               <div class="col-lg-6 order-2 order-lg-1 mt-3 mt-lg-0">
-                <h3>Omnis fugiat ea explicabo sunt dolorum asperiores sequi inventore rerum</h3>
+                <h3>Tata Kecantikan Kulit dan Rambut (TKKR)</h3>
                 <p>
-                  Ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate
-                  velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in
-                  culpa qui officia deserunt mollit anim id est laborum
+                  Program TKKR mempersiapkan profesional kecantikan yang terampil dalam perawatan kulit, styling rambut, dan makeup. Lulusan kami siap bekerja di salon, spa, atau membuka usaha kecantikan sendiri.
                 </p>
                 <p class="fst-italic">
-                  Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore
-                  magna aliqua.
+                  Dengan praktik langsung menggunakan peralatan profesional dan produk berkualitas, siswa mendapatkan pengalaman nyata di industri kecantikan.
                 </p>
                 <ul>
-                  <li><i class="bi bi-check2-all"></i> <span>Ullamco laboris nisi ut aliquip ex ea commodo consequat.</span></li>
-                  <li><i class="bi bi-check2-all"></i> <span>Duis aute irure dolor in reprehenderit in voluptate velit.</span></li>
-                  <li><i class="bi bi-check2-all"></i> <span>Ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate trideta storacalaperda mastiro dolore eu fugiat nulla pariatur.</span></li>
+                  <li><i class="bi bi-check2-all"></i> <span>Perawatan wajah, kulit, dan tubuh profesional</span></li>
+                  <li><i class="bi bi-check2-all"></i> <span>Styling, coloring, dan perawatan rambut</span></li>
+                  <li><i class="bi bi-check2-all"></i> <span>Tata rias dan makeup untuk berbagai acara</span></li>
+                  <li><i class="bi bi-check2-all"></i> <span>Kewirausahaan dan manajemen salon kecantikan</span></li>
                 </ul>
               </div>
               <div class="col-lg-6 order-1 order-lg-2 text-center">
