@@ -33,199 +33,10 @@ require_once __DIR__ . '/../src/conn.php';
   <link href="assets/css/main.css?v=20260117" rel="stylesheet">
 
   <style>
-    /* ============================================================
-       DARK MODE / LIGHT MODE SYSTEM
-       ============================================================ */
-
-    :root {
-      color-scheme: light;
-      --bg-primary: #ffffff;
-      --bg-secondary: #f8f9fa;
-      --text-primary: #2c3e50;
-      --text-secondary: #7f8c8d;
-      --border-color: #ecf0f1;
-      --accent-color: #667eea;
-      --accent-dark: #5568d3;
-    }
-
-    [data-theme="dark"] {
-      color-scheme: dark;
-      --bg-primary: #1a1a2e;
-      --bg-secondary: #16213e;
-      --text-primary: #ecf0f1;
-      --text-secondary: #bdc3c7;
-      --border-color: #2c3e50;
-      --accent-color: #ffc107;
-      --accent-dark: #ffb300;
-    }
-
-    * {
-      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
-    }
-
-    body {
-      background-color: var(--bg-primary);
-      color: var(--text-primary);
-    }
-
-    body[data-theme="dark"] {
-      background-color: var(--bg-primary);
-      color: var(--text-primary);
-    }
-
-    /* Header & Navigation */
-    header {
-      background-color: var(--bg-secondary) !important;
-      border-bottom: 1px solid var(--border-color);
-    }
-
-    nav, .navmenu {
-      background-color: var(--bg-secondary) !important;
-    }
-
-    .nav-link {
-      color: var(--text-primary) !important;
-    }
-
-    .nav-link:hover {
-      color: var(--accent-color) !important;
-    }
-
-    /* Cards & Containers */
-    .card, .section {
-      background-color: var(--bg-primary);
-      color: var(--text-primary);
-      border-color: var(--border-color);
-    }
-
-    /* Forms */
-    .form-control, .form-select, input, textarea {
-      background-color: var(--bg-secondary);
-      color: var(--text-primary);
-      border-color: var(--border-color);
-    }
-
-    .form-control:focus, .form-select:focus {
-      background-color: var(--bg-secondary);
-      color: var(--text-primary);
-      border-color: var(--accent-color);
-      box-shadow: 0 0 0 0.2rem rgba(102, 187, 106, 0.25);
-    }
-
-    /* Text elements */
-    h1, h2, h3, h4, h5, h6 {
-      color: var(--text-primary);
-    }
-
-    p, a {
-      color: var(--text-primary);
-    }
-
-    /* Tables */
-    .table {
-      color: var(--text-primary);
-      border-color: var(--border-color);
-    }
-
-    .table th {
-      background-color: var(--bg-secondary);
-      color: var(--text-primary);
-      border-color: var(--border-color);
-    }
-
-    /* Dark Mode Toggle Button */
-    .theme-toggle-btn {
-      background: none;
-      border: 2px solid var(--accent-color);
-      color: var(--accent-color);
-      font-size: 18px;
-      padding: 8px 12px;
-      cursor: pointer;
-      border-radius: 50%;
-      width: 44px;
-      height: 44px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.3s ease;
-      margin-left: 15px;
-    }
-
-    .theme-toggle-btn:hover {
-      background-color: rgba(102, 187, 106, 0.1);
-      transform: scale(1.1);
-    }
-
-    [data-theme="dark"] .theme-toggle-btn {
-      border-color: #ffc107;
-      color: #ffc107;
-    }
-
-    [data-theme="dark"] .theme-toggle-btn:hover {
-      background-color: rgba(255, 193, 7, 0.1);
-    }
-
-    /* Buttons */
-    .btn {
-      border-color: var(--accent-color);
-      color: var(--text-primary);
-    }
-
-    .btn-primary {
-      background-color: var(--accent-color);
-      border-color: var(--accent-color);
-    }
-
-    .btn-outline-primary {
-      border-color: var(--accent-color);
-      color: var(--accent-color);
-    }
-
-    .btn-outline-primary:hover {
-      background-color: var(--accent-color);
-      border-color: var(--accent-color);
-    }
-
-    /* Badges & Labels */
-    .badge, .label {
-      background-color: var(--accent-color);
-      color: var(--bg-primary);
-    }
-
-    /* Modal */
-    .modal-content {
-      background-color: var(--bg-primary);
-      color: var(--text-primary);
-      border-color: var(--border-color);
-    }
-
-    .modal-header {
-      background-color: var(--bg-secondary);
-      border-color: var(--border-color);
-    }
-
-    /* List */
-    li {
-      color: var(--text-primary);
-    }
-
-    /* Links */
-    a {
-      color: var(--accent-color);
-      text-decoration: none;
-    }
-
-    a:hover {
-      text-decoration: underline;
-    }
-
-    /* Horizontal Rule */
-    hr {
-      border-color: var(--border-color);
-    }
 
     /* MOBILE RESPONSIVENESS */
     @media (max-width: 768px) {
+
       .form-control,
       .form-select {
         font-size: 16px;
@@ -292,6 +103,7 @@ require_once __DIR__ . '/../src/conn.php';
     }
 
     @media (prefers-reduced-motion: reduce) {
+
       *,
       *::before,
       *::after {
@@ -324,27 +136,6 @@ require_once __DIR__ . '/../src/conn.php';
       padding-bottom: 5px;
     }
 
-    /* Dark Mode Toggle Button */
-    .dark-mode-toggle {
-      background: none;
-      border: none;
-      color: #667eea;
-      font-size: 20px;
-      padding: 5px 10px;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      display: flex;
-      align-items: center;
-    }
-
-    .dark-mode-toggle:hover {
-      color: #667eea;
-      transform: scale(1.1);
-    }
-
-    [data-theme="dark"] .dark-mode-toggle {
-      color: #ffc107;
-    }
   </style>
 
   <!-- =======================================================
@@ -373,11 +164,6 @@ require_once __DIR__ . '/../src/conn.php';
           <li><a href="#jurusan" class="nav-link">📚 Jurusan</a></li>
           <li><a href="#daftar" class="nav-link">📝 Buat Akun</a></li>
           <li><a href="login.php">🔑 Login</a></li>
-          <li>
-            <button class="theme-toggle-btn" id="themeToggle" title="Toggle Dark/Light Mode">
-              <i class="bi bi-moon-stars-fill"></i>
-            </button>
-          </li>
         </ul>
         <i class="mobile-nav-toggle d-xl-none bi bi-list"></i>
       </nav>
@@ -738,7 +524,7 @@ require_once __DIR__ . '/../src/conn.php';
 
       init() {
         const savedTheme = localStorage.getItem(this.themeKey);
-        
+
         if (savedTheme) {
           this.setTheme(savedTheme);
         } else {
@@ -779,7 +565,7 @@ require_once __DIR__ . '/../src/conn.php';
         toggleButton.type = 'button';
         toggleButton.setAttribute('aria-label', 'Toggle dark mode');
         toggleButton.title = 'Toggle Theme';
-        
+
         this.updateToggleButtonIcon(this.getTheme());
         toggleButton.addEventListener('click', (e) => {
           e.preventDefault();
@@ -820,7 +606,7 @@ require_once __DIR__ . '/../src/conn.php';
       constructor(formSelector) {
         this.form = document.querySelector(formSelector);
         if (!this.form) return;
-        
+
         this.validatedFields = new Set();
         this.init();
       }
@@ -833,15 +619,15 @@ require_once __DIR__ . '/../src/conn.php';
 
       setupInputValidation() {
         const inputs = this.form.querySelectorAll('input[type="text"], input[type="email"], input[type="password"]');
-        
+
         inputs.forEach(input => {
           if (input.name === 'password_verify') return;
-          
+
           input.addEventListener('blur', () => {
             this.validatedFields.add(input.name);
             this.validateField(input);
           });
-          
+
           input.addEventListener('input', () => {
             if (this.validatedFields.has(input.name)) {
               if (input.validateTimeout) clearTimeout(input.validateTimeout);
@@ -859,7 +645,8 @@ require_once __DIR__ . '/../src/conn.php';
         const value = input.value.trim();
         const type = input.type;
         const name = input.name;
-        let isValid = true, errorMsg = '';
+        let isValid = true,
+          errorMsg = '';
 
         input.classList.remove('is-valid', 'is-invalid');
 
@@ -913,7 +700,7 @@ require_once __DIR__ . '/../src/conn.php';
         passwordInput.addEventListener('input', () => {
           const val = passwordInput.value;
           const strengthBar = document.getElementById('password-strength-bar');
-          
+
           if (!strengthBar) return;
 
           let strength = 0;
@@ -924,7 +711,7 @@ require_once __DIR__ . '/../src/conn.php';
 
           strengthBar.style.width = strength + '%';
           strengthBar.className = 'progress-bar';
-          
+
           if (strength <= 40) {
             strengthBar.classList.add('bg-danger');
           } else if (strength <= 80) {
@@ -960,7 +747,7 @@ require_once __DIR__ . '/../src/conn.php';
           const isMatch = passInput.value === verifyInput.value;
           verifyInput.classList.toggle('is-valid', isMatch);
           verifyInput.classList.toggle('is-invalid', !isMatch);
-          
+
           matchFeedback.className = `small mt-1 ${isMatch ? 'text-success' : 'text-danger'}`;
           matchFeedback.textContent = isMatch ? '✓ Password cocok' : '✗ Password tidak cocok';
         };
@@ -1005,7 +792,7 @@ require_once __DIR__ . '/../src/conn.php';
       const toast = document.createElement('div');
       toast.className = `alert alert-${type} alert-dismissible fade show`;
       toast.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
-      
+
       toastContainer.appendChild(toast);
       setTimeout(() => toast.remove(), 5000);
     };
@@ -1015,7 +802,7 @@ require_once __DIR__ . '/../src/conn.php';
     // ============================================================
     // UNIFIED FORM VALIDATION & TAB NAVIGATION SYSTEM
     // ============================================================
-    
+
     // Utility: Debounce function to prevent excessive API calls
     function debounce(func, delayMs = 500) {
       let timeoutId;
@@ -1068,7 +855,7 @@ require_once __DIR__ . '/../src/conn.php';
       const emailInput = document.getElementById('email_daftar');
       const btnCheckEmail = document.getElementById('btnCheckEmail');
       const feedback = document.getElementById('email_feedback');
-      
+
       if (!emailInput) return;
 
       const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1105,42 +892,44 @@ require_once __DIR__ . '/../src/conn.php';
         }
 
         fetch('check_email_availability.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'email=' + encodeURIComponent(email)
-        })
-        .then(response => response.json())
-        .then(data => {
-          if (data.status === 'taken') {
-            emailInput.classList.add('is-invalid');
-            emailInput.classList.remove('is-valid');
-            feedback.className = 'small mt-1 text-danger';
-            feedback.textContent = data.message || 'Email sudah terdaftar.';
-          } else if (data.status === 'available') {
-            emailInput.classList.add('is-valid');
-            emailInput.classList.remove('is-invalid');
-            feedback.className = 'small mt-1 text-success';
-            feedback.textContent = data.message || 'Email tersedia.';
-          }
-          checkFormValidity();
-        })
-        .catch(error => {
-          console.error('Email check error:', error);
-          feedback.className = 'small mt-1 text-warning';
-          feedback.textContent = 'Tidak dapat memverifikasi email.';
-        })
-        .finally(() => {
-          isChecking = false;
-          if (btnCheckEmail) {
-            btnCheckEmail.disabled = false;
-            btnCheckEmail.innerHTML = '<i class="bi bi-search"></i> Cek Email';
-          }
-        });
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: 'email=' + encodeURIComponent(email)
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.status === 'taken') {
+              emailInput.classList.add('is-invalid');
+              emailInput.classList.remove('is-valid');
+              feedback.className = 'small mt-1 text-danger';
+              feedback.textContent = data.message || 'Email sudah terdaftar.';
+            } else if (data.status === 'available') {
+              emailInput.classList.add('is-valid');
+              emailInput.classList.remove('is-invalid');
+              feedback.className = 'small mt-1 text-success';
+              feedback.textContent = data.message || 'Email tersedia.';
+            }
+            checkFormValidity();
+          })
+          .catch(error => {
+            console.error('Email check error:', error);
+            feedback.className = 'small mt-1 text-warning';
+            feedback.textContent = 'Tidak dapat memverifikasi email.';
+          })
+          .finally(() => {
+            isChecking = false;
+            if (btnCheckEmail) {
+              btnCheckEmail.disabled = false;
+              btnCheckEmail.innerHTML = '<i class="bi bi-search"></i> Cek Email';
+            }
+          });
       }
 
       const debouncedCheck = debounce(performEmailCheck, 600);
       emailInput.addEventListener('input', debouncedCheck);
-      
+
       if (btnCheckEmail) {
         btnCheckEmail.addEventListener('click', performEmailCheck);
       }
@@ -1150,7 +939,7 @@ require_once __DIR__ . '/../src/conn.php';
     function setupPasswordStrength() {
       const passwordInput = document.getElementById('reg_password');
       const strengthBar = document.getElementById('password-strength-bar');
-      
+
       if (!passwordInput || !strengthBar) return;
 
       passwordInput.addEventListener('input', function() {
@@ -1167,11 +956,11 @@ require_once __DIR__ . '/../src/conn.php';
           if (/[0-9]+/.test(val)) strength += 25;
 
           strengthBar.style.width = strength + '%';
-          strengthBar.className = strength <= 40 
-            ? 'progress-bar bg-danger' 
-            : strength <= 80 
-            ? 'progress-bar bg-warning' 
-            : 'progress-bar bg-success';
+          strengthBar.className = strength <= 40 ?
+            'progress-bar bg-danger' :
+            strength <= 80 ?
+            'progress-bar bg-warning' :
+            'progress-bar bg-success';
 
           // Update requirements
           const reqLength = document.getElementById('req-length');
@@ -1253,69 +1042,8 @@ require_once __DIR__ . '/../src/conn.php';
       });
     }
 
-    // DARK MODE / LIGHT MODE HANDLER
-    class ThemeManager {
-      constructor() {
-        this.themeKey = 'smk-theme-preference';
-        this.init();
-      }
-
-      init() {
-        // Load saved theme or use system preference
-        const savedTheme = localStorage.getItem(this.themeKey);
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        const theme = savedTheme || (prefersDark ? 'dark' : 'light');
-        
-        this.setTheme(theme);
-        this.setupToggleButton();
-      }
-
-      setTheme(theme) {
-        const html = document.documentElement;
-        html.setAttribute('data-theme', theme);
-        localStorage.setItem(this.themeKey, theme);
-        this.updateToggleIcon(theme);
-      }
-
-      getTheme() {
-        return document.documentElement.getAttribute('data-theme') || 'light';
-      }
-
-      toggleTheme() {
-        const currentTheme = this.getTheme();
-        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-        this.setTheme(newTheme);
-      }
-
-      updateToggleIcon(theme) {
-        const toggleBtn = document.getElementById('themeToggle');
-        if (!toggleBtn) return;
-        
-        if (theme === 'dark') {
-          toggleBtn.innerHTML = '<i class="bi bi-sun-fill"></i>';
-          toggleBtn.title = 'Switch to Light Mode';
-        } else {
-          toggleBtn.innerHTML = '<i class="bi bi-moon-stars-fill"></i>';
-          toggleBtn.title = 'Switch to Dark Mode';
-        }
-      }
-
-      setupToggleButton() {
-        const toggleBtn = document.getElementById('themeToggle');
-        if (toggleBtn) {
-          toggleBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.toggleTheme();
-          });
-        }
-      }
-    }
-
     // INITIALIZE ALL ON PAGE LOAD
     document.addEventListener('DOMContentLoaded', function() {
-      // Initialize theme manager
-      new ThemeManager();
-
       // Password toggles
       setupPasswordToggle('reg_password', 'toggleRegPassword');
       setupPasswordToggle('reg_password_verify', 'toggleRegPasswordVerify');
@@ -1341,7 +1069,7 @@ require_once __DIR__ . '/../src/conn.php';
             const id = entry.target.getAttribute('id');
             const navLinks = document.querySelectorAll('nav.navmenu .nav-link');
             navLinks.forEach(link => link.classList.remove('active'));
-            
+
             const activeLink = document.querySelector(`nav.navmenu a[href="#${id}"]`);
             if (activeLink) {
               activeLink.classList.add('active');
