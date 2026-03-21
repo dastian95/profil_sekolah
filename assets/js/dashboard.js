@@ -70,7 +70,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Tunggu transisi CSS selesai (300ms) sebelum fetch konten baru
             setTimeout(() => {
-                fetch(url)
+                fetch(url, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
                     .then(res => res.text())
                     .then(html => {
                         const parser = new DOMParser();
