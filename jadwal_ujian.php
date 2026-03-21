@@ -34,6 +34,15 @@ if ($jurusan) {
     }
 }
 ?>
+
+<?php
+// Detect if request is from AJAX navigation
+$isAjaxRequest = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+                 strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
+// Only output full HTML structure for direct page loads
+if (!$isAjaxRequest) {
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -72,6 +81,9 @@ if ($jurusan) {
 </head>
 <body class="user-dashboard">
     <?php include 'sidebar.php'; ?>
+<?php
+} // End of full HTML structure - for AJAX requests, we skip to here
+?>
 
     <div class="content">
         <div class="container-fluid">
@@ -297,5 +309,12 @@ if ($jurusan) {
             }
         });
     </script>
+    </div> <!-- End of .content div (for AJAX requests) -->
+<?php
+if (!$isAjaxRequest) {
+?>
 </body>
 </html>
+<?php
+} // End of conditional HTML closing
+?>

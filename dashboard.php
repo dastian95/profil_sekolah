@@ -126,6 +126,13 @@ try {
 }
 
 $page = $_GET['page'] ?? 'home';
+
+// Detect if request is from AJAX navigation
+$isAjaxRequest = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+                 strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
+// Only output full HTML structure for direct page loads
+if (!$isAjaxRequest) {
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -146,6 +153,9 @@ $page = $_GET['page'] ?? 'home';
     
     <!-- Sidebar -->
     <?php include 'sidebar.php'; ?>
+<?php
+} // End of full HTML structure - for AJAX requests, we skip to here
+?>
 
     <!-- Main Content -->
     <div class="content">
@@ -597,5 +607,12 @@ $page = $_GET['page'] ?? 'home';
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Global Dashboard Script -->
     <script src="assets/js/dashboard.js"></script>
+    </div> <!-- End of .content div (for AJAX requests) -->
+<?php
+if (!$isAjaxRequest) {
+?>
 </body>
 </html>
+<?php
+} // End of conditional HTML closing
+?>
