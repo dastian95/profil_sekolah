@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['quick_foto'])) {
         if ($_FILES['quick_foto']['error'] !== UPLOAD_ERR_OK) {
             throw new Exception('Upload gagal. Kode error: ' . $_FILES['quick_foto']['error']);
         }
-        
+
         // Validasi ukuran (Max 2MB)
         if ($_FILES['quick_foto']['size'] > 2 * 1024 * 1024) {
             throw new Exception('Ukuran file terlalu besar. Maksimal 2MB.');
@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['quick_foto'])) {
 
         if (!is_dir('uploads')) mkdir('uploads', 0777, true);
         $new_name = 'foto_' . $_SESSION['user_id'] . '_' . time() . '.' . $ext;
-        
+
         if (move_uploaded_file($_FILES['quick_foto']['tmp_name'], 'uploads/' . $new_name)) {
             // Hapus foto lama jika ada
             if (!empty($existing['foto']) && file_exists('uploads/' . $existing['foto'])) {
@@ -100,18 +100,20 @@ try {
         $stmt = $conn->prepare("SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 5");
         $stmt->execute([$_SESSION['user_id']]);
         $notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (Exception $e) { /* Table might not exist */ }
+    } catch (Exception $e) { /* Table might not exist */
+    }
 
     // Fetch Announcements
     $announcements = [];
     try {
         $stmt = $conn->query("SELECT * FROM announcements WHERE is_active = 1 ORDER BY created_at DESC");
         $announcements = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (Exception $e) { /* Table might not exist */ }
+    } catch (Exception $e) { /* Table might not exist */
+    }
 
     // Logic Pengumuman Kelulusan
     // Ganti tanggal di bawah ini sesuai jadwal pengumuman
-    $announcement_date = $_ENV['ANNOUNCEMENT_DATE'] ?? '2026-06-05 10:00:00'; 
+    $announcement_date = $_ENV['ANNOUNCEMENT_DATE'] ?? '2026-06-05 10:00:00';
     $show_announcement = time() >= strtotime($announcement_date);
     $graduation_result = null;
 
@@ -120,7 +122,6 @@ try {
         $stmt->execute([$_SESSION['user_id']]);
         $graduation_result = $stmt->fetch(PDO::FETCH_ASSOC);
     }
-
 } catch (PDOException $e) {
     $error = "Database error: " . $e->getMessage();
 }
@@ -128,34 +129,36 @@ try {
 $page = $_GET['page'] ?? 'home';
 
 // Detect if request is from AJAX navigation
-$isAjaxRequest = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
-                 strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+$isAjaxRequest = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
+    strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 
 // Only output full HTML structure for direct page loads
 if (!$isAjaxRequest) {
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>User Dashboard - SMK Lab Jakarta</title>
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Bootstrap Icons -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-    <!-- Custom CSS -->
-    <link href="assets/css/main.css" rel="stylesheet">
-    <link href="assets/css/dashboard.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
-</head>
-<body class="user-dashboard">
-    
-    <!-- Sidebar -->
-    <?php include 'sidebar.php'; ?>
-<?php
+    <!DOCTYPE html>
+    <html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>User Dashboard - SMK Lab Jakarta</title>
+        <!-- Bootstrap CSS -->
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        <!-- Bootstrap Icons -->
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+        <!-- Custom CSS -->
+        <link href="assets/css/main.css" rel="stylesheet">
+        <link href="assets/css/dashboard.css" rel="stylesheet">
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
+    </head>
+
+    <body class="user-dashboard">
+
+        <!-- Sidebar -->
+        <?php include 'sidebar.php'; ?>
+    <?php
 } // End of full HTML structure - for AJAX requests, we skip to here
-?>
+    ?>
 
     <!-- Main Content -->
     <div class="content">
@@ -203,12 +206,12 @@ if (!$isAjaxRequest) {
             <div class="card shadow-sm border-0 mb-4 bg-primary text-white overflow-hidden">
                 <div class="card-body p-4 d-flex align-items-center">
                     <div class="position-relative me-4">
-                        <?php 
-                        $photoUrl = !empty($user['foto']) && file_exists('uploads/' . $user['foto']) 
-                            ? 'uploads/' . $user['foto'] 
+                        <?php
+                        $photoUrl = !empty($user['foto']) && file_exists('uploads/' . $user['foto'])
+                            ? 'uploads/' . $user['foto']
                             : '';
                         ?>
-                        <?php if($photoUrl): ?>
+                        <?php if ($photoUrl): ?>
                             <img src="<?php echo htmlspecialchars($photoUrl); ?>" id="dashboardProfileImg" class="rounded-circle border border-3 border-white shadow-sm" style="width: 80px; height: 80px; object-fit: cover;">
                         <?php else: ?>
                             <div id="dashboardProfileIcon" class="bg-white text-primary rounded-circle d-flex align-items-center justify-content-center border border-3 border-white shadow-sm" style="width: 80px; height: 80px;">
@@ -313,11 +316,11 @@ if (!$isAjaxRequest) {
                                 </div>
                                 <p class="text-muted small mt-2">You have uploaded <?php echo $uploaded_docs_count; ?> out of <?php echo $total_docs_count; ?> required documents.</p>
                             </div>
-                            
+
                             <ul class="list-group list-group-flush">
                                 <li class="list-group-item d-flex justify-content-between align-items-center px-0">
                                     <span><i class="bi bi-person-check me-2 <?php echo $user['jurusan'] ? 'text-success' : 'text-secondary'; ?>"></i> Complete Profile Data</span>
-                                    <?php if($user['jurusan']): ?>
+                                    <?php if ($user['jurusan']): ?>
                                         <span class="badge bg-success rounded-pill">Completed</span>
                                     <?php else: ?>
                                         <a href="profile.php" class="btn btn-sm btn-outline-primary">Complete Now</a>
@@ -325,7 +328,7 @@ if (!$isAjaxRequest) {
                                 </li>
                                 <li class="list-group-item d-flex justify-content-between align-items-center px-0">
                                     <span><i class="bi bi-file-earmark-arrow-up me-2 <?php echo $progress == 100 ? 'text-success' : 'text-secondary'; ?>"></i> Upload Documents</span>
-                                    <?php if($progress == 100): ?>
+                                    <?php if ($progress == 100): ?>
                                         <span class="badge bg-success rounded-pill">Completed</span>
                                     <?php else: ?>
                                         <a href="application.php" class="btn btn-sm btn-outline-primary">Upload</a>
@@ -333,7 +336,7 @@ if (!$isAjaxRequest) {
                                 </li>
                                 <li class="list-group-item d-flex justify-content-between align-items-center px-0">
                                     <span><i class="bi bi-shield-check me-2 <?php echo $user['is_verified'] ? 'text-success' : 'text-secondary'; ?>"></i> Account Verification</span>
-                                    <?php if($user['is_verified']): ?>
+                                    <?php if ($user['is_verified']): ?>
                                         <span class="badge bg-success rounded-pill">Verified</span>
                                     <?php else: ?>
                                         <span class="badge bg-warning text-dark">Pending</span>
@@ -387,7 +390,7 @@ if (!$isAjaxRequest) {
             </div>
 
         </div>
-        
+
         <!-- Page Specific Scripts (Moved inside content for AJAX reloading) -->
         <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
         <script>
@@ -417,7 +420,7 @@ if (!$isAjaxRequest) {
                         reader.onload = function(e) {
                             quickPhotoImage.src = e.target.result;
                             quickPhotoCropContainer.classList.remove('d-none');
-                            
+
                             if (quickCropper) {
                                 quickCropper.destroy();
                             }
@@ -434,17 +437,21 @@ if (!$isAjaxRequest) {
                 });
 
                 // Zoom Controls
-                if(btnZoomIn) {
-                    btnZoomIn.addEventListener('click', () => { if(quickCropper) quickCropper.zoom(0.1); });
+                if (btnZoomIn) {
+                    btnZoomIn.addEventListener('click', () => {
+                        if (quickCropper) quickCropper.zoom(0.1);
+                    });
                 }
-                if(btnZoomOut) {
-                    btnZoomOut.addEventListener('click', () => { if(quickCropper) quickCropper.zoom(-0.1); });
+                if (btnZoomOut) {
+                    btnZoomOut.addEventListener('click', () => {
+                        if (quickCropper) quickCropper.zoom(-0.1);
+                    });
                 }
 
                 // Handle Submit
                 quickPhotoForm.addEventListener('submit', function(e) {
                     e.preventDefault();
-                    
+
                     if (!quickCropper) {
                         alert('Silakan pilih foto terlebih dahulu.');
                         return;
@@ -457,7 +464,7 @@ if (!$isAjaxRequest) {
                     btn.disabled = true;
                     btn.innerHTML = 'Memproses...';
                     msg.innerHTML = '';
-                    if(uploadProgress) uploadProgress.classList.remove('d-none');
+                    if (uploadProgress) uploadProgress.classList.remove('d-none');
 
                     quickCropper.getCroppedCanvas({
                         width: 300,
@@ -466,7 +473,10 @@ if (!$isAjaxRequest) {
                         const formData = new FormData();
                         formData.append('quick_foto', blob, 'avatar.jpg');
 
-                        fetch('dashboard.php', { method: 'POST', body: formData })
+                        fetch('dashboard.php', {
+                                method: 'POST',
+                                body: formData
+                            })
                             .then(res => res.json())
                             .then(data => {
                                 if (data.success) {
@@ -479,14 +489,14 @@ if (!$isAjaxRequest) {
                                         img.classList.remove('d-none');
                                     }
                                     if (icon) icon.classList.add('d-none');
-                                    
+
                                     setTimeout(() => {
                                         const modal = bootstrap.Modal.getInstance(document.getElementById('quickPhotoModal'));
-                                        if(modal) modal.hide();
+                                        if (modal) modal.hide();
                                         msg.innerHTML = '';
                                         quickPhotoForm.reset();
                                         quickPhotoCropContainer.classList.add('d-none');
-                                        if(quickCropper) {
+                                        if (quickCropper) {
                                             quickCropper.destroy();
                                             quickCropper = null;
                                         }
@@ -502,7 +512,7 @@ if (!$isAjaxRequest) {
                             .finally(() => {
                                 btn.disabled = false;
                                 btn.innerHTML = originalText;
-                                if(uploadProgress) uploadProgress.classList.add('d-none');
+                                if (uploadProgress) uploadProgress.classList.add('d-none');
                             });
                     }, 'image/jpeg', 0.9);
                 });
@@ -516,7 +526,7 @@ if (!$isAjaxRequest) {
                         if (data.success) {
                             const list = document.getElementById('notificationList');
                             let html = '';
-                            
+
                             if (data.notifications.length > 0) {
                                 data.notifications.forEach(notif => {
                                     html += `
@@ -538,7 +548,6 @@ if (!$isAjaxRequest) {
             // Clear previous interval if exists to prevent duplicates on reload
             if (window.notifInterval) clearInterval(window.notifInterval);
             window.notifInterval = setInterval(fetchNotifications, 5000);
-
         </script>
 
         <footer class="dashboard-footer">
@@ -608,11 +617,12 @@ if (!$isAjaxRequest) {
     <!-- Global Dashboard Script -->
     <script src="assets/js/dashboard.js"></script>
     </div> <!-- End of .content div (for AJAX requests) -->
+    <?php
+    if (!$isAjaxRequest) {
+    ?>
+    </body>
+
+    </html>
 <?php
-if (!$isAjaxRequest) {
-?>
-</body>
-</html>
-<?php
-} // End of conditional HTML closing
+    } // End of conditional HTML closing
 ?>

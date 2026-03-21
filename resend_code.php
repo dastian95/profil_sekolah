@@ -55,10 +55,8 @@ try {
     $mail->send();
 
     echo json_encode(['success' => true, 'message' => 'New verification code sent to your email.', 'remaining' => $remaining]);
-
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'message' => 'Mailer Error: ' . $e->getMessage()]);
 } catch (\Exception $e) {
     echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
 }
-?>

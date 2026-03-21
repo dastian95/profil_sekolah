@@ -20,10 +20,9 @@ if (isset($_POST['school_name'])) {
         ");
         $stmt->execute([$school]);
         $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
+
         echo json_encode(['success' => true, 'data' => $students]);
     } catch (PDOException $e) {
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     }
 }
-?>

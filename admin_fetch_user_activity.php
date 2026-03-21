@@ -12,11 +12,11 @@ try {
     $stmt = $conn->prepare("SELECT action, ip_address, created_at FROM user_activity_logs WHERE user_id = ? ORDER BY created_at DESC LIMIT 10");
     $stmt->execute([$uid]);
     $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
+
     if (empty($logs)) {
         echo json_encode(['success' => true, 'data' => []]);
     } else {
-        foreach($logs as &$log) {
+        foreach ($logs as &$log) {
             $log['formatted_date'] = date('d M Y H:i', strtotime($log['created_at']));
         }
         echo json_encode(['success' => true, 'data' => $logs]);
@@ -24,4 +24,3 @@ try {
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }
-?>

@@ -140,10 +140,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Desktop Sidebar Collapse ---
     const desktopToggle = document.getElementById('desktopToggle');
     if (desktopToggle) {
-        // Muat preferensi dari localStorage
-        if (localStorage.getItem('sidebarCollapsed') === 'true') {
+        // Default: sidebar closed. Check localStorage untuk expand jika user sudah set
+        const savedState = localStorage.getItem('sidebarCollapsed');
+        if (savedState !== 'false') {
             body.classList.add('sidebar-collapsed');
             desktopToggle.innerHTML = '<i class="bi bi-chevron-right"></i>';
+        } else {
+            body.classList.remove('sidebar-collapsed');
+            desktopToggle.innerHTML = '<i class="bi bi-chevron-left"></i>';
         }
 
         desktopToggle.addEventListener('click', () => {
@@ -215,3 +219,5 @@ document.addEventListener('DOMContentLoaded', () => {
     
     initializePageSpecificScripts();
 });
+
+

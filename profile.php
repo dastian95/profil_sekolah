@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $mail = new PHPMailer(true);
-            
+
             // Server settings (Configure these with your actual SMTP details)
             // $mail->SMTPDebug = SMTP::DEBUG_SERVER; 
             $mail->isSMTP();
@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errorMsg = isset($mail) ? $mail->ErrorInfo : $e->getMessage();
             echo json_encode(['success' => false, 'message' => 'Mailer Error: ' . $errorMsg]);
         } catch (\Exception $e) {
-             echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+            echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
         }
         exit;
     }
@@ -67,14 +67,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $conn->prepare("SELECT foto FROM data_peserta WHERE id_pendaftar = ?");
             $stmt->execute([$user_id]);
             $curr_foto = $stmt->fetchColumn();
-            
+
             if ($curr_foto && file_exists('uploads/' . $curr_foto)) {
                 unlink('uploads/' . $curr_foto);
             }
-            
+
             $stmt = $conn->prepare("UPDATE data_peserta SET foto = '' WHERE id_pendaftar = ?");
             $stmt->execute([$user_id]);
-            
+
             echo json_encode(['success' => true, 'message' => '<div class="alert alert-success alert-dismissible fade show" role="alert">Photo deleted successfully!<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>']);
             exit;
         } catch (Exception $e) {
@@ -118,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $conn->prepare("SELECT id_pendaftar, foto FROM data_peserta WHERE id_pendaftar = ?");
         $stmt->execute([$user_id]);
         $existing_data = $stmt->fetch();
-        
+
         // Handle Photo Upload
         $foto_name = $existing_data['foto'] ?? '';
         if (isset($_FILES['foto']) && $_FILES['foto']['error'] === UPLOAD_ERR_OK) {
@@ -137,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         }
-        
+
         if ($existing_data) {
             // Update
             $sql = "UPDATE data_peserta SET nama=?, nisn=?, npsn=?, tanggal_lahir=?, asal_sekolah=?, no_telp_siswa=?, nama_ayah=?, no_telp_ayah=?, nama_ibu=?, no_telp_ibu=?, alamat=?, jurusan=?, provinsi=?, kota=?, Kecamatan=?, foto=? WHERE id_pendaftar=?";
@@ -145,25 +145,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$nama, $nisn, $npsn, $tanggal_lahir, $asal_sekolah, $no_telp_siswa, $nama_ayah, $no_telp_ayah, $nama_ibu, $no_telp_ibu, $alamat, $jurusan, $provinsi, $kota, $kecamatan, $foto_name, $user_id]);
         } else {
             // Insert
-            $email = $_SESSION['user_email'] ?? ''; 
-            if(empty($email)) {
-                 $u_stmt = $conn->prepare("SELECT email FROM users WHERE id_pendaftar = ?");
-                 $u_stmt->execute([$user_id]);
-                 $email = $u_stmt->fetchColumn();
+            $email = $_SESSION['user_email'] ?? '';
+            if (empty($email)) {
+                $u_stmt = $conn->prepare("SELECT email FROM users WHERE id_pendaftar = ?");
+                $u_stmt->execute([$user_id]);
+                $email = $u_stmt->fetchColumn();
             }
 
             $sql = "INSERT INTO data_peserta (id_pendaftar, nama, nisn, npsn, tanggal_lahir, asal_sekolah, no_telp_siswa, no_telp_ortu, alamat, jurusan, email, provinsi, kota, Kecamatan, foto, nama_ayah, no_telp_ayah, nama_ibu, no_telp_ibu) VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = $conn->prepare($sql);
             $stmt->execute([$user_id, $nama, $nisn, $npsn, $tanggal_lahir, $asal_sekolah, $no_telp_siswa, $alamat, $jurusan, $email, $provinsi, $kota, $kecamatan, $foto_name, $nama_ayah, $no_telp_ayah, $nama_ibu, $no_telp_ibu]);
         }
-        
+
         // Update users table name and NISN (agar admin bisa lihat)
         $stmt = $conn->prepare("UPDATE users SET name = ?, nisn = ? WHERE id_pendaftar = ?");
         $stmt->execute([$nama, $nisn, $user_id]);
         $_SESSION['user_name'] = $nama;
 
         $message = '<div class="alert alert-success alert-dismissible fade show" role="alert">Profile updated successfully!<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>';
-        
+
         // Return JSON for AJAX requests
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
             echo json_encode(['success' => true, 'message' => $message]);
@@ -171,7 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } catch (PDOException $e) {
         $message = '<div class="alert alert-danger alert-dismissible fade show" role="alert">Database Error: ' . htmlspecialchars($e->getMessage()) . '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>';
-        
+
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
             echo json_encode(['success' => false, 'message' => $message]);
             exit;
@@ -188,10 +188,10 @@ $data = $stmt->fetch(PDO::FETCH_ASSOC);
 if (isset($_SESSION['prefill_data'])) {
     // Use prefill data only if the corresponding field from the database is empty
     $data['asal_sekolah'] = empty($data['asal_sekolah']) ? $_SESSION['prefill_data']['asal_sekolah'] : $data['asal_sekolah'];
-    $data['tanggal_lahir'] = (empty($data['tanggal_lahir']) || $data['tanggal_lahir'] == '0000-00-00') 
-                           ? $_SESSION['prefill_data']['tanggal_lahir'] 
-                           : $data['tanggal_lahir'];
-    
+    $data['tanggal_lahir'] = (empty($data['tanggal_lahir']) || $data['tanggal_lahir'] == '0000-00-00')
+        ? $_SESSION['prefill_data']['tanggal_lahir']
+        : $data['tanggal_lahir'];
+
     // Unset the session variable after using it
     unset($_SESSION['prefill_data']);
 }
@@ -202,72 +202,108 @@ $nisn = $data['nisn'] ?? $data['user_nisn'] ?? '';
 $email = $data['email'] ?? '';
 
 // Detect if request is from AJAX navigation
-$isAjaxRequest = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
-                 strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+$isAjaxRequest = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
+    strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 
 // Only output full HTML structure for direct page loads
 if (!$isAjaxRequest) {
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Profile - SMK Lab Jakarta</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-    <link href="assets/css/main.css" rel="stylesheet">
-    <link href="assets/css/dashboard.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
-    <style>
-        @media print {
-            body {
-                background-color: #fff !important;
+    <!DOCTYPE html>
+    <html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>My Profile - SMK Lab Jakarta</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+        <link href="assets/css/main.css" rel="stylesheet">
+        <link href="assets/css/dashboard.css" rel="stylesheet">
+        <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
+        <style>
+            @media print {
+                body {
+                    background-color: #fff !important;
+                }
+
+                .sidebar,
+                .btn,
+                .alert,
+                .content>.container-fluid>h2,
+                .dropdown {
+                    display: none !important;
+                }
+
+                .content {
+                    margin-left: 0 !important;
+                    padding: 0 !important;
+                }
+
+                .card {
+                    box-shadow: none !important;
+                    border: none !important;
+                }
+
+                .form-control,
+                .form-select {
+                    border: none !important;
+                    background-color: transparent !important;
+                    -webkit-appearance: none;
+                    -moz-appearance: none;
+                    appearance: none;
+                    padding-left: 0 !important;
+                }
+
+                .form-control:disabled {
+                    background-color: transparent !important;
+                }
+
+                .form-label {
+                    font-weight: bold;
+                }
+
+                /* Hide upload controls in print */
+                input[type="file"],
+                .progress,
+                #deletePhotoBtn,
+                .form-label.small {
+                    display: none !important;
+                }
+
+                /* Force grid layout for print */
+                .col-md-6 {
+                    width: 50% !important;
+                    float: left;
+                }
+
+                .col-md-4 {
+                    width: 33.33% !important;
+                    float: left;
+                }
+
+                .col-12 {
+                    width: 100% !important;
+                    clear: both;
+                }
+
+                .row {
+                    display: flex;
+                    flex-wrap: wrap;
+                }
+
+                /* Ensure photo is centered */
+                .text-center img {
+                    margin: 0 auto;
+                }
             }
-            .sidebar, .btn, .alert, .content > .container-fluid > h2, .dropdown {
-                display: none !important;
-            }
-            .content {
-                margin-left: 0 !important;
-                padding: 0 !important;
-            }
-            .card {
-                box-shadow: none !important;
-                border: none !important;
-            }
-            .form-control, .form-select {
-                border: none !important;
-                background-color: transparent !important;
-                -webkit-appearance: none;
-                -moz-appearance: none;
-                appearance: none;
-                padding-left: 0 !important;
-            }
-            .form-control:disabled {
-                 background-color: transparent !important;
-            }
-            .form-label {
-                font-weight: bold;
-            }
-            /* Hide upload controls in print */
-            input[type="file"], .progress, #deletePhotoBtn, .form-label.small {
-                display: none !important;
-            }
-            /* Force grid layout for print */
-            .col-md-6 { width: 50% !important; float: left; }
-            .col-md-4 { width: 33.33% !important; float: left; }
-            .col-12 { width: 100% !important; clear: both; }
-            .row { display: flex; flex-wrap: wrap; }
-            /* Ensure photo is centered */
-            .text-center img { margin: 0 auto; }
-        }
-    </style>
-</head>
-<body class="user-dashboard">
-    <?php include 'sidebar.php'; ?>
-<?php
+        </style>
+    </head>
+
+    <body class="user-dashboard">
+        <?php include 'sidebar.php'; ?>
+    <?php
 } // End of full HTML structure - for AJAX requests, we skip to here
-?>
+    ?>
 
 
     <div class="content">
@@ -283,7 +319,7 @@ if (!$isAjaxRequest) {
             </nav>
             <h2 class="mb-4 text-dark">My Profile</h2>
             <div id="alertContainer"><?php echo $message; ?></div>
-            
+
             <div class="card shadow-sm border-0">
                 <div class="card-body">
                     <form method="POST" action="" enctype="multipart/form-data">
@@ -333,9 +369,9 @@ if (!$isAjaxRequest) {
                                 <label class="form-label">Major (Jurusan)</label>
                                 <select class="form-select" name="jurusan" required>
                                     <option value="">Select Major</option>
-                                    <?php 
+                                    <?php
                                     $majors = ['Rekayasa Perangkat Lunak (RPL)', 'Teknik Komputer dan Jaringan (TKJ)', 'Asisten Keperawatan (AP)', 'Tata Kecantikan Kulit dan Rambut (TKKR)'];
-                                    foreach($majors as $m) {
+                                    foreach ($majors as $m) {
                                         $selected = ($data['jurusan'] ?? '') === $m ? 'selected' : '';
                                         echo "<option value=\"$m\" $selected>$m</option>";
                                     }
@@ -378,7 +414,7 @@ if (!$isAjaxRequest) {
                 </div>
             </div>
         </div>
-        
+
         <!-- Hidden PDF Template (Layout Resmi) -->
         <div id="pdfTemplate" style="width: 210mm; background: #fff; padding: 20px; font-family: 'Times New Roman', serif; color: #000; display: none; position: relative;">
             <!-- Watermark DRAFT -->
@@ -397,7 +433,7 @@ if (!$isAjaxRequest) {
                     <p style="margin: 0; font-size: 14px;">Telp: (021) 8660 1234 | Email: info@smklab.sch.id</p>
                 </div>
             </div>
-            
+
             <div style="text-align: center; margin-bottom: 30px; position: relative; z-index: 1;">
                 <h3 style="text-decoration: underline; margin: 0; font-size: 20px;">BIODATA CALON SISWA</h3>
                 <p style="margin: 5px 0;">Tahun Ajaran 2026/2027</p>
@@ -457,8 +493,8 @@ if (!$isAjaxRequest) {
                     <tr>
                         <td style="padding: 8px 0; font-weight: bold; vertical-align: top;">Alamat Lengkap</td>
                         <td style="padding: 8px 0;">: <?php echo htmlspecialchars($data['alamat'] ?? '-'); ?><br>
-                          &nbsp;&nbsp;Kec. <?php echo htmlspecialchars($data['Kecamatan'] ?? '-'); ?>, <?php echo htmlspecialchars($data['kota'] ?? '-'); ?><br>
-                          &nbsp;&nbsp;Prov. <?php echo htmlspecialchars($data['provinsi'] ?? '-'); ?>
+                            &nbsp;&nbsp;Kec. <?php echo htmlspecialchars($data['Kecamatan'] ?? '-'); ?>, <?php echo htmlspecialchars($data['kota'] ?? '-'); ?><br>
+                            &nbsp;&nbsp;Prov. <?php echo htmlspecialchars($data['provinsi'] ?? '-'); ?>
                         </td>
                     </tr>
                 </table>
@@ -492,7 +528,7 @@ if (!$isAjaxRequest) {
             var deletePhotoBtn = document.getElementById('deletePhotoBtn');
             var isCropped = false;
 
-            if(inputFoto) {
+            if (inputFoto) {
                 inputFoto.addEventListener('change', function(e) {
                     const files = e.target.files;
                     if (files && files.length > 0) {
@@ -513,7 +549,7 @@ if (!$isAjaxRequest) {
                 });
             }
 
-            cropModalEl.addEventListener('shown.bs.modal', function () {
+            cropModalEl.addEventListener('shown.bs.modal', function() {
                 cropper = new Cropper(imageToCrop, {
                     aspectRatio: 3 / 4,
                     viewMode: 1,
@@ -523,7 +559,7 @@ if (!$isAjaxRequest) {
                 });
             });
 
-            cropModalEl.addEventListener('hidden.bs.modal', function () {
+            cropModalEl.addEventListener('hidden.bs.modal', function() {
                 if (cropper) {
                     cropper.destroy();
                     cropper = null;
@@ -541,22 +577,25 @@ if (!$isAjaxRequest) {
                     imageSmoothingEnabled: true,
                     imageSmoothingQuality: 'high',
                 });
+
                 function compressAndSave(quality) {
                     canvas.toBlob(function(blob) {
                         if (blob.size > 2 * 1024 * 1024 && quality > 0.1) {
                             compressAndSave(quality - 0.1);
                             return;
                         }
-                    const file = new File([blob], 'pas_foto_cropped.jpg', { type: 'image/jpeg' });
-                    const dataTransfer = new DataTransfer();
-                    dataTransfer.items.add(file);
-                    inputFoto.files = dataTransfer.files;
-                    const url = URL.createObjectURL(blob);
-                    previewFoto.src = url;
-                    previewFoto.classList.remove('d-none');
-                    if(defaultIcon) defaultIcon.classList.add('d-none');
-                    isCropped = true;
-                    cropModal.hide();
+                        const file = new File([blob], 'pas_foto_cropped.jpg', {
+                            type: 'image/jpeg'
+                        });
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(file);
+                        inputFoto.files = dataTransfer.files;
+                        const url = URL.createObjectURL(blob);
+                        previewFoto.src = url;
+                        previewFoto.classList.remove('d-none');
+                        if (defaultIcon) defaultIcon.classList.add('d-none');
+                        isCropped = true;
+                        cropModal.hide();
                     }, 'image/jpeg', quality);
                 }
                 compressAndSave(0.9);
@@ -568,33 +607,35 @@ if (!$isAjaxRequest) {
                         const formData = new FormData();
                         formData.append('delete_photo', '1');
                         fetch('profile.php', {
-                            method: 'POST',
-                            body: formData,
-                            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            const alertContainer = document.getElementById('alertContainer');
-                            alertContainer.innerHTML = data.message;
-                            if (data.success) {
-                                previewFoto.src = '';
-                                previewFoto.classList.add('d-none');
-                                if (defaultIcon) defaultIcon.classList.remove('d-none');
-                                deletePhotoBtn.classList.add('d-none');
-                                inputFoto.value = '';
-                            }
-                        });
+                                method: 'POST',
+                                body: formData,
+                                headers: {
+                                    'X-Requested-With': 'XMLHttpRequest'
+                                }
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                const alertContainer = document.getElementById('alertContainer');
+                                alertContainer.innerHTML = data.message;
+                                if (data.success) {
+                                    previewFoto.src = '';
+                                    previewFoto.classList.add('d-none');
+                                    if (defaultIcon) defaultIcon.classList.remove('d-none');
+                                    deletePhotoBtn.classList.add('d-none');
+                                    inputFoto.value = '';
+                                }
+                            });
                     }
                 });
             }
 
             // Form Submit Logic
             var profileForm = document.querySelector('form');
-            if(profileForm) {
+            if (profileForm) {
                 profileForm.addEventListener('submit', function(e) {
                     e.preventDefault();
                     if (!confirm('Are you sure you want to save these changes?')) return;
-                    
+
                     const submitBtn = this.querySelector('button[type="submit"]');
                     const printBtn = document.getElementById('printBtn');
                     const originalBtnText = submitBtn.innerHTML;
@@ -633,7 +674,9 @@ if (!$isAjaxRequest) {
 
             // PDF Logic (Simplified for brevity, logic remains same)
             document.getElementById('printBtn').addEventListener('click', async function() {
-                const { jsPDF } = window.jspdf;
+                const {
+                    jsPDF
+                } = window.jspdf;
                 // Gunakan template khusus PDF yang baru dibuat
                 const element = document.getElementById('pdfTemplate');
                 const btn = this;
@@ -647,7 +690,10 @@ if (!$isAjaxRequest) {
                 element.style.left = '-9999px';
                 element.style.top = '0';
 
-                html2canvas(element, { scale: 2, useCORS: true }).then(canvas => {
+                html2canvas(element, {
+                    scale: 2,
+                    useCORS: true
+                }).then(canvas => {
                     // Sembunyikan kembali template
                     element.style.display = 'none';
 
@@ -656,14 +702,14 @@ if (!$isAjaxRequest) {
                     const pdfWidth = pdf.internal.pageSize.getWidth();
                     const ratio = pdfWidth / canvas.width;
                     const imgHeight = canvas.height * ratio;
-                    
+
                     pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, imgHeight);
-                    
+
                     window.currentPdfBlob = pdf.output('blob');
                     const url = URL.createObjectURL(window.currentPdfBlob);
                     document.getElementById('pdfPreviewFrame').src = url;
                     new bootstrap.Modal(document.getElementById('pdfPreviewModal')).show();
-                    
+
                     btn.disabled = false;
                     btn.innerHTML = originalText;
                 }).catch(err => {
@@ -682,13 +728,13 @@ if (!$isAjaxRequest) {
                     if (window.currentPdfBlob) {
                         let nama = document.querySelector('input[name="nama"]').value || 'Siswa';
                         let nisn = document.querySelector('input[name="nisn"]').value || '000';
-                        
+
                         // Sanitasi string untuk nama file (ganti spasi/simbol dengan underscore)
                         nama = nama.replace(/[^a-zA-Z0-9]/g, '_');
                         nisn = nisn.replace(/[^0-9]/g, '');
-                        
+
                         const filename = `Biodata_${nama}_${nisn}.pdf`;
-                        
+
                         const link = document.createElement('a');
                         link.href = URL.createObjectURL(window.currentPdfBlob);
                         link.download = filename;
@@ -717,7 +763,10 @@ if (!$isAjaxRequest) {
                     formData.append('action', 'email_pdf');
                     formData.append('pdf_file', window.currentPdfBlob, 'Biodata_Siswa.pdf');
 
-                    fetch('profile.php', { method: 'POST', body: formData })
+                    fetch('profile.php', {
+                            method: 'POST',
+                            body: formData
+                        })
                         .then(response => response.json())
                         .then(data => {
                             alert(data.message);
@@ -738,13 +787,13 @@ if (!$isAjaxRequest) {
             const selectProvinsi = document.getElementById('selectProvinsi');
             const selectKota = document.getElementById('selectKota');
             const selectKecamatan = document.getElementById('selectKecamatan');
-            
+
             async function fetchData(endpoint) {
                 const response = await fetch(`${apiUrl}/${endpoint}.json`);
                 return await response.json();
             }
-            
-            if(selectProvinsi && selectProvinsi.options.length <= 1) {
+
+            if (selectProvinsi && selectProvinsi.options.length <= 1) {
                 fetchData('provinces').then(provinces => {
                     provinces.forEach(p => selectProvinsi.add(new Option(p.name, p.id)));
                 });
@@ -771,7 +820,10 @@ if (!$isAjaxRequest) {
                     const formData = new FormData();
                     formData.append('npsn', npsn);
 
-                    fetch('check_npsn.php', { method: 'POST', body: formData })
+                    fetch('check_npsn.php', {
+                            method: 'POST',
+                            body: formData
+                        })
                         .then(response => response.json())
                         .then(data => {
                             if (data.success) {
@@ -859,11 +911,12 @@ if (!$isAjaxRequest) {
     <!-- Global Dashboard Script -->
     <script src="assets/js/dashboard.js"></script>
     </div> <!-- End of .content div (for AJAX requests) -->
+    <?php
+    if (!$isAjaxRequest) {
+    ?>
+    </body>
+
+    </html>
 <?php
-if (!$isAjaxRequest) {
-?>
-</body>
-</html>
-<?php
-} // End of conditional HTML closing
+    } // End of conditional HTML closing
 ?>

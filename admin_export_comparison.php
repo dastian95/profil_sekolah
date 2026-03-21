@@ -60,24 +60,54 @@ try {
     header("Pragma: no-cache");
     header("Expires: 0");
 
-    ?>
+?>
     <!DOCTYPE html>
     <html>
+
     <head>
         <meta charset="utf-8">
         <style>
-            body { font-family: Arial, sans-serif; }
-            table { border-collapse: collapse; width: 100%; margin-bottom: 30px; }
-            th, td { border: 1px solid #000000; padding: 8px; text-align: left; vertical-align: top; }
-            th { background-color: #4CAF50; color: white; font-weight: bold; text-align: center; }
-            h2, h3 { margin-top: 20px; margin-bottom: 10px; }
-            .text-center { text-align: center; }
+            body {
+                font-family: Arial, sans-serif;
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+                margin-bottom: 30px;
+            }
+
+            th,
+            td {
+                border: 1px solid #000000;
+                padding: 8px;
+                text-align: left;
+                vertical-align: top;
+            }
+
+            th {
+                background-color: #4CAF50;
+                color: white;
+                font-weight: bold;
+                text-align: center;
+            }
+
+            h2,
+            h3 {
+                margin-top: 20px;
+                margin-bottom: 10px;
+            }
+
+            .text-center {
+                text-align: center;
+            }
         </style>
     </head>
+
     <body>
         <h2 class="text-center">LAPORAN ANALISIS DATA PPDB</h2>
         <p class="text-center">SMK Laboratorium Jakarta - Tanggal: <?php echo date('d F Y'); ?></p>
-        <?php if(!empty($start_date)): ?>
+        <?php if (!empty($start_date)): ?>
             <p class="text-center">Periode: <?php echo $start_date; ?> s/d <?php echo $end_date; ?></p>
         <?php endif; ?>
         <br>
@@ -93,16 +123,19 @@ try {
                 </tr>
             </thead>
             <tbody>
-                <?php if(empty($jurusan_stats)): ?>
-                    <tr><td colspan="4" class="text-center">Tidak ada data.</td></tr>
-                <?php else: ?>
-                    <?php $no = 1; foreach($jurusan_stats as $row): ?>
+                <?php if (empty($jurusan_stats)): ?>
                     <tr>
-                        <td class="text-center"><?php echo $no++; ?></td>
-                        <td><?php echo htmlspecialchars($row['jurusan']); ?></td>
-                        <td><?php echo htmlspecialchars($row['jalur_daftar'] ?: 'Umum'); ?></td>
-                        <td class="text-center"><?php echo $row['total']; ?></td>
+                        <td colspan="4" class="text-center">Tidak ada data.</td>
                     </tr>
+                <?php else: ?>
+                    <?php $no = 1;
+                    foreach ($jurusan_stats as $row): ?>
+                        <tr>
+                            <td class="text-center"><?php echo $no++; ?></td>
+                            <td><?php echo htmlspecialchars($row['jurusan']); ?></td>
+                            <td><?php echo htmlspecialchars($row['jalur_daftar'] ?: 'Umum'); ?></td>
+                            <td class="text-center"><?php echo $row['total']; ?></td>
+                        </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>
             </tbody>
@@ -118,15 +151,18 @@ try {
                 </tr>
             </thead>
             <tbody>
-                <?php if(empty($school_stats)): ?>
-                    <tr><td colspan="3" class="text-center">Tidak ada data.</td></tr>
-                <?php else: ?>
-                    <?php $no = 1; foreach($school_stats as $row): ?>
+                <?php if (empty($school_stats)): ?>
                     <tr>
-                        <td class="text-center"><?php echo $no++; ?></td>
-                        <td><?php echo htmlspecialchars($row['asal_sekolah']); ?></td>
-                        <td class="text-center"><?php echo $row['total']; ?></td>
+                        <td colspan="3" class="text-center">Tidak ada data.</td>
                     </tr>
+                <?php else: ?>
+                    <?php $no = 1;
+                    foreach ($school_stats as $row): ?>
+                        <tr>
+                            <td class="text-center"><?php echo $no++; ?></td>
+                            <td><?php echo htmlspecialchars($row['asal_sekolah']); ?></td>
+                            <td class="text-center"><?php echo $row['total']; ?></td>
+                        </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>
             </tbody>
@@ -142,25 +178,28 @@ try {
                 </tr>
             </thead>
             <tbody>
-                <?php if(empty($city_stats)): ?>
-                    <tr><td colspan="3" class="text-center">Tidak ada data.</td></tr>
-                <?php else: ?>
-                    <?php $no = 1; foreach($city_stats as $row): ?>
+                <?php if (empty($city_stats)): ?>
                     <tr>
-                        <td class="text-center"><?php echo $no++; ?></td>
-                        <td><?php echo htmlspecialchars($row['kota']); ?></td>
-                        <td class="text-center"><?php echo $row['total']; ?></td>
+                        <td colspan="3" class="text-center">Tidak ada data.</td>
                     </tr>
+                <?php else: ?>
+                    <?php $no = 1;
+                    foreach ($city_stats as $row): ?>
+                        <tr>
+                            <td class="text-center"><?php echo $no++; ?></td>
+                            <td><?php echo htmlspecialchars($row['kota']); ?></td>
+                            <td class="text-center"><?php echo $row['total']; ?></td>
+                        </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>
             </tbody>
         </table>
 
     </body>
-    </html>
-    <?php
-    exit;
 
+    </html>
+<?php
+    exit;
 } catch (PDOException $e) {
     die("Database error: " . $e->getMessage());
 }

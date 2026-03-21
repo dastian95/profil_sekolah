@@ -28,24 +28,69 @@ try {
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Data Siswa - <?php echo htmlspecialchars($school_name); ?></title>
     <style>
-        body { font-family: Arial, sans-serif; font-size: 12px; padding: 20px; }
-        .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
-        .header h1 { margin: 0; font-size: 16px; }
-        .header h2 { margin: 5px 0 0; font-size: 14px; font-weight: normal; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #000; padding: 6px; text-align: left; }
-        th { background-color: #f2f2f2; text-align: center; }
-        .text-center { text-align: center; }
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 16px;
+        }
+
+        .header h2 {
+            margin: 5px 0 0;
+            font-size: 14px;
+            font-weight: normal;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th,
+        td {
+            border: 1px solid #000;
+            padding: 6px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+            text-align: center;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
         @media print {
-            @page { margin: 10mm; }
-            body { -webkit-print-color-adjust: exact; }
+            @page {
+                margin: 10mm;
+            }
+
+            body {
+                -webkit-print-color-adjust: exact;
+            }
         }
     </style>
 </head>
+
 <body onload="window.print()">
     <div class="header">
         <h1>DAFTAR PENDAFTAR PPDB</h1>
@@ -66,20 +111,24 @@ try {
         </thead>
         <tbody>
             <?php if (count($students) > 0): ?>
-                <?php $no = 1; foreach ($students as $s): ?>
-                <tr>
-                    <td class="text-center"><?php echo $no++; ?></td>
-                    <td><?php echo htmlspecialchars($s['nama']); ?></td>
-                    <td><?php echo htmlspecialchars($s['nisn']); ?></td>
-                    <td><?php echo htmlspecialchars($s['jurusan']); ?></td>
-                    <td><?php echo htmlspecialchars($s['no_telp_siswa']); ?></td>
-                    <td class="text-center"><?php echo htmlspecialchars($s['status_pendaftaran'] ?? 'Draft'); ?></td>
-                </tr>
+                <?php $no = 1;
+                foreach ($students as $s): ?>
+                    <tr>
+                        <td class="text-center"><?php echo $no++; ?></td>
+                        <td><?php echo htmlspecialchars($s['nama']); ?></td>
+                        <td><?php echo htmlspecialchars($s['nisn']); ?></td>
+                        <td><?php echo htmlspecialchars($s['jurusan']); ?></td>
+                        <td><?php echo htmlspecialchars($s['no_telp_siswa']); ?></td>
+                        <td class="text-center"><?php echo htmlspecialchars($s['status_pendaftaran'] ?? 'Draft'); ?></td>
+                    </tr>
                 <?php endforeach; ?>
             <?php else: ?>
-                <tr><td colspan="6" class="text-center">Tidak ada data siswa dari sekolah ini.</td></tr>
+                <tr>
+                    <td colspan="6" class="text-center">Tidak ada data siswa dari sekolah ini.</td>
+                </tr>
             <?php endif; ?>
         </tbody>
     </table>
 </body>
+
 </html>

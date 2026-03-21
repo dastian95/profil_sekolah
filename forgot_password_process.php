@@ -41,7 +41,7 @@ try {
         $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https" : "http";
         $domain = $_SERVER['HTTP_HOST'] ?? $_ENV['APP_URL'];
         $baseUrl = $protocol . "://" . $domain;
-        
+
         // Get project folder path from REQUEST_URI
         $scriptDir = dirname($_SERVER['SCRIPT_NAME']); // e.g., '/profil_sekolah'
         $resetLink = $baseUrl . $scriptDir . '/reset_password.php?token=' . urlencode($token);

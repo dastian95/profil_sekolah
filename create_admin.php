@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This is a one-time use script to create an admin account.
  *
@@ -44,4 +45,3 @@ try {
 }
 
 echo "</pre>";
-?>

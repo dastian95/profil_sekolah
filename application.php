@@ -12,11 +12,11 @@ $message = '';
 // Handle Delete Document
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_document'])) {
     $id_jenis_del = $_POST['id_jenis'];
-    
+
     $stmt = $conn->prepare("SELECT nama_file FROM unggah_dokumen WHERE id_pendaftar = ? AND id_jenis = ?");
     $stmt->execute([$user_id, $id_jenis_del]);
     $file_to_delete = $stmt->fetchColumn();
-    
+
     if ($file_to_delete) {
         if (file_exists('uploads/' . $file_to_delete)) {
             unlink('uploads/' . $file_to_delete);
@@ -31,19 +31,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_document'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['document'])) {
     $id_jenis = $_POST['id_jenis'];
     $file = $_FILES['document'];
-    
+
     if ($file['error'] === UPLOAD_ERR_OK) {
         $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
         $allowed = ['jpg', 'jpeg', 'png', 'pdf'];
-        
+
         if (in_array($ext, $allowed)) {
             if (!is_dir('uploads')) {
                 mkdir('uploads', 0777, true);
             }
-            
+
             $new_name = $user_id . '_' . $id_jenis . '_' . time() . '.' . $ext;
             $dest = 'uploads/' . $new_name;
-            
+
             if (move_uploaded_file($file['tmp_name'], $dest)) {
                 // Ensure pendaftar record exists (Foreign Key Constraint)
                 $stmt_p = $conn->prepare("SELECT id_pendaftar FROM pendaftar WHERE id_pendaftar = ?");
@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['document'])) {
                 $stmt = $conn->prepare("SELECT id_unggah FROM unggah_dokumen WHERE id_pendaftar = ? AND id_jenis = ?");
                 $stmt->execute([$user_id, $id_jenis]);
                 $existing = $stmt->fetch();
-                
+
                 if ($existing) {
                     $stmt = $conn->prepare("UPDATE unggah_dokumen SET nama_file = ?, is_verified = 0 WHERE id_unggah = ?");
                     $stmt->execute([$new_name, $existing['id_unggah']]);
@@ -72,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['document'])) {
                     $stmt = $conn->prepare("INSERT INTO unggah_dokumen (id_pendaftar, id_jenis, nama_file) VALUES (?, ?, ?)");
                     $stmt->execute([$user_id, $id_jenis, $new_name]);
                 }
-                
+
                 $message = '<div class="alert alert-success alert-dismissible fade show">Document uploaded successfully!<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
             } else {
                 $message = '<div class="alert alert-danger alert-dismissible fade show">Failed to move uploaded file.<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
@@ -105,33 +105,35 @@ $stmt = $conn->prepare("SELECT * FROM unggah_dokumen WHERE id_pendaftar = ?");
 $stmt->execute([$user_id]);
 $uploads_raw = $stmt->fetchAll(PDO::FETCH_ASSOC);
 $uploads = [];
-foreach($uploads_raw as $u) {
+foreach ($uploads_raw as $u) {
     $uploads[$u['id_jenis']] = $u;
 }
 
 // Detect if request is from AJAX navigation
-$isAjaxRequest = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
-                 strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+$isAjaxRequest = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
+    strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 
 // Only output full HTML structure for direct page loads
 if (!$isAjaxRequest) {
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Application - SMK Lab Jakarta</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-    <link href="assets/css/main.css" rel="stylesheet">
-    <link href="assets/css/dashboard.css" rel="stylesheet">
-</head>
-<body class="user-dashboard">
-    <?php include 'sidebar.php'; ?>
-<?php
+    <!DOCTYPE html>
+    <html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>My Application - SMK Lab Jakarta</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+        <link href="assets/css/main.css" rel="stylesheet">
+        <link href="assets/css/dashboard.css" rel="stylesheet">
+    </head>
+
+    <body class="user-dashboard">
+        <?php include 'sidebar.php'; ?>
+    <?php
 } // End of full HTML structure - for AJAX requests, we skip to here
-?>
+    ?>
 
     <div class="content">
         <div class="container-fluid">
@@ -146,19 +148,21 @@ if (!$isAjaxRequest) {
             </nav>
             <h2 class="mb-4 text-dark">My Application Documents</h2>
             <?php echo $message; ?>
-            
+
             <div class="row g-4">
                 <?php foreach ($doc_types as $doc): ?>
-                    <?php 
-                    $uploaded = $uploads[$doc['id_jenis']] ?? null; 
-                    $status = $uploaded ? ($uploaded['is_verified'] ? 'Verified' : 'Pending Verification') : 'Not Uploaded'; 
-                    $statusClass = $uploaded ? ($uploaded['is_verified'] ? 'bg-success' : 'bg-warning text-dark') : 'bg-secondary'; 
+                    <?php
+                    $uploaded = $uploads[$doc['id_jenis']] ?? null;
+                    $status = $uploaded ? ($uploaded['is_verified'] ? 'Verified' : 'Pending Verification') : 'Not Uploaded';
+                    $statusClass = $uploaded ? ($uploaded['is_verified'] ? 'bg-success' : 'bg-warning text-dark') : 'bg-secondary';
                     $is_optional = ($doc['nama_dokumen'] === 'Kartu Siswa');
                     ?>
                     <div class="col-md-6 col-lg-4">
                         <div class="card h-100 shadow-sm border-0">
                             <div class="card-body">
-                                <div class="d-flex justify-content-between align-items-start mb-2"><h5 class="card-title fw-bold"><?php echo htmlspecialchars($doc['nama_dokumen']); ?><?php if($is_optional) echo ' <span class="text-muted small fw-normal">(Opsional)</span>'; ?></h5><span class="badge <?php echo $statusClass; ?>"><?php echo $status; ?></span></div>
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h5 class="card-title fw-bold"><?php echo htmlspecialchars($doc['nama_dokumen']); ?><?php if ($is_optional) echo ' <span class="text-muted small fw-normal">(Opsional)</span>'; ?></h5><span class="badge <?php echo $statusClass; ?>"><?php echo $status; ?></span>
+                                </div>
                                 <p class="card-text small text-muted mb-3">
                                     <?php echo htmlspecialchars($doc_descriptions[$doc['nama_dokumen']] ?? 'Silakan unggah dokumen ini dalam format JPG, PNG, atau PDF.'); ?>
                                 </p>
@@ -174,14 +178,19 @@ if (!$isAjaxRequest) {
                                             <i class="bi bi-eye me-1"></i> Preview File
                                         </button>
                                         <?php if (!$uploaded['is_verified']): ?>
-                                        <form action="" method="POST" onsubmit="return confirm('Are you sure you want to delete this document?');">
-                                            <input type="hidden" name="id_jenis" value="<?php echo $doc['id_jenis']; ?>">
-                                            <button type="submit" name="delete_document" class="btn btn-outline-danger btn-sm w-100 mt-1"><i class="bi bi-trash me-1"></i> Delete</button>
-                                        </form>
+                                            <form action="" method="POST" onsubmit="return confirm('Are you sure you want to delete this document?');">
+                                                <input type="hidden" name="id_jenis" value="<?php echo $doc['id_jenis']; ?>">
+                                                <button type="submit" name="delete_document" class="btn btn-outline-danger btn-sm w-100 mt-1"><i class="bi bi-trash me-1"></i> Delete</button>
+                                            </form>
                                         <?php endif; ?>
                                     </div>
                                 <?php endif; ?>
-                                <?php if (!$uploaded || !$uploaded['is_verified']): ?><hr><form action="" method="POST" enctype="multipart/form-data"><input type="hidden" name="id_jenis" value="<?php echo $doc['id_jenis']; ?>"><div class="mb-2"><label class="form-label small text-muted"><?php echo $uploaded ? 'Re-upload Document' : 'Upload Document'; ?></label><input type="file" class="form-control form-control-sm" name="document" <?php echo $is_optional ? '' : 'required'; ?> accept=".jpg,.jpeg,.png,.pdf"></div><div class="d-grid"><button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-upload me-1"></i> Upload</button></div></form><?php endif; ?>
+                                <?php if (!$uploaded || !$uploaded['is_verified']): ?>
+                                    <hr>
+                                    <form action="" method="POST" enctype="multipart/form-data"><input type="hidden" name="id_jenis" value="<?php echo $doc['id_jenis']; ?>">
+                                        <div class="mb-2"><label class="form-label small text-muted"><?php echo $uploaded ? 'Re-upload Document' : 'Upload Document'; ?></label><input type="file" class="form-control form-control-sm" name="document" <?php echo $is_optional ? '' : 'required'; ?> accept=".jpg,.jpeg,.png,.pdf"></div>
+                                        <div class="d-grid"><button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-upload me-1"></i> Upload</button></div>
+                                    </form><?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -195,7 +204,7 @@ if (!$isAjaxRequest) {
                 const modal = new bootstrap.Modal(document.getElementById('previewModal'));
                 const frame = document.getElementById('previewFrame');
                 const img = document.getElementById('previewImage');
-                
+
                 frame.style.display = 'none';
                 img.style.display = 'none';
                 frame.src = '';
@@ -257,11 +266,12 @@ if (!$isAjaxRequest) {
     <!-- Global Dashboard Script -->
     <script src="assets/js/dashboard.js"></script>
     </div> <!-- End of .content div (for AJAX requests) -->
+    <?php
+    if (!$isAjaxRequest) {
+    ?>
+    </body>
+
+    </html>
 <?php
-if (!$isAjaxRequest) {
-?>
-</body>
-</html>
-<?php
-} // End of conditional HTML closing
+    } // End of conditional HTML closing
 ?>

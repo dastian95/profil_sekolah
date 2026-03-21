@@ -14,6 +14,7 @@ $page = $_GET['page'] ?? 'home';
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -26,8 +27,9 @@ $page = $_GET['page'] ?? 'home';
     <link href="assets/css/main.css" rel="stylesheet">
     <link href="assets/css/dashboard.css" rel="stylesheet">
 </head>
+
 <body class="admin-dashboard">
-    
+
     <!-- Sidebar -->
     <div class="sidebar d-flex flex-column flex-shrink-0 p-3">
         <div class="d-flex align-items-center justify-content-between sidebar-header mb-3">
@@ -102,7 +104,7 @@ $page = $_GET['page'] ?? 'home';
                 <i class="bi bi-list"></i> Menu
             </button>
             <h2 class="mb-4 text-dark">
-                <?php 
+                <?php
                 if ($page === 'documents') echo 'Document Verification';
                 elseif ($page === 'users') echo 'User Management';
                 elseif ($page === 'logs') echo 'Activity Logs';
@@ -115,7 +117,7 @@ $page = $_GET['page'] ?? 'home';
                 ?>
             </h2>
 
-            <?php 
+            <?php
             if ($page === 'documents') {
                 include 'admin/admin_document_users.php';
             } elseif ($page === 'users') {
@@ -172,7 +174,7 @@ $page = $_GET['page'] ?? 'home';
         const toggleBtn = document.getElementById('sidebarToggle');
         const backdrop = document.getElementById('sidebarBackdrop');
 
-        if(toggleBtn) {
+        if (toggleBtn) {
             toggleBtn.addEventListener('click', () => {
                 sidebar.classList.toggle('show');
                 backdrop.classList.toggle('show');
@@ -186,10 +188,10 @@ $page = $_GET['page'] ?? 'home';
         // Dark Mode Logic
         const darkModeToggle = document.getElementById('darkModeToggle');
         const body = document.body;
-        
+
         if (localStorage.getItem('darkMode') === 'enabled') {
             body.classList.add('dark-mode');
-            if(darkModeToggle) darkModeToggle.innerHTML = '<i class="bi bi-sun me-2"></i> Light Mode';
+            if (darkModeToggle) darkModeToggle.innerHTML = '<i class="bi bi-sun me-2"></i> Light Mode';
         }
 
         if (darkModeToggle) {
@@ -209,10 +211,12 @@ $page = $_GET['page'] ?? 'home';
         // Swipe to close Sidebar (Mobile)
         let touchStartX = 0;
         let touchEndX = 0;
-        
+
         sidebar.addEventListener('touchstart', e => {
             touchStartX = e.changedTouches[0].screenX;
-        }, {passive: true});
+        }, {
+            passive: true
+        });
 
         sidebar.addEventListener('touchend', e => {
             touchEndX = e.changedTouches[0].screenX;
@@ -222,11 +226,13 @@ $page = $_GET['page'] ?? 'home';
                     backdrop.classList.remove('show');
                 }
             }
-        }, {passive: true});
+        }, {
+            passive: true
+        });
 
         // Desktop Sidebar Collapse
         const desktopToggle = document.getElementById('desktopToggle');
-        
+
         // Initialize Tooltips
         const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
         const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
@@ -242,7 +248,7 @@ $page = $_GET['page'] ?? 'home';
                 document.body.classList.add('sidebar-collapsed');
                 desktopToggle.innerHTML = '<i class="bi bi-chevron-right"></i>';
             }
-            
+
             // Initial tooltip state
             toggleTooltips();
 
@@ -263,11 +269,11 @@ $page = $_GET['page'] ?? 'home';
                 ghostClass: 'bg-secondary',
                 dataIdAttr: 'data-id',
                 store: {
-                    get: function (sortable) {
+                    get: function(sortable) {
                         const order = localStorage.getItem('sidebarOrder_admin');
                         return order ? order.split('|') : [];
                     },
-                    set: function (sortable) {
+                    set: function(sortable) {
                         const order = sortable.toArray();
                         localStorage.setItem('sidebarOrder_admin', order.join('|'));
                     }
@@ -276,4 +282,5 @@ $page = $_GET['page'] ?? 'home';
         }
     </script>
 </body>
+
 </html>

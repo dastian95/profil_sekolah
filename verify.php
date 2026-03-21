@@ -19,4 +19,3 @@ $stmt = $conn->prepare("UPDATE users SET is_verified = 1, verification_token = N
 $stmt->execute([$user['id_pendaftar']]);
 
 echo 'Email verified successfully! You can now <a href="login.php">log in</a>.';
-?>

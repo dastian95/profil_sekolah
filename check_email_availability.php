@@ -23,7 +23,7 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 try {
     $stmt = $conn->prepare("SELECT id_pendaftar FROM users WHERE email = ?");
     $stmt->execute([$email]);
-    
+
     if ($stmt->fetch()) {
         echo json_encode(['status' => 'taken', 'message' => 'Email sudah terdaftar.']);
     } else {
@@ -32,4 +32,3 @@ try {
 } catch (PDOException $e) {
     echo json_encode(['status' => 'error', 'message' => 'Database error']);
 }
-?>

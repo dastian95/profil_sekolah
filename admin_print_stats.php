@@ -19,34 +19,90 @@ try {
 
     // Jurusan Stats
     $jurusan_stats = $conn->query("SELECT jurusan, COUNT(*) as total FROM data_peserta WHERE jurusan IS NOT NULL AND jurusan != '' GROUP BY jurusan ORDER BY total DESC")->fetchAll(PDO::FETCH_ASSOC);
-
 } catch (PDOException $e) {
     die("Error: " . $e->getMessage());
 }
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Laporan Statistik PPDB</title>
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
-        .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 10px; }
-        .header h1 { margin: 0; font-size: 24px; }
-        .section { margin-bottom: 30px; }
-        .section h3 { border-bottom: 1px solid #ccc; padding-bottom: 5px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; }
-        .summary-box { display: flex; justify-content: space-between; margin-bottom: 20px; }
-        .box { border: 1px solid #ddd; padding: 15px; width: 22%; text-align: center; background: #f9f9f9; }
-        .box h2 { margin: 10px 0 0; }
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section h3 {
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        .summary-box {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .box {
+            border: 1px solid #ddd;
+            padding: 15px;
+            width: 22%;
+            text-align: center;
+            background: #f9f9f9;
+        }
+
+        .box h2 {
+            margin: 10px 0 0;
+        }
+
         @media print {
-            @page { margin: 10mm; }
-            body { -webkit-print-color-adjust: exact; }
+            @page {
+                margin: 10mm;
+            }
+
+            body {
+                -webkit-print-color-adjust: exact;
+            }
         }
     </style>
 </head>
+
 <body onload="window.print()">
     <div class="header">
         <h1>LAPORAN STATISTIK PPDB</h1>
@@ -88,18 +144,18 @@ try {
                 </tr>
             </thead>
             <tbody>
-                <?php 
-                $no = 1; 
+                <?php
+                $no = 1;
                 $total_j = array_sum(array_column($jurusan_stats, 'total'));
-                foreach ($jurusan_stats as $row): 
+                foreach ($jurusan_stats as $row):
                     $percent = $total_j > 0 ? round(($row['total'] / $total_j) * 100, 1) : 0;
                 ?>
-                <tr>
-                    <td><?php echo $no++; ?></td>
-                    <td><?php echo htmlspecialchars($row['jurusan']); ?></td>
-                    <td><?php echo $row['total']; ?></td>
-                    <td><?php echo $percent; ?>%</td>
-                </tr>
+                    <tr>
+                        <td><?php echo $no++; ?></td>
+                        <td><?php echo htmlspecialchars($row['jurusan']); ?></td>
+                        <td><?php echo $row['total']; ?></td>
+                        <td><?php echo $percent; ?>%</td>
+                    </tr>
                 <?php endforeach; ?>
             </tbody>
         </table>
@@ -116,15 +172,17 @@ try {
                 </tr>
             </thead>
             <tbody>
-                <?php $no = 1; foreach ($city_stats as $row): ?>
-                <tr>
-                    <td><?php echo $no++; ?></td>
-                    <td><?php echo htmlspecialchars($row['kota']); ?></td>
-                    <td><?php echo $row['total']; ?></td>
-                </tr>
+                <?php $no = 1;
+                foreach ($city_stats as $row): ?>
+                    <tr>
+                        <td><?php echo $no++; ?></td>
+                        <td><?php echo htmlspecialchars($row['kota']); ?></td>
+                        <td><?php echo $row['total']; ?></td>
+                    </tr>
                 <?php endforeach; ?>
             </tbody>
         </table>
     </div>
 </body>
+
 </html>

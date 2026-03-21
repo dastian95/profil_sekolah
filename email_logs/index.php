@@ -125,7 +125,7 @@ if (is_dir($logDir)) {
             </div>
         <?php else: ?>
             <div class="row">
-                <?php foreach ($logs as $log): 
+                <?php foreach ($logs as $log):
                     $resetLink = $log['data']['reset_link'] ?? '';
                     $escapedLink = htmlspecialchars($resetLink);
                     $jsonLink = json_encode($resetLink);

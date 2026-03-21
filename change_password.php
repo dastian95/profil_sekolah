@@ -49,28 +49,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <?php
 // Detect if request is from AJAX navigation
-$isAjaxRequest = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
-                 strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+$isAjaxRequest = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
+    strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 
 // Only output full HTML structure for direct page loads
 if (!$isAjaxRequest) {
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Change Password - SMK Lab Jakarta</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-    <link href="assets/css/main.css" rel="stylesheet">
-    <link href="assets/css/dashboard.css" rel="stylesheet">
-</head>
-<body class="user-dashboard">
-    <?php include 'sidebar.php'; ?>
-<?php
+    <!DOCTYPE html>
+    <html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Change Password - SMK Lab Jakarta</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+        <link href="assets/css/main.css" rel="stylesheet">
+        <link href="assets/css/dashboard.css" rel="stylesheet">
+    </head>
+
+    <body class="user-dashboard">
+        <?php include 'sidebar.php'; ?>
+    <?php
 } // End of full HTML structure - for AJAX requests, we skip to here
-?>
+    ?>
 
     <div class="content">
         <div class="container-fluid">
@@ -85,7 +87,7 @@ if (!$isAjaxRequest) {
             </nav>
             <h2 class="mb-4 text-dark">Change Password</h2>
             <div id="alertContainer"></div>
-            
+
             <div class="card shadow-sm border-0" style="max-width: 600px;">
                 <div class="card-body">
                     <form id="changePasswordForm" action="change_password.php" method="POST">
@@ -122,31 +124,31 @@ if (!$isAjaxRequest) {
                 </div>
             </div>
         </div>
-        
+
         <script>
             document.getElementById('changePasswordForm').addEventListener('submit', function(e) {
                 e.preventDefault();
                 const formData = new FormData(this);
                 const btn = this.querySelector('button[type="submit"]');
                 const originalText = btn.innerHTML;
-                
+
                 btn.disabled = true;
                 btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Updating...';
-                
+
                 fetch('change_password.php', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(res => res.json())
-                .then(data => {
-                    document.getElementById('alertContainer').innerHTML = data.message;
-                    if(data.success) this.reset();
-                })
-                .catch(err => console.error(err))
-                .finally(() => {
-                    btn.disabled = false;
-                    btn.innerHTML = originalText;
-                });
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        document.getElementById('alertContainer').innerHTML = data.message;
+                        if (data.success) this.reset();
+                    })
+                    .catch(err => console.error(err))
+                    .finally(() => {
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                    });
             });
 
             // Password toggle logic
@@ -195,11 +197,12 @@ if (!$isAjaxRequest) {
     <!-- Global Dashboard Script -->
     <script src="assets/js/dashboard.js"></script>
     </div> <!-- End of .content div (for AJAX requests) -->
+    <?php
+    if (!$isAjaxRequest) {
+    ?>
+    </body>
+
+    </html>
 <?php
-if (!$isAjaxRequest) {
-?>
-</body>
-</html>
-<?php
-} // End of conditional HTML closing
+    } // End of conditional HTML closing
 ?>

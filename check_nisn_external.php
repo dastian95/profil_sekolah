@@ -34,7 +34,7 @@ if (!empty($api_url_endpoint)) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
     curl_setopt($ch, CURLOPT_TIMEOUT, 10); // Timeout 10 detik
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // Abaikan SSL untuk dev local
-    
+
     // Jika API butuh Header/Token (Uncomment jika perlu):
     // curl_setopt($ch, CURLOPT_HTTPHEADER, [
     //    'Authorization: Bearer TOKEN_ANDA',
@@ -47,7 +47,7 @@ if (!empty($api_url_endpoint)) {
 
     if ($http_code == 200 && !empty($response)) {
         $json_response = json_decode($response, true);
-        
+
         // Sesuaikan mapping data di sini sesuai respon API asli Anda
         // Contoh: API mengembalikan { "data": { "nama": "Budi" } }
         if (isset($json_response['data'])) {
@@ -96,8 +96,7 @@ if ($found_data) {
     ]);
 } else {
     echo json_encode([
-        'success' => false, 
+        'success' => false,
         'message' => 'NISN tidak ditemukan. Coba gunakan 3082389086 untuk tes.'
     ]);
 }
-?>

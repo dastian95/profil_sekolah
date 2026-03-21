@@ -44,20 +44,47 @@ try {
     header("Pragma: no-cache");
     header("Expires: 0");
 
-    ?>
+?>
     <!DOCTYPE html>
     <html>
+
     <head>
         <meta charset="utf-8">
         <style>
-            body { font-family: Arial, sans-serif; }
-            table { border-collapse: collapse; width: 100%; }
-            th, td { border: 1px solid #000000; padding: 8px; text-align: left; vertical-align: top; }
-            th { background-color: #4CAF50; color: white; font-weight: bold; text-align: center; }
-            tr:nth-child(even) { background-color: #f2f2f2; }
-            .text-center { text-align: center; }
+            body {
+                font-family: Arial, sans-serif;
+            }
+
+            table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+
+            th,
+            td {
+                border: 1px solid #000000;
+                padding: 8px;
+                text-align: left;
+                vertical-align: top;
+            }
+
+            th {
+                background-color: #4CAF50;
+                color: white;
+                font-weight: bold;
+                text-align: center;
+            }
+
+            tr:nth-child(even) {
+                background-color: #f2f2f2;
+            }
+
+            .text-center {
+                text-align: center;
+            }
         </style>
     </head>
+
     <body>
         <h2 style="text-align: center; margin-bottom: 20px;">Data Pendaftar SMK Laboratorium Jakarta</h2>
         <table>
@@ -83,25 +110,26 @@ try {
             </thead>
             <tbody>
                 <?php if (count($users) > 0): ?>
-                    <?php $no = 1; foreach ($users as $user): ?>
-                    <tr>
-                        <td class="text-center"><?php echo $no++; ?></td>
-                        <td style="mso-number-format:'@'"><?php echo htmlspecialchars($user['nisn'] ?? ''); ?></td>
-                        <td><?php echo htmlspecialchars($user['name'] ?? ''); ?></td>
-                        <td><?php echo htmlspecialchars($user['email'] ?? ''); ?></td>
-                        <td><?php echo htmlspecialchars($user['status_akun'] ?? ''); ?></td>
-                        <td><?php echo htmlspecialchars($user['tanggal_lahir'] ?? ''); ?></td>
-                        <td><?php echo htmlspecialchars($user['asal_sekolah'] ?? ''); ?></td>
-                        <td style="mso-number-format:'@'"><?php echo htmlspecialchars($user['npsn'] ?? ''); ?></td>
-                        <td style="mso-number-format:'@'"><?php echo htmlspecialchars($user['no_telp_siswa'] ?? ''); ?></td>
-                        <td style="mso-number-format:'@'"><?php echo htmlspecialchars($user['no_telp_ortu'] ?? ''); ?></td>
-                        <td><?php echo htmlspecialchars($user['jurusan'] ?? ''); ?></td>
-                        <td><?php echo htmlspecialchars($user['alamat'] ?? ''); ?></td>
-                        <td><?php echo htmlspecialchars($user['Kecamatan'] ?? ''); ?></td>
-                        <td><?php echo htmlspecialchars($user['kota'] ?? ''); ?></td>
-                        <td><?php echo htmlspecialchars($user['provinsi'] ?? ''); ?></td>
-                        <td><?php echo htmlspecialchars($user['status_pendaftaran'] ?? ''); ?></td>
-                    </tr>
+                    <?php $no = 1;
+                    foreach ($users as $user): ?>
+                        <tr>
+                            <td class="text-center"><?php echo $no++; ?></td>
+                            <td style="mso-number-format:'@'"><?php echo htmlspecialchars($user['nisn'] ?? ''); ?></td>
+                            <td><?php echo htmlspecialchars($user['name'] ?? ''); ?></td>
+                            <td><?php echo htmlspecialchars($user['email'] ?? ''); ?></td>
+                            <td><?php echo htmlspecialchars($user['status_akun'] ?? ''); ?></td>
+                            <td><?php echo htmlspecialchars($user['tanggal_lahir'] ?? ''); ?></td>
+                            <td><?php echo htmlspecialchars($user['asal_sekolah'] ?? ''); ?></td>
+                            <td style="mso-number-format:'@'"><?php echo htmlspecialchars($user['npsn'] ?? ''); ?></td>
+                            <td style="mso-number-format:'@'"><?php echo htmlspecialchars($user['no_telp_siswa'] ?? ''); ?></td>
+                            <td style="mso-number-format:'@'"><?php echo htmlspecialchars($user['no_telp_ortu'] ?? ''); ?></td>
+                            <td><?php echo htmlspecialchars($user['jurusan'] ?? ''); ?></td>
+                            <td><?php echo htmlspecialchars($user['alamat'] ?? ''); ?></td>
+                            <td><?php echo htmlspecialchars($user['Kecamatan'] ?? ''); ?></td>
+                            <td><?php echo htmlspecialchars($user['kota'] ?? ''); ?></td>
+                            <td><?php echo htmlspecialchars($user['provinsi'] ?? ''); ?></td>
+                            <td><?php echo htmlspecialchars($user['status_pendaftaran'] ?? ''); ?></td>
+                        </tr>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <tr>
@@ -111,10 +139,10 @@ try {
             </tbody>
         </table>
     </body>
-    </html>
-    <?php
-    exit();
 
+    </html>
+<?php
+    exit();
 } catch (PDOException $e) {
     die("Database error: " . $e->getMessage());
 }
