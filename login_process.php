@@ -1,6 +1,7 @@
 <?php
 ob_start(); // Mulai buffering output segera untuk menangkap error/warning
 require_once __DIR__ . '/../src/rate_limiter.php';
+require_once __DIR__ . '/AuditLogger.php';
 
 // Fungsi helper untuk mengirim respons JSON bersih
 function sendJson($data) {
@@ -12,6 +13,7 @@ function sendJson($data) {
 
 try {
     require_once __DIR__ . '/../src/conn.php';
+    session_start();
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         sendJson(['success' => false, 'message' => 'Invalid request method']);
@@ -61,7 +63,16 @@ try {
     $_SESSION['user_role'] = $user['role'];
     $_SESSION['user_email'] = $user['email'];
 
-    // --- Log Activity ---
+    // --- Log with AuditLogger (Enhanced Audit Trail) ---
+    try {
+        AuditLogger::init($conn, $user['id_pendaftar']);
+        AuditLogger::log(AuditLogger::ACTION_LOGIN, 'users', $user['id_pendaftar'], [
+            'email' => $user['email'],
+            'method' => 'standard'
+        ]);
+    } catch (Exception $e) { /* Ignore log error to allow login */ }
+
+    // --- Log Activity (Legacy)---
     try {
         $conn->exec("CREATE TABLE IF NOT EXISTS user_activity_logs (
             id INT AUTO_INCREMENT PRIMARY KEY,

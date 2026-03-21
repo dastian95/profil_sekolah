@@ -2,6 +2,14 @@
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
+require_once __DIR__ . '/AuditLogger.php';
+
+// Initialize session and AuditLogger
+session_start();
+if (isset($_SESSION['user_id'])) {
+    AuditLogger::init($conn, $_SESSION['user_id']);
+}
+
 // Handle Toggle Verification Action
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_verify'])) {
     $v_uid = $_POST['v_uid'];
@@ -11,6 +19,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_verify'])) {
     $stmt = $conn->prepare("UPDATE users SET is_verified = ? WHERE id_pendaftar = ?");
     if ($stmt->execute([$new_status, $v_uid])) {
         $success_msg = "Status verifikasi user berhasil diubah.";
+        
+        // Log audit
+        AuditLogger::log(AuditLogger::ACTION_VERIFY, 'users', $v_uid, [
+            'is_verified' => $new_status,
+            'action_type' => $new_status == 1 ? 'verify' : 'unverify'
+        ]);
 
         // Kirim Email Notifikasi jika status menjadi Verified (1)
         if ($new_status == 1) {
@@ -52,6 +66,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_ban'])) {
     $stmt = $conn->prepare("UPDATE users SET is_banned = ? WHERE id_pendaftar = ?");
     if ($stmt->execute([$new_ban_status, $b_uid])) {
         $success_msg = "Status ban user berhasil diubah.";
+        
+        // Log audit
+        AuditLogger::log(AuditLogger::ACTION_BAN, 'users', $b_uid, [
+            'is_banned' => $new_ban_status,
+            'action_type' => $new_ban_status == 1 ? 'ban' : 'unban'
+        ]);
     } else {
         $error = "Gagal mengubah status ban.";
     }
@@ -70,6 +90,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_user_password']
             $stmt = $conn->prepare("UPDATE users SET password = ? WHERE id_pendaftar = ?");
             if ($stmt->execute([$hashed, $target_uid])) {
                 $success_msg = "Password berhasil direset.";
+                
+                // Log audit
+                AuditLogger::log(AuditLogger::ACTION_PASSWORD_RESET, 'users', $target_uid, [
+                    'action_type' => 'admin_reset'
+                ]);
             } else {
                 $error = "Gagal mereset password.";
             }

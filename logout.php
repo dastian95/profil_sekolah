@@ -1,6 +1,19 @@
 <?php
 session_start();
 
+// Store user info before clearing session
+$userId = $_SESSION['user_id'] ?? null;
+
+// --- Log Logout (Enhanced Audit Trail) ---
+if ($userId) {
+    try {
+        require_once __DIR__ . '/conn.php';
+        require_once __DIR__ . '/AuditLogger.php';
+        AuditLogger::init($conn, $userId);
+        AuditLogger::log(AuditLogger::ACTION_LOGOUT, 'users', $userId, ['method' => 'standard']);
+    } catch (Exception $e) { /* Ignore log error to allow logout */ }
+}
+
 // Unset all of the session variables.
 $_SESSION = array();
 

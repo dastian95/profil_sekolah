@@ -286,6 +286,10 @@ $statuses = $stmt->fetchAll(PDO::FETCH_COLUMN);
                     <li><a href="admin_home.php">Dashboard</a></li>
                     <li><a href="admin_manage_users.php">Manage Users</a></li>
                     <li><a href="admin_bulk_operations.php">Bulk Operations</a></li>
+                    <li><a href="admin_advanced_export.php">Advanced Export</a></li>
+                    <li><a href="admin_cache_manager.php">Cache Manager</a></li>
+                    <li><a href="admin_query_optimization.php">Optimization</a></li>
+                    <li><a href="admin_audit_trail.php">Audit Trail</a></li>
                     <li><a href="logout.php">Logout</a></li>
                 </ul>
             </nav>
