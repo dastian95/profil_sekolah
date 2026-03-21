@@ -1,21 +1,24 @@
 // Fungsi untuk menginisialisasi semua event listener yang mungkin perlu di-rebind setelah AJAX
 function initializePageSpecificScripts() {
-    // --- Tooltip Initialization ---
-    // Hancurkan tooltip yang ada untuk menghindari duplikasi
-    const existingTooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-    existingTooltips.forEach(el => {
-        const tooltip = bootstrap.Tooltip.getInstance(el);
-        if (tooltip) {
-            tooltip.dispose();
-        }
-    });
-    // Inisialisasi tooltip baru
-    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl, {
-            trigger: 'hover' // Mencegah tooltip stuck saat diklik
+    // --- Tooltip Initialization (ONLY in .content to prevent sidebar re-render) ---
+    const contentDiv = document.querySelector('.content');
+    if (contentDiv) {
+        // Hancurkan tooltip yang ada di .content untuk menghindari duplikasi
+        const existingTooltips = contentDiv.querySelectorAll('[data-bs-toggle="tooltip"]');
+        existingTooltips.forEach(el => {
+            const tooltip = bootstrap.Tooltip.getInstance(el);
+            if (tooltip) {
+                tooltip.dispose();
+            }
         });
-    });
+        // Inisialisasi tooltip baru hanya di .content
+        const tooltipTriggerList = [].slice.call(contentDiv.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl, {
+                trigger: 'hover' // Mencegah tooltip stuck saat diklik
+            });
+        });
+    }
 
     // --- Mobile Sidebar Toggle (Tombol di dalam .content) ---
     const toggleBtn = document.getElementById('sidebarToggle');
@@ -198,5 +201,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Panggilan inisialisasi pertama kali untuk script di dalam .content
+    // Juga inisialisasi sidebar tooltips (hanya sekali, tidak akan di-re-initialize)
+    const sidebarTooltipList = [].slice.call(document.querySelectorAll('.sidebar [data-bs-toggle="tooltip"]'));
+    sidebarTooltipList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl, {
+            trigger: 'hover'
+        });
+    });
+    
     initializePageSpecificScripts();
 });
