@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../src/conn.php';
+require_once __DIR__ . '/conn.php';
 $token = $_GET['token'] ?? '';
 $valid = false;
 

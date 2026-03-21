@@ -1,6 +1,8 @@
 <?php
 ob_start();
-require_once __DIR__ . '/../src/conn.php';
+session_start();
+require_once __DIR__ . '/conn.php';
+require_once __DIR__ . '/AuditLogger.php';
 header('Content-Type: application/json');
 
 try {
@@ -32,6 +34,14 @@ try {
     $hashed = password_hash($password, PASSWORD_DEFAULT);
     $stmt = $conn->prepare("UPDATE users SET password = ?, reset_token = NULL, reset_token_expires_at = NULL WHERE id_pendaftar = ?");
     if ($stmt->execute([$hashed, $user['id_pendaftar']])) {
+        // Log password reset
+        try {
+            AuditLogger::init($conn, $user['id_pendaftar']);
+            AuditLogger::log(AuditLogger::ACTION_PASSWORD_RESET, 'users', $user['id_pendaftar'], [
+                'action_type' => 'forgot_password_reset'
+            ]);
+        } catch (Exception $e) { /* Ignore log error */ }
+        
         ob_end_clean();
         echo json_encode(['success' => true, 'message' => 'Password updated successfully']);
     } else {

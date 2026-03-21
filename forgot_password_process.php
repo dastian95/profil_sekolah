@@ -2,10 +2,11 @@
 // Start output buffering to prevent unwanted output
 ob_start();
 
+session_start();
 header('Content-Type: application/json');
 
 // Load Composer's autoloader and utilities
-require_once __DIR__ . '/../src/conn.php';
+require_once __DIR__ . '/conn.php';
 require_once __DIR__ . '/EmailUtil.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
