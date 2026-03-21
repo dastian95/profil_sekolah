@@ -7,4 +7,3 @@ $siswaHash = password_hash($siswaPassword, PASSWORD_BCRYPT, ['cost' => 12]);
 
 file_put_contents(__DIR__ . '/hashes.txt', "admin:" . $adminHash . "\n" . "siswa:" . $siswaHash);
 echo "Hashes saved!";
-?>

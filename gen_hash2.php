@@ -7,4 +7,3 @@ $siswaHash = password_hash($siswaPassword, PASSWORD_BCRYPT, ['cost' => 12]);
 
 echo $adminHash . "\n";
 echo $siswaHash . "\n";
-?>

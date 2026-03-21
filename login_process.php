@@ -4,7 +4,8 @@ require_once __DIR__ . '/../src/rate_limiter.php';
 require_once __DIR__ . '/AuditLogger.php';
 
 // Fungsi helper untuk mengirim respons JSON bersih
-function sendJson($data) {
+function sendJson($data)
+{
     ob_clean(); // Bersihkan buffer sebelum kirim output
     header('Content-Type: application/json');
     echo json_encode($data);
@@ -46,7 +47,7 @@ try {
     }
 
     // --- Login Langsung (Tanpa 2FA) ---
-    
+
     // 1. Cek Status Verifikasi
     if ($user['is_verified'] == 0) {
         sendJson(['success' => false, 'message' => 'Akun belum diverifikasi. Silakan cek email Anda untuk verifikasi.']);
@@ -70,7 +71,8 @@ try {
             'email' => $user['email'],
             'method' => 'standard'
         ]);
-    } catch (Exception $e) { /* Ignore log error to allow login */ }
+    } catch (Exception $e) { /* Ignore log error to allow login */
+    }
 
     // --- Log Activity (Legacy)---
     try {
@@ -84,7 +86,8 @@ try {
         )");
         $log_stmt = $conn->prepare("INSERT INTO user_activity_logs (user_id, action, ip_address, user_agent) VALUES (?, 'login', ?, ?)");
         $log_stmt->execute([$user['id_pendaftar'], $_SERVER['REMOTE_ADDR'], $_SERVER['HTTP_USER_AGENT']]);
-    } catch (Exception $e) { /* Ignore log error to allow login */ }
+    } catch (Exception $e) { /* Ignore log error to allow login */
+    }
     // --------------------
 
     // 3. Handle Remember Me
@@ -100,8 +103,6 @@ try {
     // 4. Redirect sesuai role
     $redirect = ($user['role'] === 'admin') ? 'admin_dashboard.php' : 'dashboard.php';
     sendJson(['success' => true, 'message' => 'Login successful', 'redirect' => $redirect]);
-
 } catch (\Exception $e) {
     sendJson(['success' => false, 'message' => 'System Error: ' . $e->getMessage()]);
 }
-?>

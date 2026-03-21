@@ -37,11 +37,15 @@ try {
             throw new Exception('Database error: Could not update reset token.');
         }
 
-        $resetLink = rtrim($_ENV['APP_URL'], '/') . "/reset_password.php?token=" . urlencode($token);
-        
+        // Generate reset link using current server domain or APP_URL
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https" : "http";
+        $domain = $_SERVER['HTTP_HOST'] ?? $_ENV['APP_URL'];
+        $baseUrl = $protocol . "://" . $domain;
+        $resetLink = $baseUrl . "/reset_password.php?token=" . urlencode($token);
+
         // Send Email using EmailUtil (handles both SMTP and file-based)
         $emailResult = EmailUtil::sendResetPasswordEmail($email, $user['name'], $resetLink);
-        
+
         ob_end_clean();
         echo json_encode($emailResult);
         exit;
@@ -50,7 +54,6 @@ try {
     ob_end_clean();
     // Always return success to prevent email enumeration
     echo json_encode(['success' => true, 'message' => 'If that email exists, we have sent a reset link.']);
-
 } catch (Exception $e) {
     ob_end_clean();
     error_log("Forgot Password Error: " . $e->getMessage());
@@ -60,4 +63,3 @@ try {
     error_log("Forgot Password Critical Error: " . $e->getMessage());
     echo json_encode(['success' => false, 'message' => 'An unexpected error occurred.']);
 }
-?>

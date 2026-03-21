@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Admin Audit Trail Dashboard
  * View and analyze all system activity logs
@@ -69,6 +70,7 @@ $totalPages = ceil($totalRecords / $limit);
 
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -77,25 +79,94 @@ $totalPages = ceil($totalRecords / $limit);
     <link href="assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
     <link href="assets/css/main.css" rel="stylesheet">
     <style>
-        body { background-color: #f5f5f5; }
-        .main { padding-top: 120px; padding-bottom: 40px; }
-        .card-section { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 30px; }
-        .section-title { font-size: 1.5rem; font-weight: 600; margin-bottom: 20px; }
-        .filter-panel { background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-        .log-entry { padding: 15px; border: 1px solid #e0e0e0; border-radius: 5px; margin-bottom: 10px; background: white; }
-        .action-badge { font-size: 0.75rem; padding: 5px 10px; border-radius: 3px; }
-        .action-create { background: #d4edda; color: #155724; }
-        .action-update { background: #cfe2ff; color: #084298; }
-        .action-delete { background: #f8d7da; color: #721c24; }
-        .action-login { background: #d1ecf1; color: #0c5460; }
-        .action-export { background: #fff3cd; color: #856404; }
-        .stat-box { padding: 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px; text-align: center; margin-bottom: 15px; }
-        .stat-number { font-size: 2rem; font-weight: bold; }
+        body {
+            background-color: #f5f5f5;
+        }
+
+        .main {
+            padding-top: 120px;
+            padding-bottom: 40px;
+        }
+
+        .card-section {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .filter-panel {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .log-entry {
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            background: white;
+        }
+
+        .action-badge {
+            font-size: 0.75rem;
+            padding: 5px 10px;
+            border-radius: 3px;
+        }
+
+        .action-create {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .action-update {
+            background: #cfe2ff;
+            color: #084298;
+        }
+
+        .action-delete {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .action-login {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .action-export {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .stat-box {
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+        }
     </style>
 </head>
+
 <body>
     <?php include 'sidebar.php'; ?>
-    
+
     <header id="header" class="header d-flex align-items-center fixed-top">
         <div class="container-fluid d-flex align-items-center justify-content-between">
             <a href="admin_home.php" class="logo d-flex align-items-center">
@@ -112,7 +183,7 @@ $totalPages = ceil($totalRecords / $limit);
 
     <main class="main">
         <div class="container-fluid">
-            
+
             <!-- Message -->
             <?php if (!empty($purgeMessage)): ?>
                 <div class="alert alert-success alert-dismissible fade show">
@@ -124,7 +195,7 @@ $totalPages = ceil($totalRecords / $limit);
             <!-- ============== STATISTICS ============== -->
             <div class="card-section">
                 <h2 class="section-title"><i class="bi bi-bar-chart"></i> Activity Statistics</h2>
-                
+
                 <div class="row">
                     <div class="col-md-3">
                         <div class="stat-box">
@@ -141,7 +212,7 @@ $totalPages = ceil($totalRecords / $limit);
                     <div class="col-md-3">
                         <div class="stat-box" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
                             <div class="stat-number">
-                                <?php 
+                                <?php
                                 $stmt = $conn->query("SELECT COUNT(DISTINCT user_id) FROM audit_logs_enhanced WHERE DATE(timestamp) BETWEEN '$filterDateFrom' AND '$filterDateTo'");
                                 echo $stmt->fetchColumn();
                                 ?>
@@ -161,7 +232,7 @@ $totalPages = ceil($totalRecords / $limit);
             <!-- ============== ACTION BREAKDOWN ============== -->
             <div class="card-section">
                 <h3 style="margin-bottom: 20px;"><i class="bi bi-pie-chart"></i> Action Breakdown</h3>
-                
+
                 <div class="row">
                     <?php foreach ($stats as $stat): ?>
                         <div class="col-md-4 mb-3">
@@ -180,7 +251,7 @@ $totalPages = ceil($totalRecords / $limit);
             <!-- ============== AUDIT LOGS ============== -->
             <div class="card-section">
                 <h2 class="section-title"><i class="bi bi-list-check"></i> Audit Logs</h2>
-                
+
                 <!-- Filter Panel -->
                 <div class="filter-panel">
                     <form class="row g-3" method="GET">
@@ -244,7 +315,7 @@ $totalPages = ceil($totalRecords / $limit);
                                     <tr>
                                         <td><small><?php echo date('Y-m-d H:i:s', strtotime($log['timestamp'])); ?></small></td>
                                         <td>
-                                            <?php 
+                                            <?php
                                             if ($log['user_id']) {
                                                 $stmt = $conn->prepare("SELECT name FROM users WHERE id_pendaftar = ?");
                                                 $stmt->execute([$log['user_id']]);
@@ -263,7 +334,7 @@ $totalPages = ceil($totalRecords / $limit);
                                         <td><?php echo htmlspecialchars($log['entity']); ?></td>
                                         <td><small><?php echo htmlspecialchars($log['ip_address']); ?></small></td>
                                         <td>
-                                            <?php 
+                                            <?php
                                             $details = json_decode($log['details'], true);
                                             if (is_array($details)) {
                                                 if (!empty($details['changes'])) {
@@ -308,9 +379,9 @@ $totalPages = ceil($totalRecords / $limit);
             <!-- ============== MAINTENANCE ============== -->
             <div class="card-section">
                 <h3 style="margin-bottom: 15px;"><i class="bi bi-tools"></i> Maintenance</h3>
-                
+
                 <p class="text-muted">Purge old logs to manage database size</p>
-                
+
                 <div class="btn-group" role="group">
                     <a href="?action=purge&days=30" class="btn btn-outline-warning btn-sm" onclick="return confirm('Delete logs older than 30 days?')">
                         <i class="bi bi-trash"></i> Purge 30+ days
@@ -326,4 +397,5 @@ $totalPages = ceil($totalRecords / $limit);
 
     <script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
 </body>
+
 </html>

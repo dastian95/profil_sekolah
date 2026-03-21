@@ -11,7 +11,8 @@ if ($userId) {
         require_once __DIR__ . '/AuditLogger.php';
         AuditLogger::init($conn, $userId);
         AuditLogger::log(AuditLogger::ACTION_LOGOUT, 'users', $userId, ['method' => 'standard']);
-    } catch (Exception $e) { /* Ignore log error to allow logout */ }
+    } catch (Exception $e) { /* Ignore log error to allow logout */
+    }
 }
 
 // Unset all of the session variables.
@@ -21,9 +22,14 @@ $_SESSION = array();
 // Note: This will destroy the session, and not just the session data!
 if (ini_get("session.use_cookies")) {
     $params = session_get_cookie_params();
-    setcookie(session_name(), '', time() - 42000,
-        $params["path"], $params["domain"],
-        $params["secure"], $params["httponly"]
+    setcookie(
+        session_name(),
+        '',
+        time() - 42000,
+        $params["path"],
+        $params["domain"],
+        $params["secure"],
+        $params["httponly"]
     );
 }
 
@@ -36,4 +42,3 @@ setcookie('remember_me', '', time() - 3600, '/');
 // Redirect to login page
 header("Location: index.php");
 exit;
-?>

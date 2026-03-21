@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Admin Cache Management Dashboard
  * Monitor and manage query cache performance
@@ -39,13 +40,13 @@ $dbStats = [];
 try {
     $stmt = $conn->query("SELECT COUNT(*) as total FROM users WHERE role = 'user'");
     $dbStats['total_users'] = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
-    
+
     $stmt = $conn->query("SELECT COUNT(*) as total FROM data_peserta");
     $dbStats['total_data'] = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
-    
+
     $stmt = $conn->query("SELECT COUNT(*) as total FROM pendaftar");
     $dbStats['total_apps'] = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
-    
+
     $stmt = $conn->query("SELECT COUNT(*) as total FROM unggah_dokumen");
     $dbStats['total_docs'] = $stmt->fetch(PDO::FETCH_ASSOC)['total'];
 } catch (Exception $e) {
@@ -55,6 +56,7 @@ try {
 
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -63,20 +65,68 @@ try {
     <link href="assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
     <link href="assets/css/main.css" rel="stylesheet">
     <style>
-        body { background-color: #f5f5f5; }
-        .main { padding-top: 120px; padding-bottom: 40px; }
-        .card-stat { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; border-left: 4px solid #0d6efd; }
-        .card-stat .stat-number { font-size: 2rem; font-weight: bold; color: #0d6efd; }
-        .card-stat .stat-label { font-size: 0.9rem; color: #666; margin-top: 5px; }
-        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
-        .cache-info { background: #f9f9f9; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745; margin-bottom: 20px; }
-        .action-button { margin: 5px; }
-        .chart-container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        body {
+            background-color: #f5f5f5;
+        }
+
+        .main {
+            padding-top: 120px;
+            padding-bottom: 40px;
+        }
+
+        .card-stat {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            border-left: 4px solid #0d6efd;
+        }
+
+        .card-stat .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #0d6efd;
+        }
+
+        .card-stat .stat-label {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .cache-info {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+            margin-bottom: 20px;
+        }
+
+        .action-button {
+            margin: 5px;
+        }
+
+        .chart-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
     </style>
 </head>
+
 <body>
     <?php include 'sidebar.php'; ?>
-    
+
     <header id="header" class="header d-flex align-items-center fixed-top">
         <div class="container-fluid d-flex align-items-center justify-content-between">
             <a href="admin_home.php" class="logo d-flex align-items-center">
@@ -97,7 +147,7 @@ try {
 
     <main class="main">
         <div class="container">
-            
+
             <!-- Message Alert -->
             <?php if ($message): ?>
                 <div class="alert alert-<?php echo $message['type']; ?> alert-dismissible fade show" role="alert">
@@ -109,7 +159,7 @@ try {
             <!-- ============== CACHE STATISTICS ============== -->
             <div style="margin-bottom: 30px;">
                 <h2 style="margin-bottom: 20px; font-weight: 600;"><i class="bi bi-bar-chart"></i> Cache Performance</h2>
-                
+
                 <div class="stat-grid">
                     <div class="card-stat">
                         <div class="stat-number"><?php echo $stats['total_requests']; ?></div>
@@ -133,16 +183,16 @@ try {
             <!-- ============== CACHE INFO ============== -->
             <div class="cache-info">
                 <i class="bi bi-info-circle me-2"></i>
-                <strong>Cache Status:</strong> 
-                Cache size: <strong><?php echo $cacheSize; ?> MB</strong> | 
-                Invalidations: <strong><?php echo $stats['invalidations']; ?></strong> | 
+                <strong>Cache Status:</strong>
+                Cache size: <strong><?php echo $cacheSize; ?> MB</strong> |
+                Invalidations: <strong><?php echo $stats['invalidations']; ?></strong> |
                 Entries: <strong><?php echo count(glob(__DIR__ . '/cache/queries/*/*.json')); ?></strong>
             </div>
 
             <!-- ============== DATABASE STATS ============== -->
             <div style="margin-bottom: 30px;">
                 <h3 style="margin-bottom: 20px; font-weight: 600;"><i class="bi bi-database"></i> Database Statistics</h3>
-                
+
                 <div class="stat-grid">
                     <div class="card-stat">
                         <div class="stat-number"><?php echo $dbStats['total_users'] ?? 0; ?></div>
@@ -166,17 +216,17 @@ try {
             <!-- ============== CACHE CONTROLS ============== -->
             <div class="chart-container">
                 <h3 style="margin-bottom: 20px; font-weight: 600;"><i class="bi bi-sliders"></i> Cache Management</h3>
-                
+
                 <div class="row">
                     <div class="col-md-6">
                         <h5 class="mb-3">Query Cache Controls</h5>
                         <p class="text-muted small">Use these controls to manage and clear the query result cache</p>
-                        
+
                         <div class="d-grid gap-2">
                             <a href="?action=clear_all" class="btn btn-danger action-button" onclick="return confirm('Hapus semua cache? Ini akan membuat query menjadi lebih lambat sementara!');">
                                 <i class="bi bi-trash"></i> Clear All Cache
                             </a>
-                            
+
                             <form method="POST" class="mt-2">
                                 <div class="input-group">
                                     <input type="text" name="pattern" class="form-control" placeholder="e.g., users_*, stats_*" required>
@@ -187,7 +237,7 @@ try {
                             </form>
                         </div>
                     </div>
-                    
+
                     <div class="col-md-6">
                         <h5 class="mb-3">Cache Information</h5>
                         <table class="table table-sm">
@@ -206,10 +256,10 @@ try {
                             <tr>
                                 <td><strong>Last Action:</strong></td>
                                 <td>
-                                    <?php 
+                                    <?php
                                     $statsFile = __DIR__ . '/cache/cache_stats.json';
-                                    echo file_exists($statsFile) ? 
-                                        date('Y-m-d H:i:s', filemtime($statsFile)) : 'N/A'; 
+                                    echo file_exists($statsFile) ?
+                                        date('Y-m-d H:i:s', filemtime($statsFile)) : 'N/A';
                                     ?>
                                 </td>
                             </tr>
@@ -240,7 +290,7 @@ try {
                         </div>
                         <p style="margin-top: 10px; font-weight: 600;">Cache Efficiency</p>
                     </div>
-                    
+
                     <div>
                         <p><span style="display: inline-block; width: 15px; height: 15px; background: #28a745; border-radius: 3px; margin-right: 10px;"></span> Hits: <?php echo $stats['hits']; ?></p>
                         <p><span style="display: inline-block; width: 15px; height: 15px; background: #dc3545; border-radius: 3px; margin-right: 10px;"></span> Misses: <?php echo $stats['misses']; ?></p>
@@ -253,4 +303,5 @@ try {
 
     <script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
 </body>
+
 </html>

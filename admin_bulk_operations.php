@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Admin Bulk Operations - User Management
  * Features: CSV Import, Bulk Actions, Batch Processing
@@ -29,7 +30,7 @@ $import_result = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
     $file = $_FILES['csv_file']['tmp_name'];
     $fileName = $_FILES['csv_file']['name'];
-    
+
     if (!file_exists($file)) {
         $error = 'File tidak ditemukan.';
     } else if (pathinfo($fileName, PATHINFO_EXTENSION) !== 'csv') {
@@ -40,14 +41,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
             $imported = 0;
             $failed = 0;
             $failed_rows = [];
-            
+
             if (($handle = fopen($file, 'r')) !== false) {
                 $header = fgetcsv($handle);
-                
+
                 // Expected columns: name, email, nisn, password (optional - auto-generate if empty)
                 $expectedCols = ['name', 'email', 'nisn'];
                 $colIndices = [];
-                
+
                 foreach ($expectedCols as $col) {
                     $idx = array_search($col, $header);
                     if ($idx === false) {
@@ -55,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                     }
                     $colIndices[$col] = $idx;
                 }
-                
+
                 $rowNum = 2;
                 while (($row = fgetcsv($handle)) !== false) {
                     try {
@@ -63,30 +64,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                         $email = trim($row[$colIndices['email']] ?? '');
                         $nisn = trim($row[$colIndices['nisn']] ?? '');
                         $password = trim($row[$colIndices['password']] ?? '') ?: bin2hex(random_bytes(6));
-                        
+
                         // Validation
                         if (empty($name) || empty($email) || empty($nisn)) {
                             throw new Exception('Nama, Email, dan NISN harus diisi.');
                         }
-                        
+
                         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                             throw new Exception('Email tidak valid.');
                         }
-                        
+
                         // Check if email exists
                         $stmt = $conn->prepare("SELECT id_pendaftar FROM users WHERE email = ?");
                         $stmt->execute([$email]);
                         if ($stmt->fetch()) {
                             throw new Exception("Email sudah terdaftar: $email");
                         }
-                        
+
                         // Check if NISN exists
                         $stmt = $conn->prepare("SELECT id_pendaftar FROM users WHERE nisn = ?");
                         $stmt->execute([$nisn]);
                         if ($stmt->fetch()) {
                             throw new Exception("NISN sudah terdaftar: $nisn");
                         }
-                        
+
                         // Insert user
                         $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
                         $stmt = $conn->prepare("
@@ -95,16 +96,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                         ");
                         $stmt->execute([$name, $email, $nisn, $hashedPassword]);
                         $userId = $conn->lastInsertId();
-                        
+
                         // Insert student profile
                         $stmt = $conn->prepare("
                             INSERT INTO data_peserta (id_pendaftar, nama, nisn, created_at)
                             VALUES (?, ?, ?, NOW())
                         ");
                         $stmt->execute([$userId, $name, $nisn]);
-                        
+
                         $imported++;
-                        
                     } catch (Exception $e) {
                         $failed++;
                         $failed_rows[] = [
@@ -114,28 +114,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                     }
                     $rowNum++;
                 }
-                
+
                 fclose($handle);
                 $conn->commit();
-                
+
                 $import_result = [
                     'success' => $failed === 0,
                     'imported' => $imported,
                     'failed' => $failed,
                     'failed_rows' => $failed_rows
                 ];
-                
+
                 if ($imported > 0) {
                     $success_msg = "Berhasil mengimport $imported user" . ($failed > 0 ? ", gagal $failed user." : '.');
                 }
                 if ($failed > 0) {
                     $error = "Gagal mengimport $failed user. Lihat detail di bawah.";
                 }
-                
             } else {
                 throw new Exception('Tidak dapat membuka file CSV.');
             }
-            
         } catch (Exception $e) {
             $conn->rollBack();
             $error = 'Error: ' . $e->getMessage();
@@ -149,26 +147,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
     $action = $_POST['bulk_action'];
     $user_ids = isset($_POST['selected_users']) ? (array)$_POST['selected_users'] : [];
-    
+
     if (empty($user_ids)) {
         $error = 'Pilih minimal satu user untuk aksi bulk.';
     } else {
         try {
             $conn->beginTransaction();
             $success_count = 0;
-            
+
             if ($action === 'verify') {
                 // Verify selected users
                 foreach ($user_ids as $uid) {
                     $stmt = $conn->prepare("UPDATE users SET is_verified = 1 WHERE id_pendaftar = ?");
                     if ($stmt->execute([$uid])) {
-                        
+
                         // Send notification email
                         try {
                             $stmt_u = $conn->prepare("SELECT email, name FROM users WHERE id_pendaftar = ?");
                             $stmt_u->execute([$uid]);
                             $user = $stmt_u->fetch(PDO::FETCH_ASSOC);
-                            
+
                             if ($user) {
                                 $emailResult = EmailUtil::sendResetPasswordEmail(
                                     $user['email'],
@@ -179,12 +177,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
                         } catch (Exception $e) {
                             // Continue even if email fails
                         }
-                        
+
                         $success_count++;
                     }
                 }
                 $success_msg = "Berhasil memverifikasi $success_count user.";
-                
             } elseif ($action === 'ban') {
                 // Ban selected users
                 foreach ($user_ids as $uid) {
@@ -194,7 +191,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
                     }
                 }
                 $success_msg = "Berhasil memban $success_count user.";
-                
             } elseif ($action === 'unban') {
                 // Unban selected users
                 foreach ($user_ids as $uid) {
@@ -204,22 +200,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
                     }
                 }
                 $success_msg = "Berhasil membuka ban untuk $success_count user.";
-                
             } elseif ($action === 'send_email') {
                 // Send email to selected users
                 $email_subject = $_POST['email_subject'] ?? 'Notifikasi dari Panitia PPDB';
                 $email_body = $_POST['email_body'] ?? '';
-                
+
                 if (empty($email_body)) {
                     throw new Exception('Pesan email tidak boleh kosong.');
                 }
-                
+
                 foreach ($user_ids as $uid) {
                     try {
                         $stmt_u = $conn->prepare("SELECT email, name FROM users WHERE id_pendaftar = ?");
                         $stmt_u->execute([$uid]);
                         $user = $stmt_u->fetch(PDO::FETCH_ASSOC);
-                        
+
                         if ($user) {
                             $mail = new PHPMailer(true);
                             $mail->isSMTP();
@@ -229,7 +224,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
                             $mail->Username = $_ENV['SMTP_USER'] ?? '';
                             $mail->Password = $_ENV['SMTP_PASS'] ?? '';
                             $mail->SMTPSecure = '';
-                            
+
                             $mail->SMTPOptions = [
                                 'ssl' => [
                                     'verify_peer' => false,
@@ -237,7 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
                                     'allow_self_signed' => true
                                 ]
                             ];
-                            
+
                             $mail->setFrom($_ENV['MAIL_FROM_ADDRESS'], $_ENV['MAIL_FROM_NAME']);
                             $mail->addAddress($user['email'], $user['name']);
                             $mail->isHTML(true);
@@ -252,7 +247,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
                     }
                 }
                 $success_msg = "Email berhasil dikirim ke $success_count user.";
-                
             } elseif ($action === 'delete') {
                 // Delete selected users
                 foreach ($user_ids as $uid) {
@@ -264,12 +258,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
                             $filepath = 'uploads/' . $row['nama_file'];
                             if (file_exists($filepath)) @unlink($filepath);
                         }
-                        
+
                         $stmt = $conn->prepare("SELECT foto FROM data_peserta WHERE id_pendaftar = ?");
                         $stmt->execute([$uid]);
                         $foto = $stmt->fetchColumn();
                         if ($foto && file_exists('uploads/' . $foto)) @unlink('uploads/' . $foto);
-                        
+
                         // Delete user
                         $stmt = $conn->prepare("DELETE FROM users WHERE id_pendaftar = ?");
                         if ($stmt->execute([$uid])) {
@@ -281,9 +275,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
                 }
                 $success_msg = "Berhasil menghapus $success_count user.";
             }
-            
+
             $conn->commit();
-            
         } catch (Exception $e) {
             $conn->rollBack();
             $error = 'Error: ' . $e->getMessage();
@@ -311,6 +304,7 @@ $users = $users_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -319,35 +313,137 @@ $users = $users_stmt->fetchAll(PDO::FETCH_ASSOC);
     <link href="assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
     <link href="assets/css/main.css" rel="stylesheet">
     <style>
-        body { background-color: #f5f5f5; }
-        .main { padding-top: 120px; padding-bottom: 40px; }
-        .section-card { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 30px; }
-        .csv-upload-area { border: 2px dashed #0d6efd; border-radius: 8px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.3s; }
-        .csv-upload-area:hover { background-color: #f0f7ff; border-color: #0d6efd; }
-        .csv-upload-area.dragover { background-color: #e7f1ff; border-color: #0d6efd; transform: scale(1.02); }
-        .section-title { color: #333; margin-bottom: 25px; font-size: 1.8rem; font-weight: 600; }
-        .summary-box { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-        .summary-box h5 { margin: 0; font-size: 0.9rem; opacity: 0.9; }
-        .summary-box .number { font-size: 2rem; font-weight: bold; }
-        .user-checkbox { width: 20px; height: 20px; cursor: pointer; }
-        .table-responsive { overflow-x: auto; }
-        .badge-verify { background-color: #28a745; }
-        .badge-ban { background-color: #dc3545; }
-        .action-buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
-        .action-buttons button { min-width: 120px; }
-        .import-result { margin-top: 20px; max-height: 400px; overflow-y: auto; }
-        .result-item { padding: 10px; border-left: 4px solid #dc3545; margin: 5px 0; background: #fff5f5; border-radius: 4px; }
-        .result-item.success { border-left-color: #28a745; background: #f0fdf4; }
-        .result-item.error { border-left-color: #dc3545; background: #fef2f2; }
+        body {
+            background-color: #f5f5f5;
+        }
+
+        .main {
+            padding-top: 120px;
+            padding-bottom: 40px;
+        }
+
+        .section-card {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .csv-upload-area {
+            border: 2px dashed #0d6efd;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .csv-upload-area:hover {
+            background-color: #f0f7ff;
+            border-color: #0d6efd;
+        }
+
+        .csv-upload-area.dragover {
+            background-color: #e7f1ff;
+            border-color: #0d6efd;
+            transform: scale(1.02);
+        }
+
+        .section-title {
+            color: #333;
+            margin-bottom: 25px;
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+
+        .summary-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .summary-box h5 {
+            margin: 0;
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .summary-box .number {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        .user-checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+        }
+
+        .badge-verify {
+            background-color: #28a745;
+        }
+
+        .badge-ban {
+            background-color: #dc3545;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+
+        .action-buttons button {
+            min-width: 120px;
+        }
+
+        .import-result {
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .result-item {
+            padding: 10px;
+            border-left: 4px solid #dc3545;
+            margin: 5px 0;
+            background: #fff5f5;
+            border-radius: 4px;
+        }
+
+        .result-item.success {
+            border-left-color: #28a745;
+            background: #f0fdf4;
+        }
+
+        .result-item.error {
+            border-left-color: #dc3545;
+            background: #fef2f2;
+        }
+
         @media (max-width: 768px) {
-            .csv-upload-area { padding: 20px; }
-            .section-card { padding: 15px; }
+            .csv-upload-area {
+                padding: 20px;
+            }
+
+            .section-card {
+                padding: 15px;
+            }
         }
     </style>
 </head>
+
 <body>
     <?php include 'sidebar.php'; ?>
-    
+
     <header id="header" class="header d-flex align-items-center fixed-top">
         <div class="container-fluid d-flex align-items-center justify-content-between">
             <a href="admin_home.php" class="logo d-flex align-items-center">
@@ -370,7 +466,7 @@ $users = $users_stmt->fetchAll(PDO::FETCH_ASSOC);
 
     <main class="main">
         <div class="container">
-            
+
             <!-- Alert Messages -->
             <?php if ($success_msg): ?>
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -378,7 +474,7 @@ $users = $users_stmt->fetchAll(PDO::FETCH_ASSOC);
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             <?php endif; ?>
-            
+
             <?php if ($error): ?>
                 <div class="alert alert-danger alert-dismissible fade show" role="alert">
                     <i class="bi bi-exclamation-circle"></i> <?php echo $error; ?>
@@ -389,9 +485,9 @@ $users = $users_stmt->fetchAll(PDO::FETCH_ASSOC);
             <!-- ============== CSV IMPORT SECTION ============== -->
             <div class="section-card">
                 <h2 class="section-title"><i class="bi bi-file-earmark-csv"></i> Import Users dari CSV</h2>
-                
+
                 <div class="alert alert-info"><i class="bi bi-info-circle"></i> <strong>Format CSV:</strong> name, email, nisn, password (opsional)</div>
-                
+
                 <form method="POST" enctype="multipart/form-data">
                     <div class="csv-upload-area" id="csvUploadArea">
                         <i class="bi bi-cloud-arrow-up" style="font-size: 2rem; color: #0d6efd;"></i>
@@ -426,7 +522,7 @@ $users = $users_stmt->fetchAll(PDO::FETCH_ASSOC);
             <!-- ============== BULK ACTIONS SECTION ============== -->
             <div class="section-card">
                 <h2 class="section-title"><i class="bi bi-lightning"></i> Bulk Actions</h2>
-                
+
                 <div class="row mb-3">
                     <div class="col-md-3">
                         <div class="summary-box">
@@ -556,7 +652,7 @@ $users = $users_stmt->fetchAll(PDO::FETCH_ASSOC);
 
     <script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
     <script src="assets/js/main.js"></script>
-    
+
     <script>
         // Select All Checkbox
         document.getElementById('selectAllCheckbox').addEventListener('change', function() {
@@ -600,10 +696,12 @@ $users = $users_stmt->fetchAll(PDO::FETCH_ASSOC);
         // Download CSV Template
         function downloadCSVTemplate() {
             const csv = 'name,email,nisn,password\n' +
-                        'John Doe,john@example.com,1234567890,\n' +
-                        'Jane Smith,jane@example.com,0987654321,\n';
-            
-            const blob = new Blob([csv], { type: 'text/csv' });
+                'John Doe,john@example.com,1234567890,\n' +
+                'Jane Smith,jane@example.com,0987654321,\n';
+
+            const blob = new Blob([csv], {
+                type: 'text/csv'
+            });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -615,4 +713,5 @@ $users = $users_stmt->fetchAll(PDO::FETCH_ASSOC);
         }
     </script>
 </body>
+
 </html>

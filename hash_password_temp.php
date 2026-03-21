@@ -11,4 +11,3 @@ echo "Siswa Hash: " . $siswaHash . "\n";
 
 // Delete file after execution
 unlink(__FILE__);
-?>

@@ -20,7 +20,7 @@ $db = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 // Get registrations by status (cached for 1 hour)
-$statusData = QueryCache::get('analytics_status_data', function() use ($db) {
+$statusData = QueryCache::get('analytics_status_data', function () use ($db) {
     $stmtStatus = $db->query("
         SELECT hasil_daftar, COUNT(*) as count 
         FROM hasil_daftar 
@@ -30,7 +30,7 @@ $statusData = QueryCache::get('analytics_status_data', function() use ($db) {
 }, 3600);
 
 // Get registrations by major/jurusan (cached for 1 hour)
-$majorData = QueryCache::get('analytics_major_data', function() use ($db) {
+$majorData = QueryCache::get('analytics_major_data', function () use ($db) {
     $stmtMajor = $db->query("
         SELECT jenis_jurusan, COUNT(*) as count 
         FROM data_peserta 
@@ -41,7 +41,7 @@ $majorData = QueryCache::get('analytics_major_data', function() use ($db) {
 }, 3600);
 
 // Get monthly registrations trend (cached for 1 hour)
-$monthlyData = QueryCache::get('analytics_monthly_data', function() use ($db) {
+$monthlyData = QueryCache::get('analytics_monthly_data', function () use ($db) {
     $stmtMonthly = $db->query("
         SELECT DATE_FORMAT(created_at, '%Y-%m') as month, COUNT(*) as count 
         FROM data_peserta 
@@ -53,7 +53,7 @@ $monthlyData = QueryCache::get('analytics_monthly_data', function() use ($db) {
 }, 3600);
 
 // Get total statistics (cached for 30 minutes)
-$totals = QueryCache::get('analytics_totals', function() use ($db) {
+$totals = QueryCache::get('analytics_totals', function () use ($db) {
     $stmtTotals = $db->query("
         SELECT 
             (SELECT COUNT(*) FROM data_peserta) as total_registrations,
@@ -65,7 +65,7 @@ $totals = QueryCache::get('analytics_totals', function() use ($db) {
 }, 1800);
 
 // Get document upload status (cached for 1 hour)
-$docsData = QueryCache::get('analytics_docs_data', function() use ($db) {
+$docsData = QueryCache::get('analytics_docs_data', function () use ($db) {
     $stmtDocs = $db->query("
         SELECT jenis_dokumen, COUNT(*) as count 
         FROM unggah_dokumen 

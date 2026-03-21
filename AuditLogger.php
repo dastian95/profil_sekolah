@@ -1,14 +1,16 @@
 <?php
+
 /**
  * Audit Logger - Comprehensive Activity Tracking System
  * Tracks all user activities and admin actions with detailed logging
  */
 
-class AuditLogger {
+class AuditLogger
+{
     private static $conn = null;
     private static $userId = null;
     private static $userRole = null;
-    
+
     const ACTION_LOGIN = 'LOGIN';
     const ACTION_LOGOUT = 'LOGOUT';
     const ACTION_CREATE = 'CREATE';
@@ -20,14 +22,15 @@ class AuditLogger {
     const ACTION_VERIFY = 'VERIFY';
     const ACTION_BAN = 'BAN';
     const ACTION_PASSWORD_RESET = 'PASSWORD_RESET';
-    
+
     /**
      * Initialize audit logger
      */
-    public static function init($conn, $userId = null) {
+    public static function init($conn, $userId = null)
+    {
         self::$conn = $conn;
         self::$userId = $userId;
-        
+
         if ($userId) {
             $stmt = $conn->prepare("SELECT role FROM users WHERE id_pendaftar = ?");
             $stmt->execute([$userId]);
@@ -35,13 +38,14 @@ class AuditLogger {
             self::$userRole = $result['role'] ?? 'guest';
         }
     }
-    
+
     /**
      * Log an action to audit trail
      */
-    public static function log($action, $entity, $entityId, $details = []) {
+    public static function log($action, $entity, $entityId, $details = [])
+    {
         if (!self::$conn) return false;
-        
+
         try {
             $logData = [
                 'user_id' => self::$userId,
@@ -54,13 +58,13 @@ class AuditLogger {
                 'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
                 'timestamp' => date('Y-m-d H:i:s')
             ];
-            
+
             $sql = "
                 INSERT INTO audit_logs_enhanced 
                 (user_id, user_role, action, entity, entity_id, details, ip_address, user_agent, timestamp)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ";
-            
+
             $stmt = self::$conn->prepare($sql);
             return $stmt->execute([
                 $logData['user_id'],
@@ -73,19 +77,19 @@ class AuditLogger {
                 $logData['user_agent'],
                 $logData['timestamp']
             ]);
-            
         } catch (Exception $e) {
             error_log("Audit log error: " . $e->getMessage());
             return false;
         }
     }
-    
+
     /**
      * Log data modification with before/after comparison
      */
-    public static function logModification($entity, $entityId, $oldData, $newData, $action = self::ACTION_UPDATE) {
+    public static function logModification($entity, $entityId, $oldData, $newData, $action = self::ACTION_UPDATE)
+    {
         $changes = [];
-        
+
         foreach ($newData as $key => $newValue) {
             $oldValue = $oldData[$key] ?? null;
             if ($oldValue !== $newValue) {
@@ -95,17 +99,18 @@ class AuditLogger {
                 ];
             }
         }
-        
+
         return self::log($action, $entity, $entityId, [
             'changes' => $changes,
             'modified_fields' => count($changes)
         ]);
     }
-    
+
     /**
      * Get client IP address
      */
-    private static function getClientIP() {
+    private static function getClientIP()
+    {
         if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
             $ips = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
             return trim($ips[0]);
@@ -115,45 +120,46 @@ class AuditLogger {
             return $_SERVER['REMOTE_ADDR'] ?? 'UNKNOWN';
         }
     }
-    
+
     /**
      * Query audit logs
      */
-    public static function getLog($filters = [], $limit = 100, $offset = 0) {
+    public static function getLog($filters = [], $limit = 100, $offset = 0)
+    {
         if (!self::$conn) return [];
-        
+
         $sql = "SELECT * FROM audit_logs_enhanced WHERE 1=1";
         $params = [];
-        
+
         if (!empty($filters['user_id'])) {
             $sql .= " AND user_id = ?";
             $params[] = $filters['user_id'];
         }
-        
+
         if (!empty($filters['action'])) {
             $sql .= " AND action = ?";
             $params[] = $filters['action'];
         }
-        
+
         if (!empty($filters['entity'])) {
             $sql .= " AND entity = ?";
             $params[] = $filters['entity'];
         }
-        
+
         if (!empty($filters['date_from'])) {
             $sql .= " AND DATE(timestamp) >= ?";
             $params[] = $filters['date_from'];
         }
-        
+
         if (!empty($filters['date_to'])) {
             $sql .= " AND DATE(timestamp) <= ?";
             $params[] = $filters['date_to'];
         }
-        
+
         $sql .= " ORDER BY timestamp DESC LIMIT ? OFFSET ?";
         $params[] = $limit;
         $params[] = $offset;
-        
+
         try {
             $stmt = self::$conn->prepare($sql);
             $stmt->execute($params);
@@ -162,13 +168,14 @@ class AuditLogger {
             return [];
         }
     }
-    
+
     /**
      * Get audit log statistics
      */
-    public static function getStatistics($dateFrom = null, $dateTo = null) {
+    public static function getStatistics($dateFrom = null, $dateTo = null)
+    {
         if (!self::$conn) return [];
-        
+
         $sql = "SELECT 
                     action,
                     COUNT(*) as count,
@@ -176,19 +183,19 @@ class AuditLogger {
                 FROM audit_logs_enhanced
                 WHERE 1=1";
         $params = [];
-        
+
         if ($dateFrom) {
             $sql .= " AND DATE(timestamp) >= ?";
             $params[] = $dateFrom;
         }
-        
+
         if ($dateTo) {
             $sql .= " AND DATE(timestamp) <= ?";
             $params[] = $dateTo;
         }
-        
+
         $sql .= " GROUP BY action ORDER BY count DESC";
-        
+
         try {
             $stmt = self::$conn->prepare($sql);
             $stmt->execute($params);
@@ -197,13 +204,14 @@ class AuditLogger {
             return [];
         }
     }
-    
+
     /**
      * Clear old logs (for maintenance)
      */
-    public static function purgeOldLogs($daysOld = 90) {
+    public static function purgeOldLogs($daysOld = 90)
+    {
         if (!self::$conn) return false;
-        
+
         try {
             $sql = "DELETE FROM audit_logs_enhanced WHERE DATE(timestamp) < DATE_SUB(NOW(), INTERVAL ? DAY)";
             $stmt = self::$conn->prepare($sql);
@@ -215,7 +223,8 @@ class AuditLogger {
 }
 
 // Create the audit logs table if it doesn't exist
-function createAuditTable($conn) {
+function createAuditTable($conn)
+{
     try {
         $conn->exec("
             CREATE TABLE IF NOT EXISTS audit_logs_enhanced (
@@ -241,4 +250,3 @@ function createAuditTable($conn) {
         return false;
     }
 }
-?>

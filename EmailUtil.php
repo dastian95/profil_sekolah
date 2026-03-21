@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Email Utility for Forgot Password
  * Handles both SMTP and file-based email logging for development
@@ -7,8 +8,10 @@
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-class EmailUtil {
-    public static function sendResetPasswordEmail($email, $userName, $resetLink) {
+class EmailUtil
+{
+    public static function sendResetPasswordEmail($email, $userName, $resetLink)
+    {
 
         $mail = new PHPMailer(true);
 
@@ -54,9 +57,10 @@ class EmailUtil {
      * Alternative: Save reset link to a local file for testing
      * File will be stored in a logs directory
      */
-    private static function saveCashedEmail($email, $userName, $resetLink) {
+    private static function saveCashedEmail($email, $userName, $resetLink)
+    {
         $logDir = __DIR__ . '/email_logs';
-        
+
         // Create directory if not exist
         if (!is_dir($logDir)) {
             mkdir($logDir, 0755, true);
@@ -81,4 +85,3 @@ class EmailUtil {
         ];
     }
 }
-?>

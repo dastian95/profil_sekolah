@@ -1,4 +1,5 @@
 <?php
+
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
@@ -19,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_verify'])) {
     $stmt = $conn->prepare("UPDATE users SET is_verified = ? WHERE id_pendaftar = ?");
     if ($stmt->execute([$new_status, $v_uid])) {
         $success_msg = "Status verifikasi user berhasil diubah.";
-        
+
         // Log audit
         AuditLogger::log(AuditLogger::ACTION_VERIFY, 'users', $v_uid, [
             'is_verified' => $new_status,
@@ -66,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_ban'])) {
     $stmt = $conn->prepare("UPDATE users SET is_banned = ? WHERE id_pendaftar = ?");
     if ($stmt->execute([$new_ban_status, $b_uid])) {
         $success_msg = "Status ban user berhasil diubah.";
-        
+
         // Log audit
         AuditLogger::log(AuditLogger::ACTION_BAN, 'users', $b_uid, [
             'is_banned' => $new_ban_status,
@@ -81,16 +82,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_ban'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_user_password'])) {
     $target_uid = $_POST['reset_uid'];
     $new_pass = $_POST['reset_new_password'];
-    
+
     if (!empty($target_uid) && !empty($new_pass)) {
         if (strlen($new_pass) < 8) {
-             $error = "Password must be at least 8 characters.";
+            $error = "Password must be at least 8 characters.";
         } else {
             $hashed = password_hash($new_pass, PASSWORD_DEFAULT);
             $stmt = $conn->prepare("UPDATE users SET password = ? WHERE id_pendaftar = ?");
             if ($stmt->execute([$hashed, $target_uid])) {
                 $success_msg = "Password berhasil direset.";
-                
+
                 // Log audit
                 AuditLogger::log(AuditLogger::ACTION_PASSWORD_RESET, 'users', $target_uid, [
                     'action_type' => 'admin_reset'
@@ -140,7 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_user'])) {
             while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 if (file_exists('uploads/' . $row['nama_file'])) unlink('uploads/' . $row['nama_file']);
             }
-            
+
             $stmt = $conn->prepare("SELECT foto FROM data_peserta WHERE id_pendaftar = ?");
             $stmt->execute([$del_uid]);
             $foto = $stmt->fetchColumn();
@@ -149,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_user'])) {
             // Delete User (Cascading will handle some, but manual cleanup ensures consistency)
             $stmt = $conn->prepare("DELETE FROM users WHERE id_pendaftar = ?");
             $stmt->execute([$del_uid]);
-            
+
             $conn->commit();
             $success_msg = "User berhasil dihapus beserta data terkait.";
         } catch (Exception $e) {
@@ -179,7 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_student_profil
         // Check if record exists
         $stmt = $conn->prepare("SELECT id_pendaftar FROM data_peserta WHERE id_pendaftar = ?");
         $stmt->execute([$p_uid]);
-        
+
         if ($stmt->fetch()) {
             $sql = "UPDATE data_peserta SET nama=?, nisn=?, kota=?, tanggal_lahir=?, asal_sekolah=?, npsn=?, jurusan=?, no_telp_siswa=?, no_telp_ortu=?, alamat=? WHERE id_pendaftar=?";
             $stmt = $conn->prepare($sql);
@@ -314,7 +315,7 @@ try {
     $sql .= " ORDER BY u.created_at DESC LIMIT :limit OFFSET :offset";
 
     $stmt = $conn->prepare($sql);
-    
+
     if (!empty($search)) {
         $stmt->bindValue(':search', $search_param);
     }
@@ -415,20 +416,20 @@ try {
                             <tr>
                                 <td><?php echo htmlspecialchars($user['nisn'] ?? '-'); ?></td>
                                 <td>
-                                    <a href="#" class="text-decoration-none fw-bold" data-bs-toggle="modal" data-bs-target="#viewProfileModal" 
-                                       data-uid="<?php echo $user['id_pendaftar']; ?>"
-                                       data-name="<?php echo htmlspecialchars($user['name']); ?>"
-                                       data-nisn="<?php echo htmlspecialchars($user['nisn'] ?? '-'); ?>"
-                                       data-email="<?php echo htmlspecialchars($user['email']); ?>"
-                                       data-sekolah="<?php echo htmlspecialchars($user['asal_sekolah'] ?? '-'); ?>"
-                                       data-npsn="<?php echo htmlspecialchars($user['npsn'] ?? '-'); ?>"
-                                       data-jurusan="<?php echo htmlspecialchars($user['jurusan'] ?? '-'); ?>"
-                                       data-telp="<?php echo htmlspecialchars($user['no_telp_siswa'] ?? '-'); ?>"
-                                       data-ortu="<?php echo htmlspecialchars($user['no_telp_ortu'] ?? '-'); ?>"
-                                       data-alamat="<?php echo htmlspecialchars($user['alamat'] ?? '-'); ?>"
-                                       data-foto="<?php echo htmlspecialchars($user['foto'] ?? ''); ?>"
-                                       data-tgl-lahir="<?php echo htmlspecialchars($user['tanggal_lahir'] ?? ''); ?>"
-                                       data-tempat-lahir="<?php echo htmlspecialchars($user['kota'] ?? ''); ?>">
+                                    <a href="#" class="text-decoration-none fw-bold" data-bs-toggle="modal" data-bs-target="#viewProfileModal"
+                                        data-uid="<?php echo $user['id_pendaftar']; ?>"
+                                        data-name="<?php echo htmlspecialchars($user['name']); ?>"
+                                        data-nisn="<?php echo htmlspecialchars($user['nisn'] ?? '-'); ?>"
+                                        data-email="<?php echo htmlspecialchars($user['email']); ?>"
+                                        data-sekolah="<?php echo htmlspecialchars($user['asal_sekolah'] ?? '-'); ?>"
+                                        data-npsn="<?php echo htmlspecialchars($user['npsn'] ?? '-'); ?>"
+                                        data-jurusan="<?php echo htmlspecialchars($user['jurusan'] ?? '-'); ?>"
+                                        data-telp="<?php echo htmlspecialchars($user['no_telp_siswa'] ?? '-'); ?>"
+                                        data-ortu="<?php echo htmlspecialchars($user['no_telp_ortu'] ?? '-'); ?>"
+                                        data-alamat="<?php echo htmlspecialchars($user['alamat'] ?? '-'); ?>"
+                                        data-foto="<?php echo htmlspecialchars($user['foto'] ?? ''); ?>"
+                                        data-tgl-lahir="<?php echo htmlspecialchars($user['tanggal_lahir'] ?? ''); ?>"
+                                        data-tempat-lahir="<?php echo htmlspecialchars($user['kota'] ?? ''); ?>">
                                         <?php echo htmlspecialchars($user['name']); ?>
                                         <?php if (!empty($user['is_banned'])): ?>
                                             <span class="badge bg-danger ms-1" style="font-size: 0.6rem;">BANNED</span>
@@ -458,9 +459,9 @@ try {
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <?php 
+                                    <?php
                                     $status = $user['status_pendaftaran'] ?? 'Belum Daftar';
-                                    $statusClass = match($status) {
+                                    $statusClass = match ($status) {
                                         'Terkirim' => 'bg-success',
                                         'Draft' => 'bg-secondary',
                                         default => 'bg-light text-dark border'
@@ -469,9 +470,9 @@ try {
                                     <span class="badge <?php echo $statusClass; ?>"><?php echo htmlspecialchars($status); ?></span>
                                 </td>
                                 <td>
-                                    <?php 
+                                    <?php
                                     $hasil = $user['hasil'] ?? '-';
-                                    $hasilClass = match($hasil) {
+                                    $hasilClass = match ($hasil) {
                                         'diterima' => 'bg-success',
                                         'tidak diterima' => 'bg-danger',
                                         default => 'bg-light text-dark border'
@@ -480,7 +481,7 @@ try {
                                     <span class="badge <?php echo $hasilClass; ?>"><?php echo htmlspecialchars(ucfirst($hasil)); ?></span>
                                 </td>
                                 <td><?php echo htmlspecialchars(date('d M Y', strtotime($user['created_at']))); ?></td>
-                                <td class="text-nowrap text-center">   <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editUserModal" data-uid="<?php echo $user['id_pendaftar']; ?>" data-uname="<?php echo htmlspecialchars($user['name']); ?>" data-uemail="<?php echo htmlspecialchars($user['email']); ?>">
+                                <td class="text-nowrap text-center"> <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editUserModal" data-uid="<?php echo $user['id_pendaftar']; ?>" data-uname="<?php echo htmlspecialchars($user['name']); ?>" data-uemail="<?php echo htmlspecialchars($user['email']); ?>">
                                         <i class="bi bi-pencil"></i>
                                     </button>
                                     <form method="POST" style="display:inline-block;" onsubmit="return confirm('<?php echo !empty($user['is_banned']) ? 'Buka blokir user ini?' : 'Blokir user ini? User tidak akan bisa login.'; ?>');">
@@ -549,7 +550,7 @@ try {
                         <datalist id="schoolList">
                             <?php foreach ($schools_list as $s): ?>
                                 <option value="<?php echo htmlspecialchars($s); ?>">
-                            <?php endforeach; ?>
+                                <?php endforeach; ?>
                         </datalist>
                     </div>
                     <div class="mb-3">
@@ -658,69 +659,110 @@ try {
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form method="POST">
-            <div class="modal-body">
-                <input type="hidden" name="p_uid" id="p_uid">
-                
-                <ul class="nav nav-tabs mb-3" id="profileTabs" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="details-tab" data-bs-toggle="tab" data-bs-target="#details" type="button" role="tab">Data Siswa</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="activity-tab" data-bs-toggle="tab" data-bs-target="#activity" type="button" role="tab">Activity Log</button>
-                    </li>
-                </ul>
+                <div class="modal-body">
+                    <input type="hidden" name="p_uid" id="p_uid">
 
-                <div class="tab-content" id="profileTabsContent">
-                    <!-- Tab Data Siswa -->
-                    <div class="tab-pane fade show active" id="details" role="tabpanel">
-                        <div class="row">
-                            <div class="col-md-4 text-center mb-3">
-                                <img id="view_foto" src="" class="img-thumbnail" style="width: 150px; height: 200px; object-fit: cover; display: none;">
-                                <div id="view_no_foto" class="bg-light d-flex align-items-center justify-content-center mx-auto border" style="width: 150px; height: 200px;">
-                                    <span class="text-muted">No Photo</span>
+                    <ul class="nav nav-tabs mb-3" id="profileTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="details-tab" data-bs-toggle="tab" data-bs-target="#details" type="button" role="tab">Data Siswa</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="activity-tab" data-bs-toggle="tab" data-bs-target="#activity" type="button" role="tab">Activity Log</button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="profileTabsContent">
+                        <!-- Tab Data Siswa -->
+                        <div class="tab-pane fade show active" id="details" role="tabpanel">
+                            <div class="row">
+                                <div class="col-md-4 text-center mb-3">
+                                    <img id="view_foto" src="" class="img-thumbnail" style="width: 150px; height: 200px; object-fit: cover; display: none;">
+                                    <div id="view_no_foto" class="bg-light d-flex align-items-center justify-content-center mx-auto border" style="width: 150px; height: 200px;">
+                                        <span class="text-muted">No Photo</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-8">
+                                    <table class="table table-borderless table-sm align-middle">
+                                        <tr>
+                                            <td width="30%" class="fw-bold">Nama Lengkap</td>
+                                            <td><input type="text" name="p_nama" id="p_nama" class="form-control form-control-sm" required></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">NISN</td>
+                                            <td><input type="text" name="p_nisn" id="p_nisn" class="form-control form-control-sm" required></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">Email</td>
+                                            <td><input type="text" id="p_email" class="form-control form-control-sm bg-light" readonly disabled title="Email tidak dapat diubah dari sini"></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">Tempat Lahir</td>
+                                            <td><input type="text" name="p_tempat_lahir" id="p_tempat_lahir" class="form-control form-control-sm"></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">Tanggal Lahir</td>
+                                            <td><input type="date" name="p_tanggal_lahir" id="p_tanggal_lahir" class="form-control form-control-sm"></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">Asal Sekolah</td>
+                                            <td><input type="text" name="p_asal_sekolah" id="p_asal_sekolah" class="form-control form-control-sm"></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">NPSN</td>
+                                            <td><input type="text" name="p_npsn" id="p_npsn" class="form-control form-control-sm"></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">Jurusan</td>
+                                            <td>
+                                                <select name="p_jurusan" id="p_jurusan" class="form-select form-select-sm">
+                                                    <option value="">Pilih Jurusan</option>
+                                                    <option value="Rekayasa Perangkat Lunak (RPL)">RPL</option>
+                                                    <option value="Teknik Komputer dan Jaringan (TKJ)">TKJ</option>
+                                                    <option value="Asisten Keperawatan (AP)">AP</option>
+                                                    <option value="Tata Kecantikan Kulit dan Rambut (TKKR)">TKKR</option>
+                                                </select>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">Telp Siswa</td>
+                                            <td><input type="text" name="p_telp_siswa" id="p_telp_siswa" class="form-control form-control-sm"></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">Telp Ortu</td>
+                                            <td><input type="text" name="p_telp_ortu" id="p_telp_ortu" class="form-control form-control-sm"></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">Alamat</td>
+                                            <td><textarea name="p_alamat" id="p_alamat" class="form-control form-control-sm" rows="2"></textarea></td>
+                                        </tr>
+                                    </table>
                                 </div>
                             </div>
-                            <div class="col-md-8">
-                                <table class="table table-borderless table-sm align-middle">
-                                    <tr><td width="30%" class="fw-bold">Nama Lengkap</td><td><input type="text" name="p_nama" id="p_nama" class="form-control form-control-sm" required></td></tr>
-                                    <tr><td class="fw-bold">NISN</td><td><input type="text" name="p_nisn" id="p_nisn" class="form-control form-control-sm" required></td></tr>
-                                    <tr><td class="fw-bold">Email</td><td><input type="text" id="p_email" class="form-control form-control-sm bg-light" readonly disabled title="Email tidak dapat diubah dari sini"></td></tr>
-                                    <tr><td class="fw-bold">Tempat Lahir</td><td><input type="text" name="p_tempat_lahir" id="p_tempat_lahir" class="form-control form-control-sm"></td></tr>
-                                    <tr><td class="fw-bold">Tanggal Lahir</td><td><input type="date" name="p_tanggal_lahir" id="p_tanggal_lahir" class="form-control form-control-sm"></td></tr>
-                                    <tr><td class="fw-bold">Asal Sekolah</td><td><input type="text" name="p_asal_sekolah" id="p_asal_sekolah" class="form-control form-control-sm"></td></tr>
-                                    <tr><td class="fw-bold">NPSN</td><td><input type="text" name="p_npsn" id="p_npsn" class="form-control form-control-sm"></td></tr>
-                                    <tr><td class="fw-bold">Jurusan</td><td>
-                                        <select name="p_jurusan" id="p_jurusan" class="form-select form-select-sm">
-                                            <option value="">Pilih Jurusan</option>
-                                            <option value="Rekayasa Perangkat Lunak (RPL)">RPL</option>
-                                            <option value="Teknik Komputer dan Jaringan (TKJ)">TKJ</option>
-                                            <option value="Asisten Keperawatan (AP)">AP</option>
-                                            <option value="Tata Kecantikan Kulit dan Rambut (TKKR)">TKKR</option>
-                                        </select>
-                                    </td></tr>
-                                    <tr><td class="fw-bold">Telp Siswa</td><td><input type="text" name="p_telp_siswa" id="p_telp_siswa" class="form-control form-control-sm"></td></tr>
-                                    <tr><td class="fw-bold">Telp Ortu</td><td><input type="text" name="p_telp_ortu" id="p_telp_ortu" class="form-control form-control-sm"></td></tr>
-                                    <tr><td class="fw-bold">Alamat</td><td><textarea name="p_alamat" id="p_alamat" class="form-control form-control-sm" rows="2"></textarea></td></tr>
-                                </table>
-                            </div>
+                        </div>
+
+                        <!-- Tab Activity Log -->
+                        <div class="tab-pane fade" id="activity" role="tabpanel">
+                            <table class="table table-striped table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Waktu</th>
+                                        <th>Aktivitas</th>
+                                        <th>IP Address</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="activityLogBody">
+                                    <tr>
+                                        <td colspan="3" class="text-center">Memuat data...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
-                    
-                    <!-- Tab Activity Log -->
-                    <div class="tab-pane fade" id="activity" role="tabpanel">
-                        <table class="table table-striped table-sm">
-                            <thead><tr><th>Waktu</th><th>Aktivitas</th><th>IP Address</th></tr></thead>
-                            <tbody id="activityLogBody">
-                                <tr><td colspan="3" class="text-center">Memuat data...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
                 </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                <button type="submit" name="update_student_profile" class="btn btn-primary">Simpan Perubahan</button>
-            </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" name="update_student_profile" class="btn btn-primary">Simpan Perubahan</button>
+                </div>
             </form>
         </div>
     </div>
@@ -728,42 +770,42 @@ try {
 
 <script>
     var editModal = document.getElementById('editUserModal');
-    editModal.addEventListener('show.bs.modal', function (event) {
+    editModal.addEventListener('show.bs.modal', function(event) {
         var button = event.relatedTarget;
         var uid = button.getAttribute('data-uid');
         var uname = button.getAttribute('data-uname');
         var uemail = button.getAttribute('data-uemail');
-        
+
         document.getElementById('edit_uid').value = uid;
         document.getElementById('edit_name').value = uname;
         document.getElementById('edit_email').value = uemail;
     });
 
     var resetModal = document.getElementById('resetPasswordModal');
-    resetModal.addEventListener('show.bs.modal', function (event) {
+    resetModal.addEventListener('show.bs.modal', function(event) {
         var button = event.relatedTarget;
         var uid = button.getAttribute('data-uid');
         var uname = button.getAttribute('data-uname');
-        
+
         document.getElementById('reset_uid').value = uid;
         document.getElementById('reset_uname').textContent = uname;
     });
 
     var deleteModal = document.getElementById('deleteUserModal');
-    deleteModal.addEventListener('show.bs.modal', function (event) {
+    deleteModal.addEventListener('show.bs.modal', function(event) {
         var button = event.relatedTarget;
         var uid = button.getAttribute('data-uid');
         var uname = button.getAttribute('data-uname');
-        
+
         document.getElementById('delete_uid').value = uid;
         document.getElementById('delete_uname').textContent = uname;
     });
 
     var viewModal = document.getElementById('viewProfileModal');
-    viewModal.addEventListener('show.bs.modal', function (event) {
+    viewModal.addEventListener('show.bs.modal', function(event) {
         var button = event.relatedTarget;
         var uid = button.getAttribute('data-uid');
-        
+
         document.getElementById('p_uid').value = uid;
         document.getElementById('p_nama').value = button.getAttribute('data-name');
         document.getElementById('p_nisn').value = button.getAttribute('data-nisn');
@@ -776,7 +818,7 @@ try {
         document.getElementById('p_telp_siswa').value = button.getAttribute('data-telp');
         document.getElementById('p_telp_ortu').value = button.getAttribute('data-ortu');
         document.getElementById('p_alamat').value = button.getAttribute('data-alamat');
-        
+
         var foto = button.getAttribute('data-foto');
         if (foto) {
             document.getElementById('view_foto').src = 'uploads/' + foto;
@@ -795,15 +837,18 @@ try {
         // Fetch Activity Logs
         var logBody = document.getElementById('activityLogBody');
         logBody.innerHTML = '<tr><td colspan="3" class="text-center">Memuat data...</td></tr>';
-        
+
         var formData = new FormData();
         formData.append('uid', uid);
-        
-        fetch('admin_fetch_user_activity.php', { method: 'POST', body: formData })
+
+        fetch('admin_fetch_user_activity.php', {
+                method: 'POST',
+                body: formData
+            })
             .then(res => res.json())
             .then(data => {
                 logBody.innerHTML = '';
-                if(data.success && data.data.length > 0) {
+                if (data.success && data.data.length > 0) {
                     data.data.forEach(log => {
                         logBody.innerHTML += `<tr><td>${log.formatted_date}</td><td>${log.action}</td><td>${log.ip_address}</td></tr>`;
                     });

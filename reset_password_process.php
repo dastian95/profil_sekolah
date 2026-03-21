@@ -40,8 +40,9 @@ try {
             AuditLogger::log(AuditLogger::ACTION_PASSWORD_RESET, 'users', $user['id_pendaftar'], [
                 'action_type' => 'forgot_password_reset'
             ]);
-        } catch (Exception $e) { /* Ignore log error */ }
-        
+        } catch (Exception $e) { /* Ignore log error */
+        }
+
         ob_end_clean();
         echo json_encode(['success' => true, 'message' => 'Password updated successfully']);
     } else {
@@ -51,4 +52,3 @@ try {
     ob_end_clean();
     echo json_encode(['success' => false, 'message' => $e->getMessage()]);
 }
-?>

@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Database Query Optimization
  * Provides SQL optimizations and creates necessary indexes for performance
@@ -42,10 +43,10 @@ if (isset($_GET['action']) && $_GET['action'] === 'apply_indexes') {
             'ALTER TABLE unggah_dokumen ADD INDEX idx_id_pendaftar (id_pendaftar)',
             'ALTER TABLE unggah_dokumen ADD INDEX idx_jenis_dokumen (jenis_dokumen)',
         ];
-        
+
         $added = 0;
         $skipped = 0;
-        
+
         foreach ($indexes as $index) {
             try {
                 $conn->exec($index);
@@ -55,7 +56,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'apply_indexes') {
                 $skipped++;
             }
         }
-        
+
         $message = ['type' => 'success', 'text' => "✅ Optimisasi database selesai! Added: $added indexes, Skipped: $skipped (already exist)"];
     } catch (Exception $e) {
         $message = ['type' => 'danger', 'text' => '❌ Error: ' . $e->getMessage()];
@@ -70,11 +71,11 @@ try {
         WHERE TABLE_SCHEMA = ?
         ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX
     ";
-    
+
     $stmt = $conn->prepare($indexQuery);
     $stmt->execute([DB_NAME]);
     $indexes = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
+
     // Group by table
     $current_indexes = [];
     foreach ($indexes as $idx) {
@@ -105,7 +106,7 @@ try {
         WHERE TABLE_SCHEMA = ?
         ORDER BY (DATA_LENGTH + INDEX_LENGTH) DESC
     ";
-    
+
     $stmt = $conn->prepare($statsQuery);
     $stmt->execute([DB_NAME]);
     $table_stats = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -116,6 +117,7 @@ try {
 
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -124,22 +126,77 @@ try {
     <link href="assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
     <link href="assets/css/main.css" rel="stylesheet">
     <style>
-        body { background-color: #f5f5f5; }
-        .main { padding-top: 120px; padding-bottom: 40px; }
-        .card-section { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 30px; }
-        .section-title { font-size: 1.5rem; font-weight: 600; margin-bottom: 20px; }
-        .optimization-status { padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-        .status-good { background: #d4edda; border-left: 4px solid #28a745; color: #155724; }
-        .status-warning { background: #fff3cd; border-left: 4px solid #ffc107; color: #856404; }
-        .status-danger { background: #f8d7da; border-left: 4px solid #dc3545; color: #721c24; }
-        .table-responsive { overflow-x: auto; }
-        .index-item { padding: 10px 15px; background: #f9f9f9; border-radius: 5px; margin: 5px 0; }
-        .recommendation { background: #e7f3ff; padding: 15px; border-left: 4px solid #0066cc; border-radius: 5px; margin-bottom: 10px; }
+        body {
+            background-color: #f5f5f5;
+        }
+
+        .main {
+            padding-top: 120px;
+            padding-bottom: 40px;
+        }
+
+        .card-section {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .optimization-status {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .status-good {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            color: #155724;
+        }
+
+        .status-warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            color: #856404;
+        }
+
+        .status-danger {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            color: #721c24;
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+        }
+
+        .index-item {
+            padding: 10px 15px;
+            background: #f9f9f9;
+            border-radius: 5px;
+            margin: 5px 0;
+        }
+
+        .recommendation {
+            background: #e7f3ff;
+            padding: 15px;
+            border-left: 4px solid #0066cc;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
+
 <body>
     <?php include 'sidebar.php'; ?>
-    
+
     <header id="header" class="header d-flex align-items-center fixed-top">
         <div class="container-fluid d-flex align-items-center justify-content-between">
             <a href="admin_home.php" class="logo d-flex align-items-center">
@@ -159,7 +216,7 @@ try {
 
     <main class="main">
         <div class="container">
-            
+
             <!-- Alert Messages -->
             <?php if ($message): ?>
                 <div class="alert alert-<?php echo $message['type']; ?> alert-dismissible fade show">
@@ -171,7 +228,7 @@ try {
             <!-- ============== OPTIMIZATION STATUS ============== -->
             <div class="card-section">
                 <h2 class="section-title"><i class="bi bi-speedometer2"></i> Database Optimization Status</h2>
-                
+
                 <div class="optimization-status status-good">
                     <i class="bi bi-check-circle-fill"></i> <strong>Database Status:</strong> Ready for optimization
                 </div>
@@ -186,7 +243,7 @@ try {
                     <div class="col-md-3">
                         <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 20px; border-radius: 8px; text-align: center;">
                             <div style="font-size: 2rem; font-weight: bold;">
-                                <?php 
+                                <?php
                                 $total_size = array_sum(array_map(fn($t) => $t['size_mb'], $table_stats));
                                 echo round($total_size, 1) . ' MB';
                                 ?>
@@ -203,7 +260,7 @@ try {
                     <div class="col-md-3">
                         <div style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white; padding: 20px; border-radius: 8px; text-align: center; padding: 20px; border-radius: 8px; text-align: center;">
                             <div style="font-size: 2rem; font-weight: bold;">
-                                <?php 
+                                <?php
                                 $index_size = array_sum(array_map(fn($t) => $t['index_mb'] ?? 0, $table_stats));
                                 echo round($index_size, 1) . ' MB';
                                 ?>
@@ -221,7 +278,7 @@ try {
             <!-- ============== TABLE STATISTICS ============== -->
             <div class="card-section">
                 <h2 class="section-title"><i class="bi bi-table"></i> Table Statistics</h2>
-                
+
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead class="table-light">
@@ -243,7 +300,7 @@ try {
                                     <td><?php echo $stat['data_mb']; ?></td>
                                     <td><?php echo $stat['index_mb']; ?></td>
                                     <td>
-                                        <?php 
+                                        <?php
                                         $ratio = $stat['index_mb'] / max($stat['data_mb'], 0.01);
                                         if ($ratio >= 0.3) {
                                             echo '<span class="badge bg-success">Good</span>';
@@ -264,7 +321,7 @@ try {
             <!-- ============== CURRENT INDEXES ============== -->
             <div class="card-section">
                 <h2 class="section-title"><i class="bi bi-diagram-3"></i> Current Indexes</h2>
-                
+
                 <?php if (empty($current_indexes)): ?>
                     <div class="alert alert-warning">No indexes found. Run optimization to create recommended indexes.</div>
                 <?php else: ?>
@@ -288,7 +345,7 @@ try {
             <!-- ============== OPTIMIZATION RECOMMENDATIONS ============== -->
             <div class="card-section">
                 <h2 class="section-title"><i class="bi bi-lightbulb"></i> Optimization Recommendations</h2>
-                
+
                 <div class="recommendation">
                     <strong>✅ Query Caching Enabled</strong><br>
                     Analytics queries are cached for 1 hour to reduce database load. Cache is automatically invalidated on data modifications.
@@ -318,7 +375,7 @@ try {
             <!-- ============== QUERY PERFORMANCE TIPS ============== -->
             <div class="card-section" style="background: linear-gradient(to right, #e0f2f7 0%, #f0f7f7 100%); border-left: 4px solid #0d6efd;">
                 <h3 style="margin-bottom: 15px;"><i class="bi bi-info-circle"></i> Performance Best Practices</h3>
-                
+
                 <ul class="list-unstyled">
                     <li>✓ Use exact column matches in WHERE clauses</li>
                     <li>✓ Limit query results with LIMIT clause</li>
@@ -336,4 +393,5 @@ try {
 
     <script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
 </body>
+
 </html>

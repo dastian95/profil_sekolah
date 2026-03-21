@@ -35,4 +35,3 @@ if ($result1 && $result2) {
 }
 
 $conn->close();
-?>
