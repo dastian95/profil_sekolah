@@ -145,7 +145,7 @@ $page = $_GET['page'] ?? 'home';
 <body class="user-dashboard">
     
     <!-- Sidebar -->
-    <?php include 'includes/sidebar.php'; ?>
+    <?php include 'sidebar.php'; ?>
 
     <!-- Main Content -->
     <div class="content">
