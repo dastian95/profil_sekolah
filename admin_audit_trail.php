@@ -166,6 +166,9 @@ $totalPages = ceil($totalRecords / $limit);
 
 <body>
     <?php include 'sidebar.php'; ?>
+<?php
+} // End of full HTML structure - for AJAX requests, we skip to here
+?>
 
     <header id="header" class="header d-flex align-items-center fixed-top">
         <div class="container-fluid d-flex align-items-center justify-content-between">
@@ -396,6 +399,12 @@ $totalPages = ceil($totalRecords / $limit);
     </main>
 
     <script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+<?php
+if (!$isAjaxRequest) {
+?>
 </body>
 
 </html>
+<?php
+} // End of conditional HTML closing
+?>

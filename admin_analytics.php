@@ -196,6 +196,9 @@ $statusMap = [
 
 <body class="admin-analytics-page">
     <?php include 'sidebar.php'; ?>
+<?php
+} // End of full HTML structure - for AJAX requests, we skip to here
+?>
 
     <header id="header" class="header d-flex align-items-center fixed-top">
         <div class="container-fluid container-xl position-relative d-flex align-items-center justify-content-between">
@@ -609,7 +612,12 @@ $statusMap = [
             new DarkModeManager();
         }
     </script>
-
+<?php
+if (!$isAjaxRequest) {
+?>
 </body>
 
 </html>
+<?php
+} // End of conditional HTML closing
+?>

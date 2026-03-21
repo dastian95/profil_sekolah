@@ -443,6 +443,9 @@ $users = $users_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 <body>
     <?php include 'sidebar.php'; ?>
+<?php
+} // End of full HTML structure - for AJAX requests, we skip to here
+?>
 
     <header id="header" class="header d-flex align-items-center fixed-top">
         <div class="container-fluid d-flex align-items-center justify-content-between">
