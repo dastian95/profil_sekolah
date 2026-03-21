@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../src/conn.php';
+require_once __DIR__ . '/conn.php';
 
 // Check admin
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {

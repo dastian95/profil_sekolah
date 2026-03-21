@@ -8,7 +8,7 @@
  * 3. After running it once, DELETE THIS FILE for security reasons.
  */
 
-require_once __DIR__ . '/../src/conn.php';
+require_once __DIR__ . '/conn.php';
 
 echo "<pre>";
 

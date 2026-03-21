@@ -2,7 +2,7 @@
 header('Content-Type: application/json');
 
 // Load Environment Variables
-require_once __DIR__ . '/../src/conn.php';
+require_once __DIR__ . '/conn.php';
 
 // 1. Validasi Request
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

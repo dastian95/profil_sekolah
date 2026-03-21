@@ -1,6 +1,6 @@
 <?php
 ob_start(); // Mulai buffering output segera untuk menangkap error/warning
-require_once __DIR__ . '/../src/rate_limiter.php';
+require_once __DIR__ . '/rate_limiter.php';
 require_once __DIR__ . '/AuditLogger.php';
 
 // Fungsi helper untuk mengirim respons JSON bersih
@@ -13,7 +13,7 @@ function sendJson($data)
 }
 
 try {
-    require_once __DIR__ . '/../src/conn.php';
+    require_once __DIR__ . '/conn.php';
     session_start();
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

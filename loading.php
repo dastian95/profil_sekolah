@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../src/conn.php';
+require_once __DIR__ . '/conn.php';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Log FILES for debugging

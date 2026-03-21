@@ -1,7 +1,7 @@
 <?php
 session_start();
-require_once __DIR__ . '/../src/conn.php';
-require_once __DIR__ . '/../src/rate_limiter.php';
+require_once __DIR__ . '/conn.php';
+require_once __DIR__ . '/rate_limiter.php';
 
 header('Content-Type: application/json');
 

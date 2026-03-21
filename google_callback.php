@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../src/conn.php';
+require_once __DIR__ . '/conn.php';
 
 // google_config.php is no longer needed, we load from .env
 $google_client = new Google_Client();

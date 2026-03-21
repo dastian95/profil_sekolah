@@ -1,7 +1,7 @@
 <?php
 // Check for "Remember Me" cookie if session is not set
-require_once __DIR__ . '/../src/conn.php'; // Includes session_start()
-require_once __DIR__ . '/../src/check_remember_me.php';
+require_once __DIR__ . '/conn.php'; // Includes session_start()
+require_once __DIR__ . '/check_remember_me.php';
 
 // Check if user is logged in and is admin
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {

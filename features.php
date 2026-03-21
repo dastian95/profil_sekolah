@@ -5,7 +5,7 @@
  * Quick overview of all system features
  */
 
-require_once __DIR__ . '/../src/conn.php';
+require_once __DIR__ . '/conn.php';
 
 // Get system user
 $is_admin = isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin';

@@ -3,7 +3,7 @@
  * Halaman Informasi Sekolah - SMK Laboratorium Jakarta
  * Database-Driven Version
  */
-require_once __DIR__ . '/../src/conn.php';
+require_once __DIR__ . '/conn.php';
 
 // School Basic Info
 $school_name = 'SMK Laboratorium Jakarta';

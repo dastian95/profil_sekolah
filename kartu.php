@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../src/conn.php';
+require_once __DIR__ . '/conn.php';
 
 // cegah akses langsung tanpa lewat form
 if (!isset($_SESSION['nama_lengkap'])) {
