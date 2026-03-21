@@ -359,6 +359,7 @@ $users = $users_stmt->fetchAll(PDO::FETCH_ASSOC);
                     <li><a href="admin_manage_users.php">Manage Users</a></li>
                     <li><a href="admin_bulk_operations.php">Bulk Operations</a></li>
                     <li><a href="admin_advanced_export.php">Advanced Export</a></li>
+                    <li><a href="admin_cache_manager.php">Cache Manager</a></li>
                     <li><a href="logout.php">Logout</a></li>
                 </ul>
             </nav>

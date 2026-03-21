@@ -6,6 +6,7 @@
  */
 
 require_once __DIR__ . '/conn.php';
+require_once __DIR__ . '/QueryCache.php';
 
 // Check if user is admin
 session_start();
@@ -14,54 +15,64 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     exit;
 }
 
-// Fetch statistics data
+// Fetch statistics data with caching
 $db = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-// Get registrations by status
-$stmtStatus = $db->query("
-    SELECT hasil_daftar, COUNT(*) as count 
-    FROM hasil_daftar 
-    GROUP BY hasil_daftar
-");
-$statusData = $stmtStatus->fetchAll(PDO::FETCH_ASSOC);
+// Get registrations by status (cached for 1 hour)
+$statusData = QueryCache::get('analytics_status_data', function() use ($db) {
+    $stmtStatus = $db->query("
+        SELECT hasil_daftar, COUNT(*) as count 
+        FROM hasil_daftar 
+        GROUP BY hasil_daftar
+    ");
+    return $stmtStatus->fetchAll(PDO::FETCH_ASSOC);
+}, 3600);
 
-// Get registrations by major/jurusan
-$stmtMajor = $db->query("
-    SELECT jenis_jurusan, COUNT(*) as count 
-    FROM data_peserta 
-    GROUP BY jenis_jurusan 
-    LIMIT 10
-");
-$majorData = $stmtMajor->fetchAll(PDO::FETCH_ASSOC);
+// Get registrations by major/jurusan (cached for 1 hour)
+$majorData = QueryCache::get('analytics_major_data', function() use ($db) {
+    $stmtMajor = $db->query("
+        SELECT jenis_jurusan, COUNT(*) as count 
+        FROM data_peserta 
+        GROUP BY jenis_jurusan 
+        LIMIT 10
+    ");
+    return $stmtMajor->fetchAll(PDO::FETCH_ASSOC);
+}, 3600);
 
-// Get monthly registrations trend
-$stmtMonthly = $db->query("
-    SELECT DATE_FORMAT(created_at, '%Y-%m') as month, COUNT(*) as count 
-    FROM data_peserta 
-    WHERE created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
-    GROUP BY DATE_FORMAT(created_at, '%Y-%m')
-    ORDER BY month ASC
-");
-$monthlyData = $stmtMonthly->fetchAll(PDO::FETCH_ASSOC);
+// Get monthly registrations trend (cached for 1 hour)
+$monthlyData = QueryCache::get('analytics_monthly_data', function() use ($db) {
+    $stmtMonthly = $db->query("
+        SELECT DATE_FORMAT(created_at, '%Y-%m') as month, COUNT(*) as count 
+        FROM data_peserta 
+        WHERE created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+        GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+        ORDER BY month ASC
+    ");
+    return $stmtMonthly->fetchAll(PDO::FETCH_ASSOC);
+}, 3600);
 
-// Get total statistics
-$stmtTotals = $db->query("
-    SELECT 
-        (SELECT COUNT(*) FROM data_peserta) as total_registrations,
-        (SELECT COUNT(*) FROM hasil_daftar WHERE hasil_daftar = 'LULUS SELEKSI') as total_passed,
-        (SELECT COUNT(*) FROM users) as total_users,
-        (SELECT COUNT(*) FROM unggah_dokumen) as total_documents
-");
-$totals = $stmtTotals->fetch(PDO::FETCH_ASSOC);
+// Get total statistics (cached for 30 minutes)
+$totals = QueryCache::get('analytics_totals', function() use ($db) {
+    $stmtTotals = $db->query("
+        SELECT 
+            (SELECT COUNT(*) FROM data_peserta) as total_registrations,
+            (SELECT COUNT(*) FROM hasil_daftar WHERE hasil_daftar = 'LULUS SELEKSI') as total_passed,
+            (SELECT COUNT(*) FROM users) as total_users,
+            (SELECT COUNT(*) FROM unggah_dokumen) as total_documents
+    ");
+    return $stmtTotals->fetch(PDO::FETCH_ASSOC);
+}, 1800);
 
-// Get document upload status
-$stmtDocs = $db->query("
-    SELECT jenis_dokumen, COUNT(*) as count 
-    FROM unggah_dokumen 
-    GROUP BY jenis_dokumen
-");
-$docsData = $stmtDocs->fetchAll(PDO::FETCH_ASSOC);
+// Get document upload status (cached for 1 hour)
+$docsData = QueryCache::get('analytics_docs_data', function() use ($db) {
+    $stmtDocs = $db->query("
+        SELECT jenis_dokumen, COUNT(*) as count 
+        FROM unggah_dokumen 
+        GROUP BY jenis_dokumen
+    ");
+    return $stmtDocs->fetchAll(PDO::FETCH_ASSOC);
+}, 3600);
 
 // Prepare status labels dan colors
 $statusMap = [
@@ -197,6 +208,7 @@ $statusMap = [
                     <li><a href="admin_manage_users.php">Manage Users</a></li>
                     <li><a href="admin_bulk_operations.php">Bulk Operations</a></li>
                     <li><a href="admin_advanced_export.php">Advanced Export</a></li>
+                    <li><a href="admin_cache_manager.php">Cache Manager</a></li>
                     <li><a href="logout.php">Logout</a></li>
                 </ul>
             </nav>
