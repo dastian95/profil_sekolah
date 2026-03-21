@@ -147,21 +147,51 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // --- Mobile Sidebar Backdrop & Swipe ---
+    // --- Auto-Expand Sidebar on Hover (Desktop Only) ---
     const sidebar = document.querySelector('.sidebar');
+    if (sidebar && window.innerWidth > 768) { // Desktop only
+        // Track whether sidebar was initially collapsed
+        let wasCollapsedBeforeHover = body.classList.contains('sidebar-collapsed');
+        
+        // Auto-expand on mouse enter
+        sidebar.addEventListener('mouseenter', () => {
+            wasCollapsedBeforeHover = body.classList.contains('sidebar-collapsed');
+            if (wasCollapsedBeforeHover) {
+                body.classList.remove('sidebar-collapsed');
+            }
+        });
+        
+        // Auto-collapse on mouse leave (only if it was collapsed before hover)
+        sidebar.addEventListener('mouseleave', () => {
+            if (wasCollapsedBeforeHover) {
+                body.classList.add('sidebar-collapsed');
+            }
+        });
+        
+        // Also handle window resize to disable/enable hover behavior
+        window.addEventListener('resize', () => {
+            if (window.innerWidth <= 768) {
+                // Mobile view - disable hover expand
+                body.classList.remove('sidebar-collapsed');
+            }
+        });
+    }
+    
+    // --- Mobile Sidebar Backdrop & Swipe ---
+    const sidebarMobile = document.querySelector('.sidebar');
     const backdrop = document.getElementById('sidebarBackdrop');
-    if (backdrop && sidebar) {
+    if (backdrop && sidebarMobile) {
         backdrop.addEventListener('click', () => {
-            sidebar.classList.remove('show');
+            sidebarMobile.classList.remove('show');
             backdrop.classList.remove('show');
         });
 
         let touchStartX = 0;
-        sidebar.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, { passive: true });
-        sidebar.addEventListener('touchend', e => {
+        sidebarMobile.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, { passive: true });
+        sidebarMobile.addEventListener('touchend', e => {
             const touchEndX = e.changedTouches[0].screenX;
-            if (touchEndX < touchStartX && (touchStartX - touchEndX > 50) && window.innerWidth <= 768 && sidebar.classList.contains('show')) {
-                sidebar.classList.remove('show');
+            if (touchEndX < touchStartX && (touchStartX - touchEndX > 50) && window.innerWidth <= 768 && sidebarMobile.classList.contains('show')) {
+                sidebarMobile.classList.remove('show');
                 backdrop.classList.remove('show');
             }
         }, { passive: true });
