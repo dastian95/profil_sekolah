@@ -3,9 +3,9 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Waktu pembuatan: 11 Feb 2026 pada 14.33
+-- Waktu pembuatan: 06 Bulan Mei 2026 pada 00.21
 -- Versi server: 8.0.30
--- Versi PHP: 8.5.0
+-- Versi PHP: 8.5.5
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -271,8 +271,8 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id_pendaftar`, `name`, `nisn`, `email`, `password`, `role`, `verification_token`, `is_verified`, `created_at`, `reset_token`, `reset_token_expires_at`, `is_banned`) VALUES
-(3, 'admin', NULL, 'admin@example.com', '$2y$12$rpLsDL0zumOg.NJmY6.1pOvQsHfye2DCp88f8RXm/6tJQLzy8LUDm', 'admin', NULL, 1, '2026-01-23 07:14:40', NULL, NULL, 0),
-(6, 'Aufa Dzaky Zuhdi Wicaksono', '3082389086', 'aufadzwicaksono@gmail.com', '$2y$12$7xJHQ5I3AOooJVKrn7Pg/uN0k64P2F7fV3DuGX2jEenoik6EBfeBK', 'user', '87286bcb9d8e4b178167e773a9cf5496', 1, '2026-01-24 08:32:51', '4ed5c9af62b83c8a0e8bd4f89273fc8cf736a310f181eb9e64622323785ee76a', '2026-02-01 19:51:08', 0);
+(3, 'admin', NULL, 'admin@example.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin', NULL, 1, '2026-01-23 07:14:40', '8e73c7f159b89acd62cbf9fc40239793b352dfda2096c01890f73d3cbf6079ce', '2026-03-20 06:50:34', 0),
+(6, 'Aufa Dzaky Zuhdi Wicaksono', '3082389086', 'aufadzwicaksono@gmail.com', '$2y$12$fmNRsZmCzBU.9xJQZw3P/e5Bq3OeOQ6J57Pv8oYxZfeLAIEaiwgX6', 'user', '87286bcb9d8e4b178167e773a9cf5496', 1, '2026-01-24 08:32:51', NULL, NULL, 0);
 
 -- --------------------------------------------------------
 
@@ -297,7 +297,11 @@ INSERT INTO `user_activity_logs` (`id`, `user_id`, `action`, `ip_address`, `user
 (1, 6, 'login', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36', '2026-02-09 09:45:18'),
 (2, 6, 'login', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36', '2026-02-09 09:45:20'),
 (3, 6, 'login', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36', '2026-02-09 10:10:45'),
-(4, 6, 'login', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36', '2026-02-09 10:11:05');
+(4, 6, 'login', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36', '2026-02-09 10:11:05'),
+(5, 6, 'login', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0', '2026-03-21 06:43:19'),
+(6, 6, 'login', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.112.0 Chrome/142.0.7444.265 Electron/39.8.0 Safari/537.36', '2026-03-21 06:44:08'),
+(7, 6, 'login', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-05-05 06:28:07'),
+(8, 3, 'login', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0', '2026-05-05 07:14:16');
 
 --
 -- Indeks untuk tabel yang dibuang
@@ -462,7 +466,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT untuk tabel `user_activity_logs`
 --
 ALTER TABLE `user_activity_logs`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- Ketidakleluasaan untuk tabel pelimpahan (Dumped Tables)

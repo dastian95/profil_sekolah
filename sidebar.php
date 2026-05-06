@@ -1,10 +1,12 @@
 <?php
 // Mendapatkan nama file saat ini untuk menentukan menu aktif
 $current_page = basename($_SERVER['PHP_SELF']);
+$is_admin = isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin';
 
 // Cek Status Kelulusan untuk Menu Daftar Ulang
 $show_daftar_ulang = false;
 if (isset($_SESSION['user_id']) && isset($conn)) {
+if (!$is_admin && isset($_SESSION['user_id']) && isset($conn)) {
     $stmt_lulus = $conn->prepare("SELECT hasil FROM hasil_daftar WHERE id_pendaftar = ?");
     $stmt_lulus->execute([$_SESSION['user_id']]);
     $res_lulus = $stmt_lulus->fetch(PDO::FETCH_ASSOC);
@@ -15,10 +17,12 @@ if (isset($_SESSION['user_id']) && isset($conn)) {
     <div class="d-flex align-items-center justify-content-between sidebar-header mb-3">
         <a href="#" class="d-flex align-items-center text-white text-decoration-none">
             <span class="fs-4">Student Panel</span>
+            <span class="fs-4"><?php echo $is_admin ? 'Admin Panel' : 'Student Panel'; ?></span>
         </a>
         <button type="button" class="btn btn-link text-white d-none d-md-block p-0" id="desktopToggle"><i class="bi bi-chevron-left"></i></button>
     </div>
     <hr>
+    <?php if (!$is_admin): ?>
     <ul class="nav nav-pills flex-column mb-auto">
         <li class="nav-item">
             <a href="dashboard.php" class="nav-link <?php echo ($current_page == 'dashboard.php') ? 'active' : ''; ?>" title="Dashboard" data-bs-toggle="tooltip" data-bs-placement="right">
@@ -58,6 +62,20 @@ if (isset($_SESSION['user_id']) && isset($conn)) {
             </a>
         </li>
     </ul>
+    <?php else: ?>
+    <ul class="nav nav-pills flex-column mb-auto">
+        <li class="nav-item">
+            <a href="admin_dashboard.php" class="nav-link <?php echo ($current_page == 'admin_dashboard.php') ? 'active' : ''; ?>">
+                <i class="bi bi-speedometer2 me-2"></i> Admin Dashboard
+            </a>
+        </li>
+        <li>
+            <a href="admin_manage_users.php" class="nav-link <?php echo ($current_page == 'admin_manage_users.php') ? 'active' : ''; ?>">
+                <i class="bi bi-people me-2"></i> Manage Users
+            </a>
+        </li>
+    </ul>
+    <?php endif; ?>
     <hr>
     <div class="dropdown dropup">
         <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle" id="dropdownUser1" data-bs-toggle="dropdown" aria-expanded="false">

@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/conn.php';
+session_start();
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
@@ -42,8 +43,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mail->Username   = '';             // SMTP username
             $mail->Password   = '';             // SMTP password
             $mail->Port       = 1025;           // TCP port (e.g. 1025 for Mailhog/Laragon, 587 for TLS)
+            $mail->Host       = $_ENV['SMTP_HOST'] ?? 'localhost';
+            $mail->SMTPAuth   = filter_var($_ENV['SMTP_AUTH'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $mail->Username   = $_ENV['SMTP_USER'] ?? '';
+            $mail->Password   = $_ENV['SMTP_PASS'] ?? '';
+            $mail->Port       = $_ENV['SMTP_PORT'] ?? 1025;
 
             $mail->setFrom('admin@smklab.sch.id', 'SMK Lab Jakarta');
+            $mail->setFrom($_ENV['MAIL_FROM_ADDRESS'] ?? 'admin@smklab.sch.id', $_ENV['MAIL_FROM_NAME'] ?? 'SMK Lab Jakarta');
             $mail->addAddress($user['email'], $user['name']);
             $mail->addAttachment($_FILES['pdf_file']['tmp_name'], 'Profile_Data.pdf');
             $mail->isHTML(true);
