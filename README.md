@@ -1,271 +1,195 @@
-# Profil Sekolah - School Registration System
+# PPDB SMK Laboratorium Jakarta
 
-## 🎓 Project Overview
+Sistem Penerimaan Peserta Didik Baru (PPDB) berbasis web — **admin-only**.
+Pendaftar datang langsung ke sekolah, data diinput oleh admin, hasil seleksi
+diumumkan otomatis di halaman publik.
 
-**Sistem Pendaftaran & Manajemen Sekolah**
-
-- School: SMK Laboratorium Jakarta
-- Built with: PHP Native + MySQL + Bootstrap 5
-- Purpose: Student registration, document verification, exam scheduling
-
----
-
-## 🚀 Quick Start (Jalankan Sekarang!)
-
-### **Cara 1: PHP Development Server (✨ Recommended)**
-
-```bash
-# 1. Buka Terminal di VSCode (Ctrl + `)
-# 2. Paste command ini:
-
-cd g:\laragon\www\profil_sekolah
-php -S localhost:8000
-```
-
-**Output yang akan terlihat:**
-
-```
-Development Server (http://localhost:8000) started...
-Listening on http://localhost:8000
-```
-
-**3. Buka bagian bawah VSCode untuk melihat URL yang active**
-
-**4. Tekan Ctrl+Click atau pergi ke:**
-
-```
-http://localhost:8000
-```
+- **Stack:** PHP Native + MySQL/MariaDB + Bootstrap 5.3
+- **Sekolah:** SMK Laboratorium Jakarta
+- **Sifat:** Internal (tidak ada akun siswa / login publik)
 
 ---
 
-### **Cara 2: Laragon Built-in Server**
+## Akses Website
 
-```bash
-# Pastikan Laragon sudah HIDUP
-# Buka browser ke:
-http://localhost/profil_sekolah
+### Halaman Publik
 ```
+http://localhost/profil_sekolah/
+```
+Berisi profil sekolah, jurusan, jadwal PPDB, dan **tabel pengumuman penerimaan**
+(otomatis muncul setelah admin publish hasil seleksi).
+
+### Halaman Admin (Secret Link)
+```
+http://localhost/profil_sekolah/admin.php?k=smklab2026
+```
+> URL admin **hanya bisa diakses lewat secret key** (`?k=...`).
+> Tanpa parameter `k`, akses akan diredirect ke halaman publik.
+
+**Login Admin Default:**
+| Field    | Value                  |
+|----------|------------------------|
+| Email    | `admin@smklab.sch.id`  |
+| Password | `admin123`             |
+
+> ⚠️ **Wajib ganti password** setelah login pertama via menu *Ganti Password*.
+> Secret key (`smklab2026`) bisa diganti di file `.env` (variabel `ADMIN_KEY`).
 
 ---
 
-## 📂 Project Structure
+## Cara Kerja Sistem
+
+### 1. Alur Pendaftar
+1. Calon siswa datang langsung ke sekolah membawa berkas:
+   - Ijazah / SKHU
+   - Kartu Keluarga (KK) DKI Jakarta
+   - Raport semester 1–6
+   - Fotocopy hasil TKA
+2. Admin menginput data pendaftar via menu **Data Pendaftar → Tambah Pendaftar**
+3. Sistem otomatis menghitung:
+   - **Usia** (dari tanggal lahir)
+   - **Nilai Akhir** = (Raport × 70%) + (TKA × 30%)
+   - **Lolos Usia** = ya jika ≤ 21 tahun, tidak jika > 21 tahun
+4. No. pendaftaran otomatis: `PPDB-{tahun}-G{gelombang}-{0001}`
+
+### 2. Sistem Gelombang
+| Gelombang | Periode Pendaftaran | Pengumuman | Porsi Kuota |
+|-----------|---------------------|------------|-------------|
+| Gelombang 1 | 15 – 29 Juni        | 1 Juli     | 70%         |
+| Gelombang 2 | 8 – 9 Juli          | 9 Juli     | 30%         |
+
+Tanggal & porsi bisa diubah lewat menu **Pengaturan Gelombang**.
+
+### 3. Kuota & Jurusan
+4 jurusan, masing-masing **36 kursi** (total 144):
+- Rekayasa Perangkat Lunak (RPL)
+- Teknik Komputer dan Jaringan (TKJ)
+- Asisten Keperawatan (AP)
+- Tata Kecantikan Kulit dan Rambut (TKKR)
+
+Kuota per gelombang per jurusan:
+- Glm 1 → `round(36 × 70%) = 25` per jurusan
+- Glm 2 → `round(36 × 30%) = 11` per jurusan
+
+### 4. Proses Seleksi (Ranking)
+Buka menu **Ranking & Hasil**, pilih gelombang, klik **Proses Penerimaan**:
+1. Pendaftar berusia > 21 tahun otomatis **ditolak** (catatan: "Gugur usia")
+2. Sisa pendaftar diranking per jurusan: `ORDER BY nilai_akhir DESC, usia DESC`
+   > Bila nilai akhir sama, **usia lebih tua menang** (tiebreaker)
+3. Top-N per jurusan → status `diterima`, sisanya `ditolak`
+
+### 5. Publish Pengumuman
+1. Buka menu **Pengaturan Gelombang**
+2. Klik **Publish Pengumuman Gelombang X**
+3. Hasil "diterima" otomatis tampil di halaman publik (`index.php`)
+4. Bisa di-unpublish kapan saja jika perlu revisi
+
+### 6. Backup / Export
+Menu **Backup / Export** → download CSV (kompatibel Excel & Google Sheets).
+Filter tersedia: per gelombang, per jurusan, per status.
+
+---
+
+## Menu Admin Panel
+
+| Menu                  | Fungsi                                                |
+|-----------------------|-------------------------------------------------------|
+| Dashboard             | Statistik ringkas + chart per jurusan & per status    |
+| Data Pendaftar        | CRUD pendaftar (tambah, edit, hapus, filter)          |
+| Ranking & Hasil       | Ranking otomatis + proses penerimaan per gelombang    |
+| Pengaturan Gelombang  | Set tanggal, kuota, porsi, publish/unpublish          |
+| Pengumuman            | Pengumuman umum (info/peringatan) di halaman publik   |
+| Backup / Export       | Download data CSV dengan filter                       |
+| Ganti Password        | Update password akun admin                            |
+
+---
+
+## Struktur Project
 
 ```
 profil_sekolah/
-├── .vscode/
-│   ├── tasks.json          ← Run tasks
-│   ├── settings.json       ← PHP settings
-│   └── launch.json         ← Debug config
-│
-├── index.php               ← Landing page
-├── login.php               ← Login page
-├── register.php            ← Registration
-├── dashboard.php           ← User dashboard
-├── admin_*.php             ← Admin pages
-│
-├── assets/
-│   ├── css/
-│   ├── js/
-│   └── vendor/             ← Bootstrap, etc
-│
-├── vendor/                 ← Composer deps
-├── uploads/                ← User uploads (photos/docs)
-├── .env                    ← Configuration
-└── profil_sekolah.sql      ← Database schema
+├── admin/                    Sub-halaman admin panel
+│   ├── home.php              Dashboard (statistik & chart)
+│   ├── pendaftar.php         CRUD data pendaftar
+│   ├── ranking.php           Ranking & proses seleksi
+│   ├── gelombang.php         Setting gelombang & publish
+│   ├── announcements.php     Pengumuman umum
+│   ├── backup.php            Export CSV
+│   └── change_password.php   Ganti password admin
+├── assets/                   Gambar, CSS, JS untuk index.php
+├── vendor/                   Library Composer (phpdotenv, dll)
+├── .env                      Konfigurasi (DB, ADMIN_KEY, dll)
+├── .env.example              Template env
+├── admin.php                 Login admin (gerbang secret link)
+├── admin_dashboard.php       Layout panel admin (sidebar + router)
+├── conn.php                  Koneksi PDO MySQL
+├── env_loader.php            Loader .env via vlucas/phpdotenv
+├── index.php                 Halaman publik (profil + pengumuman)
+├── logout.php                Logout admin
+├── profil_sekolah.sql        Schema database
+└── README.md                 Dokumen ini
 ```
 
 ---
 
-## 🔐 Test Accounts
+## Database
 
-### Admin Account
+5 tabel utama (lihat `profil_sekolah.sql`):
 
+| Tabel           | Isi                                                       |
+|-----------------|-----------------------------------------------------------|
+| `admins`        | Akun admin (email, password bcrypt)                       |
+| `gelombang`     | Setting per gelombang (tanggal, kuota, porsi, publish)    |
+| `pendaftar`     | Data calon siswa + nilai + status seleksi                 |
+| `announcements` | Pengumuman umum di halaman publik                         |
+| `admin_logs`    | Audit log aktivitas admin                                 |
+
+### Import Database
+```bash
+mysql -u root profil_sekolah < profil_sekolah.sql
 ```
-Email: admin@test.com
-Password: AdminPass123
-```
-
-### Student Account
-
-```
-Email: student@test.com
-Password: Student123
-```
-
-_Note: Create your own via registration page_
+Atau via phpMyAdmin → Import → pilih `profil_sekolah.sql`.
 
 ---
 
-## 🎯 Main Features
+## Konfigurasi `.env`
 
-### 👨‍🎓 Student
-
-- ✅ Register & Email Verification
-- ✅ View Profile & Status
-- ✅ Upload Documents
-- ✅ Check Exam Schedule
-- ✅ Download Student Card (Kartu Peserta)
-
-### 👨‍💼 Admin
-
-- ✅ Dashboard with Statistics
-- ✅ Manage Users
-- ✅ Verify Documents
-- ✅ View Logs
-- ✅ Announcements
-- ✅ Export Data
-- ✅ School Data Comparison
-
-### 🌐 Public
-
-- ✅ Register
-- ✅ Login
-- ✅ Forgot Password
-- ✅ Email Verification
-
----
-
-## 🔧 Configuration
-
-### Database (.env)
-
-```
+```env
+APP_URL="http://localhost/profil_sekolah"
+APP_NAME="PPDB SMK Laboratorium Jakarta"
+ADMIN_KEY=smklab2026          # ← secret key untuk akses admin.php
 DB_HOST=localhost
 DB_NAME=profil_sekolah
 DB_USER=root
 DB_PASS=
+APP_TIMEZONE=Asia/Jakarta
 ```
 
-### Email (MailHog for testing)
-
-```
-SMTP_HOST=localhost
-SMTP_PORT=1025
-MAIL_FROM_ADDRESS=admin@smklab.sch.id
-MAIL_FROM_NAME=SMK Lab Jakarta
-```
-
-**View test emails:**
-
-```
-http://localhost:8025
-```
+> ⚠️ **Ganti `ADMIN_KEY`** sebelum deploy ke production.
 
 ---
 
-## 📱 Page Map
+## Setup Cepat (XAMPP)
 
-| Page            | URL                         | Role    |
-| --------------- | --------------------------- | ------- |
-| Landing         | `/`                         | Public  |
-| Login           | `/login.php`                | Public  |
-| Register        | `/register.php`             | Public  |
-| Verify Email    | `/verify.php?token=...`     | Public  |
-| Profile         | `/profile.php`              | Student |
-| Dashboard       | `/dashboard.php`            | Student |
-| Exam Schedule   | `/jadwal_ujian.php`         | Student |
-| Student Card    | `/kartu.php`                | Student |
-| Admin Dashboard | `/admin_dashboard.php`      | Admin   |
-| Manage Users    | `/admin_manage_users.php`   | Admin   |
-| Verify Docs     | `/admin_document_users.php` | Admin   |
-| Logs            | `/admin_logs.php`           | Admin   |
-| Announcements   | `/admin_announcements.php`  | Admin   |
-
----
-
-## 🐛 Debugging
-
-### In VSCode:
-
-1. **F9** - Toggle Breakpoint
-2. **F5** - Start Debugging (requires XDebug setup)
-3. **Ctrl + Shift + D** - Debug Panel
-
-### File that needs setup (if using XDebug):
-
-```
-G:\laragon\bin\php\php-8.3.30-Win32-vs16-x64\etc\php.ini
-```
-
----
-
-## 💾 Database
-
-### Import Schema
-
-```bash
-# In MySQL/Laragon MySQL CLI:
-mysql -u root profil_sekolah < profil_sekolah.sql
-```
-
-### Check Tables
-
-```sql
-USE profil_sekolah;
-SHOW TABLES;
-```
-
----
-
-## 📦 Composer Dependencies
-
-Already installed:
-
-- `phpmailer/phpmailer` - Email sending
-- `google/apiclient` - Google OAuth
-- `vlucas/phpdotenv` - Environment variables
-
----
-
-## ✅ Checklist sebelum Mulai
-
-- [x] PHP 8.3.30 (Laragon)
-- [x] MySQL running
-- [x] .env configured
-- [x] Composer deps installed
-- [x] Database imported
-- [ ] Run PHP server (next step!)
-- [ ] Open http://localhost:8000
-
----
-
-## 🆘 Troubleshooting
-
-### Port 8000 already in use?
-
-```bash
-php -S localhost:9000
-```
-
-### Blank white page?
-
-1. Check Terminal for errors
-2. Look at `debug.log`
-3. Enable error display:
+1. Clone / extract project ke `C:\xampp\htdocs\profil_sekolah`
+2. Aktifkan **Apache** dan **MySQL** di XAMPP Control Panel
+3. Install dependency Composer:
    ```bash
-   php -d display_errors=1 -S localhost:8000
+   composer install
    ```
-
-### Database won't connect?
-
-1. Start MySQL in Laragon
-2. Verify `.env`: `DB_HOST`, `DB_NAME`, `DB_USER`
-3. Check if database exists: `profil_sekolah`
-
-### Still stuck?
-
-Check detailed guide: `VSCODE_RUN_GUIDE.md`
+4. Copy `.env.example` → `.env`, sesuaikan `ADMIN_KEY` dan database
+5. Import `profil_sekolah.sql` ke MySQL
+6. Buka `http://localhost/profil_sekolah/admin.php?k=smklab2026`
+7. Login dengan `admin@smklab.sch.id` / `admin123`
+8. Ganti password lewat menu **Ganti Password**
 
 ---
 
-## 🚀 Next Steps
+## Catatan Keamanan
 
-1. **Run the server** (commands above)
-2. **Visit localhost:8000**
-3. **Register a test account**
-4. **Explore the features**
-5. **Check admin panel**
-6. **Read email in MailHog (localhost:8025)**
-
-**Happy coding! 🎉**
+- ✅ Password admin di-hash dengan `password_hash()` (bcrypt)
+- ✅ Semua query pakai prepared statement (PDO)
+- ✅ Output di-escape via `htmlspecialchars()`
+- ✅ Aksi admin tercatat di `admin_logs` (ip, action, detail)
+- ⚠️ Ganti `ADMIN_KEY` & password default sebelum production
+- ⚠️ Pastikan `.env` masuk `.gitignore` (sudah default)
