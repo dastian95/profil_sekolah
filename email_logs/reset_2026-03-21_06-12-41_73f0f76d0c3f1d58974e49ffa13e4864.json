@@ -1,8 +1,0 @@
-{
-    "timestamp": "2026-03-21 06:12:41",
-    "to": "aufadzwicaksono@gmail.com",
-    "to_name": "Aufa Dzaky Zuhdi Wicaksono",
-    "subject": "Reset Password Request - SMK Lab Jakarta",
-    "reset_link": "http://localhost:8000/reset_password.php?token=c835f0c67ca8cea5fbc04b8e4ebd0b500a13d7aeb6bb14aad04852dd0fe4f5ef",
-    "expires_in": "1 hour"
-}

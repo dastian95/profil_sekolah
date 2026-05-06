@@ -160,7 +160,7 @@ require_once __DIR__ . '/conn.php';
           <li><a href="#home" class="nav-link">🏠 Home</a></li>
           <li><a href="#about" class="nav-link">ℹ️ Tentang Kami</a></li>
           <li><a href="#jurusan" class="nav-link">📚 Jurusan</a></li>
-          <li><a href="#daftar" class="nav-link">📝 Buat Akun</a></li>
+          <li><a href="#pengumuman" class="nav-link">📋 Pengumuman</a></li>
           <li><a href="login.php">🔑 Login</a></li>
         </ul>
         <i class="mobile-nav-toggle d-xl-none bi bi-list"></i>
@@ -380,86 +380,93 @@ require_once __DIR__ . '/conn.php';
       </div>
     </section><!-- /Lokasi Section -->
 
-    <!-- Contact Section -->
-    <section id="daftar" class="contact section">
+    <!-- Pengumuman Penerimaan Section -->
+    <section id="pengumuman" class="contact section">
 
-      <!-- Section Title -->
       <div class="container section-title" data-aos="fade-up">
-        <h2>Daftar</h2>
-        <p>Pendaftaran Sekolah SMK</p>
-      </div><!-- End Section Title -->
-
-      <div class="container" data-aos="fade" data-aos-delay="100">
-
-        <div class="row gy-4 justify-content-center">
-
-          <div class="col-lg-8">
-            <form action="register.php" method="post" class="php-email-form" data-aos="fade-up" data-aos-delay="200">
-              <div class="row gy-4">
-
-                <div class="col-md-12">
-                  <input type="text" name="name" id="reg_nama" class="form-control" placeholder="Nama Lengkap" required="">
-                  <div id="name_feedback" class="small mt-1" style="min-height: 20px;"></div>
-                </div>
-
-                <div class="col-md-6">
-                  <div class="input-group">
-                    <input type="password" name="password" id="reg_password" class="form-control" placeholder="Password" required="" minlength="8">
-                    <button class="btn btn-outline-secondary" type="button" id="toggleRegPassword">
-                      <i class="bi bi-eye-slash"></i>
-                    </button>
-                  </div>
-                  <div class="progress mt-1" style="height: 5px;">
-                    <div id="password-strength-bar" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
-                  </div>
-                  <ul class="list-unstyled small mt-1 mb-0" id="password-requirements" style="font-size: 0.75rem;">
-                    <li id="req-length" class="text-danger"><i class="bi bi-x"></i> Minimal 8 karakter</li>
-                    <li id="req-upper" class="text-danger"><i class="bi bi-x"></i> Huruf Besar (A-Z)</li>
-                    <li id="req-number" class="text-danger"><i class="bi bi-x"></i> Angka (0-9)</li>
-                  </ul>
-                </div>
-
-                <div class="col-md-6">
-                  <div class="input-group">
-                    <input type="password" name="password_verify" id="reg_password_verify" class="form-control" placeholder="Verify Password" required="" minlength="8">
-                    <button class="btn btn-outline-secondary" type="button" id="toggleRegPasswordVerify">
-                      <i class="bi bi-eye-slash"></i>
-                    </button>
-                  </div>
-                  <div id="password_match_feedback" class="small mt-1" style="min-height: 20px;"></div>
-                </div>
-
-                <div class="col-md-12">
-                  <div class="input-group">
-                    <input type="email" class="form-control" name="email" id="email_daftar" placeholder="Email Aktif" required="">
-                    <button class="btn btn-outline-secondary" type="button" id="btnCheckEmail"><i class="bi bi-check-circle"></i> Cek</button>
-                  </div>
-                  <div id="email_feedback" class="small mt-1" style="min-height: 20px;"></div>
-                </div>
-                <div class="col-md-6">
-                  <img src="captcha.php" alt="Captcha" class="img-fluid" style="border-radius: 4px; width: 100%; height: 45px; object-fit: cover; border: 1px solid #dee2e6;">
-                </div>
-
-                <div class="col-md-6">
-                  <input type="text" name="captcha" class="form-control" placeholder="Kode Captcha" required="">
-                </div>
-
-                <div class="col-md-12 text-center">
-                  <div class="loading">Loading</div>
-                  <div class="error-message"></div>
-                  <div class="sent-message">Pendaftaran berhasil. Silakan cek email Anda untuk verifikasi akun sebelum login.</div>
-                  <button type="submit" disabled>Register</button>
-                </div>
-
-              </div>
-            </form>
-          </div><!-- End Contact Form -->
-
-        </div>
-
+        <h2>Pengumuman Penerimaan</h2>
+        <p>Hasil Seleksi PPDB SMK Laboratorium Jakarta</p>
       </div>
 
-    </section><!-- /Contact Section -->
+      <div class="container" data-aos="fade" data-aos-delay="100">
+        <?php
+        require_once __DIR__ . '/conn.php';
+        $gel_rows = $conn->query("SELECT * FROM gelombang WHERE is_published=1 ORDER BY gelombang")->fetchAll();
+        $short_j  = [
+            'Rekayasa Perangkat Lunak (RPL)'          => 'RPL',
+            'Teknik Komputer dan Jaringan (TKJ)'       => 'TKJ',
+            'Asisten Keperawatan (AP)'                 => 'AP',
+            'Tata Kecantikan Kulit dan Rambut (TKKR)'  => 'TKKR',
+        ];
+
+        if (empty($gel_rows)):
+        ?>
+        <div class="row justify-content-center">
+          <div class="col-lg-7 text-center py-5">
+            <i class="bi bi-clock-history" style="font-size:3rem;color:#6c757d"></i>
+            <h5 class="mt-3 text-muted">Pengumuman belum tersedia</h5>
+            <p class="text-muted">Hasil seleksi akan diumumkan sesuai jadwal yang telah ditetapkan.</p>
+          </div>
+        </div>
+
+        <?php else: foreach ($gel_rows as $g):
+            $diterima = $conn->prepare("SELECT no_pendaftaran, nama, nisn, jurusan FROM pendaftar
+                WHERE gelombang=? AND status='diterima' ORDER BY jurusan, nilai_akhir DESC, usia DESC");
+            $diterima->execute([$g['gelombang']]);
+            $list = $diterima->fetchAll();
+        ?>
+        <div class="mb-5" data-aos="fade-up">
+          <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+            <h4 class="mb-0 fw-bold">Gelombang <?= $g['gelombang'] ?></h4>
+            <span class="badge bg-success px-3 py-2">
+              <i class="bi bi-broadcast me-1"></i>Pengumuman Resmi
+            </span>
+            <span class="text-muted small">
+              Diumumkan: <?= date('d F Y', strtotime($g['tanggal_pengumuman'])) ?>
+            </span>
+          </div>
+
+          <div class="alert alert-success py-2 small mb-3">
+            <i class="bi bi-info-circle me-1"></i>
+            Periode pendaftaran: <strong><?= date('d M Y', strtotime($g['tanggal_buka'])) ?></strong>
+            s/d <strong><?= date('d M Y', strtotime($g['tanggal_tutup'])) ?></strong> |
+            Total diterima: <strong><?= count($list) ?></strong> pendaftar
+          </div>
+
+          <?php if (empty($list)): ?>
+          <p class="text-muted">Belum ada data penerimaan untuk gelombang ini.</p>
+          <?php else: ?>
+          <div class="table-responsive">
+            <table class="table table-bordered table-hover">
+              <thead class="table-dark">
+                <tr>
+                  <th style="width:50px">No.</th>
+                  <th>Nama</th>
+                  <th>NISN</th>
+                  <th>Jurusan</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php $no = 1; foreach ($list as $r): ?>
+                <tr>
+                  <td class="text-center"><?= $no++ ?></td>
+                  <td class="fw-semibold"><?= htmlspecialchars($r['nama']) ?></td>
+                  <td><?= htmlspecialchars($r['nisn']) ?></td>
+                  <td>
+                    <span class="badge bg-primary"><?= $short_j[$r['jurusan']] ?? $r['jurusan'] ?></span>
+                    <span class="ms-1 small text-muted"><?= htmlspecialchars($r['jurusan']) ?></span>
+                  </td>
+                </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+          <?php endif; ?>
+        </div>
+        <?php endforeach; endif; ?>
+      </div>
+
+    </section><!-- /Pengumuman Section -->
 
   </main>
 
