@@ -24,16 +24,54 @@ Berisi profil sekolah, jurusan, jadwal PPDB, dan **tabel pengumuman penerimaan**
 http://localhost/profil_sekolah/admin.php?k=smklab2026
 ```
 > URL admin **hanya bisa diakses lewat secret key** (`?k=...`).
-> Tanpa parameter `k`, akses akan diredirect ke halaman publik.
-
-**Login Admin Default:**
-| Field    | Value                  |
-|----------|------------------------|
-| Email    | `admin@smklab.sch.id`  |
-| Password | `admin123`             |
-
-> ⚠️ **Wajib ganti password** setelah login pertama via menu *Ganti Password*.
+> Tanpa parameter `k`, akses akan di-redirect ke halaman publik.
 > Secret key (`smklab2026`) bisa diganti di file `.env` (variabel `ADMIN_KEY`).
+
+### Akun Login (pakai **username**, bukan email)
+
+#### 👑 Superadmin — Hardcoded (Rahasia)
+> Akun ini **TIDAK ada di database**. Tersimpan di file `admin.php` (konstanta
+> `SUPER_ADMIN_USERNAME` & `SUPER_ADMIN_HASH`). Untuk ganti password, edit
+> langsung file tersebut.
+
+| Username     | Password               |
+|--------------|------------------------|
+| `superadmin` | `SuperRahasia2026!`    |
+
+#### 👥 Admin Biasa — Tersimpan di Database (tabel `admins`)
+
+| Username  | Password      | Nama Lengkap   |
+|-----------|---------------|----------------|
+| `admin`   | `admin123`    | Administrator  |
+| `budi`    | `budi2026`    | Budi Santoso   |
+| `siti`    | `siti2026`    | Siti Aminah    |
+| `rahman`  | `rahman2026`  | Rahman Hakim   |
+| `dewi`    | `dewi2026`    | Dewi Lestari   |
+| `agus`    | `agus2026`    | Agus Pratama   |
+
+> ⚠️ **Wajib ganti password default** setelah login pertama via menu *Ganti Password*.
+> Akun admin biasa bisa ganti password sendiri lewat panel; superadmin harus
+> edit file `admin.php` (lihat instruksi di bawah).
+
+### Cara Login
+
+1. Buka URL admin lengkap dengan secret key:
+   `http://localhost/profil_sekolah/admin.php?k=smklab2026`
+2. Masukkan **username** (mis. `budi`) — bukan email
+3. Masukkan password sesuai tabel di atas
+4. Klik **Masuk** → diarahkan ke dashboard admin
+
+### Cara Ganti Password Superadmin
+
+Karena password superadmin di-hardcode (rahasia), ganti via PHP CLI:
+
+```bash
+# 1. Generate hash baru
+php -r "echo password_hash('PasswordBaruAnda', PASSWORD_DEFAULT);"
+# Output contoh: $2y$12$xxxxxxxx...
+
+# 2. Edit file admin.php, ganti konstanta SUPER_ADMIN_HASH dengan hash baru
+```
 
 ---
 
