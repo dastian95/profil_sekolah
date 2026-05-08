@@ -161,7 +161,6 @@ require_once __DIR__ . '/conn.php';
           <li><a href="#about" class="nav-link">ℹ️ Tentang Kami</a></li>
           <li><a href="#jurusan" class="nav-link">📚 Jurusan</a></li>
           <li><a href="#pengumuman" class="nav-link">📋 Pengumuman</a></li>
-          <li><a href="login.php">🔑 Login</a></li>
         </ul>
         <i class="mobile-nav-toggle d-xl-none bi bi-list"></i>
       </nav>
