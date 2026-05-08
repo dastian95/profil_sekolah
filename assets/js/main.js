@@ -187,6 +187,18 @@
   let navmenulinks = document.querySelectorAll('.navmenu a');
 
   function navmenuScrollspy() {
+    let atBottom = (window.innerHeight + window.scrollY) >= (document.documentElement.scrollHeight - 50);
+    if (atBottom) {
+      let lastLink = null;
+      navmenulinks.forEach(link => {
+        if (link.hash && document.querySelector(link.hash)) lastLink = link;
+      });
+      if (lastLink) {
+        document.querySelectorAll('.navmenu a.active').forEach(link => link.classList.remove('active'));
+        lastLink.classList.add('active');
+        return;
+      }
+    }
     navmenulinks.forEach(navmenulink => {
       if (!navmenulink.hash) return;
       let section = document.querySelector(navmenulink.hash);

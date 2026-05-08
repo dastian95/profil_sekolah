@@ -1,6 +1,16 @@
 <?php
 require_once __DIR__ . '/conn.php';
 
+// =========================================================
+//  SUPERADMIN — HARDCODED (RAHASIA, TIDAK ADA DI DATABASE)
+//  Username : superadmin
+//  Password : SuperRahasia2026!
+//  Akun ini hanya bisa diubah lewat code (file ini).
+// =========================================================
+const SUPER_ADMIN_USERNAME = 'superadmin';
+const SUPER_ADMIN_HASH     = '$2y$12$rv40eZ5YsYmGZ4W5O44g4OxDkl99fcmcB9JVbKRta/esl2wiKw96S';
+const SUPER_ADMIN_NAME     = 'Super Admin';
+
 // Secret link check — redirect ke index jika key salah/tidak ada
 $key = $_GET['k'] ?? '';
 if ($key !== $_ENV['ADMIN_KEY']) {
@@ -17,26 +27,43 @@ if (isset($_SESSION['admin_id'])) {
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email    = trim($_POST['email'] ?? '');
+    $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
 
-    if ($email && $password) {
-        $stmt = $conn->prepare("SELECT id, name, password FROM admins WHERE email = ?");
-        $stmt->execute([$email]);
+    if ($username && $password) {
+        // 1. Cek SUPERADMIN dulu (hardcoded, tidak dari database)
+        if ($username === SUPER_ADMIN_USERNAME && password_verify($password, SUPER_ADMIN_HASH)) {
+            $_SESSION['admin_id']   = 0;                  // 0 = superadmin (tidak ada ID di tabel admins)
+            $_SESSION['admin_name'] = SUPER_ADMIN_NAME;
+            $_SESSION['is_super']   = true;
+
+            // Log login superadmin (admin_id = NULL karena tidak ada di tabel admins)
+            try {
+                $log = $conn->prepare("INSERT INTO admin_logs (admin_id, action, details, ip_address) VALUES (NULL, 'LOGIN_SUPER', 'Superadmin login berhasil', ?)");
+                $log->execute([$_SERVER['REMOTE_ADDR']]);
+            } catch (Throwable $e) { /* abaikan jika FK strict */ }
+
+            header('Location: admin_dashboard.php');
+            exit;
+        }
+
+        // 2. Cek admin biasa di database (cari pakai username)
+        $stmt = $conn->prepare("SELECT id, name, password FROM admins WHERE username = ?");
+        $stmt->execute([$username]);
         $admin = $stmt->fetch();
 
         if ($admin && password_verify($password, $admin['password'])) {
             $_SESSION['admin_id']   = $admin['id'];
             $_SESSION['admin_name'] = $admin['name'];
+            $_SESSION['is_super']   = false;
 
-            // Log login
             $log = $conn->prepare("INSERT INTO admin_logs (admin_id, action, details, ip_address) VALUES (?, 'LOGIN', 'Admin login berhasil', ?)");
             $log->execute([$admin['id'], $_SERVER['REMOTE_ADDR']]);
 
             header('Location: admin_dashboard.php');
             exit;
         }
-        $error = 'Email atau password salah.';
+        $error = 'Username atau password salah.';
     } else {
         $error = 'Semua field wajib diisi.';
     }
@@ -53,8 +80,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <style>
         body { background: #f0f2f5; }
         .login-card {
-            max-width: 420px;
-            margin: 100px auto;
+            max-width: 560px;
+            margin: 80px auto;
             border-radius: 12px;
             box-shadow: 0 4px 24px rgba(0,0,0,.1);
         }
@@ -62,8 +89,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background: #198754;
             color: #fff;
             border-radius: 12px 12px 0 0;
-            padding: 28px 32px 20px;
+            padding: 32px 40px 24px;
         }
+        .login-body { padding: 32px 40px; }
+        .login-card .form-control, .login-card .btn { padding: .65rem .9rem; font-size: 1rem; }
     </style>
 </head>
 <body>
@@ -72,15 +101,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <h4 class="mb-1"><i class="bi bi-shield-lock me-2"></i>Admin Panel</h4>
         <small class="opacity-75">PPDB SMK Laboratorium Jakarta</small>
     </div>
-    <div class="p-4">
+    <div class="login-body">
         <?php if ($error): ?>
             <div class="alert alert-danger py-2"><?= htmlspecialchars($error) ?></div>
         <?php endif; ?>
         <form method="POST">
             <input type="hidden" name="k" value="<?= htmlspecialchars($key) ?>">
             <div class="mb-3">
-                <label class="form-label fw-semibold">Email</label>
-                <input type="email" name="email" class="form-control" placeholder="admin@smklab.sch.id" required autofocus>
+                <label class="form-label fw-semibold">Username</label>
+                <input type="text" name="username" class="form-control" placeholder="masukkan username" autocomplete="username" required autofocus>
             </div>
             <div class="mb-4">
                 <label class="form-label fw-semibold">Password</label>

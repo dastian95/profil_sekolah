@@ -1,5 +1,33 @@
 <?php
 $msg = '';
+$is_super = !empty($_SESSION['is_super']);
+
+if ($is_super) {
+    // Superadmin tidak bisa ganti password lewat panel — datanya hardcoded di admin.php
+    ?>
+    <div class="card" style="max-width:560px">
+        <div class="card-header fw-semibold">
+            <i class="bi bi-shield-fill-check text-warning me-2"></i>Akun Superadmin
+        </div>
+        <div class="card-body">
+            <div class="alert alert-warning mb-3">
+                <i class="bi bi-info-circle me-2"></i>
+                <strong>Password Superadmin tidak bisa diubah lewat panel.</strong>
+            </div>
+            <p class="small text-muted mb-2">
+                Akun Superadmin disimpan secara hardcoded di file <code>admin.php</code>
+                (rahasia, tidak ada di database). Untuk mengubah password, edit langsung file
+                tersebut dan ganti konstanta <code>SUPER_ADMIN_HASH</code> dengan hash baru.
+            </p>
+            <p class="small text-muted mb-0">
+                Hash baru bisa dibuat lewat PHP CLI:<br>
+                <code>php -r "echo password_hash('PasswordBaru', PASSWORD_DEFAULT);"</code>
+            </p>
+        </div>
+    </div>
+    <?php
+    return;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $old  = $_POST['old_password']  ?? '';

@@ -160,8 +160,8 @@ require_once __DIR__ . '/conn.php';
           <li><a href="#home" class="nav-link">🏠 Home</a></li>
           <li><a href="#about" class="nav-link">ℹ️ Tentang Kami</a></li>
           <li><a href="#jurusan" class="nav-link">📚 Jurusan</a></li>
+          <li><a href="#cara-mendaftar" class="nav-link">📝 Cara Mendaftar</a></li>
           <li><a href="#pengumuman" class="nav-link">📋 Pengumuman</a></li>
-          <li><a href="login.php">🔑 Login</a></li>
         </ul>
         <i class="mobile-nav-toggle d-xl-none bi bi-list"></i>
       </nav>
@@ -379,6 +379,75 @@ require_once __DIR__ . '/conn.php';
         </div>
       </div>
     </section><!-- /Lokasi Section -->
+
+    <!-- Cara Mendaftar Section -->
+    <section id="cara-mendaftar" class="section" style="background: #f8f9fa;">
+      <div class="container section-title" data-aos="fade-up">
+        <h2>Cara Mendaftar</h2>
+        <p>Informasi Lengkap PPDB SMK Laboratorium Jakarta</p>
+      </div>
+
+      <div class="container" data-aos="fade-up" data-aos-delay="100">
+        <?php
+        require_once __DIR__ . '/conn.php';
+        $cara_gel = $conn->query("SELECT * FROM gelombang ORDER BY gelombang")->fetchAll();
+        $bulan_id = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+        function tgl_id($tgl, $bulan_id) {
+          $t = strtotime($tgl);
+          return date('j', $t) . ' ' . $bulan_id[(int)date('n', $t)] . ' ' . date('Y', $t);
+        }
+        function rentang_id($buka, $tutup, $bulan_id) {
+          $b = strtotime($buka); $t = strtotime($tutup);
+          if (date('n-Y', $b) === date('n-Y', $t)) {
+            return date('j', $b) . ' - ' . date('j', $t) . ' ' . $bulan_id[(int)date('n', $b)] . ' ' . date('Y', $b);
+          }
+          return tgl_id($buka, $bulan_id) . ' - ' . tgl_id($tutup, $bulan_id);
+        }
+        ?>
+
+        <!-- Jadwal Gelombang -->
+        <div class="row g-4 mb-5">
+        <?php foreach ($cara_gel as $g): ?>
+          <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-0">
+              <div class="card-body p-4">
+                <div class="d-flex align-items-center mb-3">
+                  <div class="rounded-circle d-flex align-items-center justify-content-center me-3"
+                       style="width:48px; height:48px; background:#198754; color:#fff; font-weight:700; font-size:1.3rem;">
+                    <?= $g['gelombang'] ?>
+                  </div>
+                  <h4 class="mb-0 fw-bold">Gelombang <?= $g['gelombang'] ?></h4>
+                </div>
+                <ul class="list-unstyled mb-0">
+                  <li class="mb-2"><i class="bi bi-calendar-event text-success me-2"></i><strong>Pendaftaran:</strong><br><span class="ms-4"><?= rentang_id($g['tanggal_buka'], $g['tanggal_tutup'], $bulan_id) ?></span></li>
+                  <li><i class="bi bi-megaphone text-success me-2"></i><strong>Pengumuman:</strong><br><span class="ms-4"><?= tgl_id($g['tanggal_pengumuman'], $bulan_id) ?></span></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        <?php endforeach; ?>
+        </div>
+
+        <!-- Berkas yang Dibawa -->
+        <div class="row justify-content-center">
+          <div class="col-lg-8" data-aos="fade-up">
+            <div class="card shadow-sm border-0">
+              <div class="card-body p-4">
+                <h4 class="fw-bold mb-3"><i class="bi bi-folder2-open text-success me-2"></i>Berkas yang Dibawa</h4>
+                <p class="text-muted small">Calon siswa datang langsung ke sekolah dengan membawa:</p>
+                <ul class="list-group list-group-flush">
+                  <li class="list-group-item border-0 ps-0"><i class="bi bi-check-circle-fill text-success me-2"></i>Ijazah / SKHU</li>
+                  <li class="list-group-item border-0 ps-0"><i class="bi bi-check-circle-fill text-success me-2"></i>Kartu Keluarga (KK) DKI Jakarta</li>
+                  <li class="list-group-item border-0 ps-0"><i class="bi bi-check-circle-fill text-success me-2"></i>Raport semester 1 - 6</li>
+                  <li class="list-group-item border-0 ps-0"><i class="bi bi-check-circle-fill text-success me-2"></i>Fotocopy hasil TKA</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section><!-- /Cara Mendaftar Section -->
 
     <!-- Pengumuman Penerimaan Section -->
     <section id="pengumuman" class="contact section">

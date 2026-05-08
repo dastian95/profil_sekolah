@@ -39,16 +39,24 @@ SET FOREIGN_KEY_CHECKS = 1;
 CREATE TABLE `admins` (
   `id` int NOT NULL AUTO_INCREMENT,
   `name` varchar(100) NOT NULL,
+  `username` varchar(50) NOT NULL,
   `email` varchar(255) NOT NULL,
   `password` varchar(255) NOT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
+  UNIQUE KEY `username` (`username`),
   UNIQUE KEY `email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Admin default: email=admin@smklab.sch.id | password=admin123
-INSERT INTO `admins` (`name`, `email`, `password`) VALUES
-('Administrator', 'admin@smklab.sch.id', '$2y$10$TKh8H1.PyfcAqYxRSW9yte69twtPbWBCkG63/Our7S3g.MO0dGToi');
+-- Akun admin default (password ditampilkan di komentar — wajib diganti setelah login pertama)
+-- Login pakai USERNAME (bukan email). Akun "Super Admin" TIDAK ada di tabel ini (hardcoded di admin.php)
+INSERT INTO `admins` (`name`, `username`, `email`, `password`) VALUES
+('Administrator', 'admin',  'admin@smklab.sch.id', '$2y$12$TImWYleiJjm5/ZW/7jTVy.epkGrWFdzgtTTquBRo1m1tXUUu/iya2'), -- pwd: admin123
+('Budi Santoso',  'budi',   'budi@smklab.sch.id',  '$2y$12$P.LZqIBum3gpl3aTd93gEu1rIwHMEsDMUOeAO3LDB1t/QPaF8r23S'), -- pwd: budi2026
+('Siti Aminah',   'siti',   'siti@smklab.sch.id',  '$2y$12$5uROBC64hUB6nZ7VscrTveygq4Xcng7Ij8H/tDSBsStFdTKo37k8S'), -- pwd: siti2026
+('Rahman Hakim',  'rahman', 'rahman@smklab.sch.id','$2y$12$2W92l5mQClvYhKbB1lXXXOPJTIpG8LJe6QFHWYyb5GhEHMkCQLkQW'), -- pwd: rahman2026
+('Dewi Lestari',  'dewi',   'dewi@smklab.sch.id',  '$2y$12$DWNS7yOXX6w3dcwfXyEAmuq5d3Rt5v/4yzKS780gKaezskhulr/Re'), -- pwd: dewi2026
+('Agus Pratama',  'agus',   'agus@smklab.sch.id',  '$2y$12$j/ICMHlknnKg2MY9yZvlyeXU9Fo82lLWgjGeHBN1Dl3r.LJ1Ytlwu'); -- pwd: agus2026
 
 -- ============================================================
 -- Tabel: gelombang
@@ -126,7 +134,7 @@ CREATE TABLE `announcements` (
 -- ============================================================
 CREATE TABLE `admin_logs` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `admin_id` int NOT NULL,
+  `admin_id` int DEFAULT NULL, -- NULL = superadmin (hardcoded, tidak ada di tabel admins)
   `action` varchar(100) NOT NULL,
   `details` text DEFAULT NULL,
   `ip_address` varchar(45) DEFAULT NULL,
