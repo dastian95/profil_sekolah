@@ -1,24 +1,111 @@
 <?php
 require_once __DIR__ . '/conn.php';
+require_once __DIR__ . '/admin/_constants.php';
 
 // Auth check
 if (!isset($_SESSION['admin_id'])) {
-    header('Location: index.php');
+    header('Location: admin.php');
+    exit;
+}
+// Superadmin punya dashboard sendiri
+if (!empty($_SESSION['is_super'])) {
+    header('Location: superadmin_dashboard.php' . (isset($_GET['page']) ? '?page='.$_GET['page'] : ''));
     exit;
 }
 
 $page = $_GET['page'] ?? 'home';
 $admin_name = htmlspecialchars($_SESSION['admin_name'] ?? 'Admin');
+$admin_id   = (int)($_SESSION['admin_id'] ?? 0);
 
-$pages = [
-    'home'           => ['label' => 'Dashboard',            'icon' => 'bi-speedometer2',    'group' => 'Utama'],
-    'pendaftar'      => ['label' => 'Data Pendaftar',       'icon' => 'bi-people-fill',     'group' => 'Manajemen'],
-    'ranking'        => ['label' => 'Ranking & Hasil',      'icon' => 'bi-trophy-fill',     'group' => 'Manajemen'],
-    'gelombang'      => ['label' => 'Pengaturan Gelombang', 'icon' => 'bi-calendar-week',   'group' => 'Pengaturan'],
-    'announcements'  => ['label' => 'Pengumuman',           'icon' => 'bi-megaphone-fill',  'group' => 'Pengaturan'],
-    'backup'         => ['label' => 'Backup / Export',      'icon' => 'bi-cloud-download',  'group' => 'Sistem'],
-    'change_password'=> ['label' => 'Ganti Password',       'icon' => 'bi-shield-lock',     'group' => 'Sistem'],
+// Semua halaman yang tersedia untuk admin biasa
+$all_pages = [
+    'home'           => ['label' => 'Dashboard',            'icon' => 'bi-speedometer2',         'group' => 'Utama'],
+    'pendaftar'      => ['label' => 'Data Pendaftar',       'icon' => 'bi-people-fill',          'group' => 'Manajemen'],
+    'antrian'          => ['label' => 'Meja Antrian',         'icon' => 'bi-grid-3x2-gap-fill',    'group' => 'Manajemen'],
+    'antrian_display'  => ['label' => 'Display Antrian',     'icon' => 'bi-display',              'group' => 'Manajemen'],
+    'ranking'        => ['label' => 'Ranking & Hasil',      'icon' => 'bi-trophy-fill',          'group' => 'Manajemen'],
+    'announcements'  => ['label' => 'Pengumuman',           'icon' => 'bi-megaphone-fill',       'group' => 'Manajemen'],
+    'pengaturan_ppdb'=> ['label' => 'Pengaturan Pendaftaran','icon' => 'bi-sliders',              'group' => 'Konfigurasi'],
+    'meja'           => ['label' => 'Kelola Meja',          'icon' => 'bi-layout-split',         'group' => 'Konfigurasi'],
+    'backup'         => ['label' => 'Backup / Export',      'icon' => 'bi-cloud-download',       'group' => 'Sistem'],
+    'change_password'=> ['label' => 'Ganti Password',       'icon' => 'bi-shield-lock',          'group' => 'Sistem'],
 ];
+
+// Mapping kode tahap → halaman yang boleh diakses
+$tahap_pages = [
+    'input_data'      => ['pendaftar', 'antrian'],
+    'proses_berkas'   => ['antrian', 'pendaftar'],
+    'ranking'         => ['ranking', 'pendaftar'],
+    'pengumuman'      => ['announcements', 'pengaturan_ppdb'],
+    'kelola_meja'     => ['meja', 'antrian', 'antrian_display'],
+    'kelola_gelombang'=> ['pengaturan_ppdb'],
+];
+
+// Filter halaman berdasarkan tahapan yang di-assign ke admin ini
+$allowed_pages = ['home', 'change_password']; // selalu ada
+try {
+    $tStmt = $conn->prepare("SELECT t.kode, t.halaman_key FROM tahapan t
+        JOIN admin_tahapan at ON at.tahap_id = t.id
+        WHERE at.admin_id = ? AND t.is_active = 1");
+    $tStmt->execute([$admin_id]);
+    foreach ($tStmt as $row) {
+        // Prioritaskan mapping dari kode; fallback ke halaman_key jika kode tidak dikenal
+        $pages_for_tahap = $tahap_pages[$row['kode']] ?? [$row['halaman_key']];
+        foreach ($pages_for_tahap as $p) {
+            if ($p && !in_array($p, $allowed_pages)) {
+                $allowed_pages[] = $p;
+            }
+        }
+    }
+} catch(Throwable) {
+    // Tabel tahapan belum ada (sebelum migration) → tampilkan semua
+    $allowed_pages = array_keys($all_pages);
+}
+
+// Display antrian selalu muncul jika admin punya akses antrian
+if (in_array('antrian', $allowed_pages)) {
+    $allowed_pages[] = 'antrian_display';
+}
+
+// Kalau admin belum punya tahapan → tampilkan semua (supaya tidak blank)
+if (count($allowed_pages) <= 2) {
+    $allowed_pages = array_keys($all_pages);
+}
+
+$pages       = array_filter($all_pages, fn($k) => in_array($k, $allowed_pages), ARRAY_FILTER_USE_KEY);
+$needs_chart = ($page === 'home');
+
+// ── Float widget: hanya di halaman pendaftar, kalau ada meja Fase 2 di sesi ──
+$float_widget = null;
+if ($page === 'pendaftar') {
+    $fw_meja_id   = (int)($_SESSION['antrian_meja_id'] ?? 0);
+    $fw_meja_fase = (int)($_SESSION['antrian_meja_fase'] ?? 0);
+    if ($fw_meja_id && $fw_meja_fase === 2) {
+        $today = date('Y-m-d');
+        try {
+            $fw_meja_row = $conn->prepare("SELECT * FROM meja WHERE id=?");
+            $fw_meja_row->execute([$fw_meja_id]);
+            $fw_meja = $fw_meja_row->fetch();
+
+            $fw_cur_stmt = $conn->prepare("SELECT * FROM antrian
+                WHERE tanggal=? AND meja_id=? AND fase=2 AND status='dipanggil'
+                ORDER BY dipanggil_at DESC LIMIT 1");
+            $fw_cur_stmt->execute([$today, $fw_meja_id]);
+            $fw_current = $fw_cur_stmt->fetch();
+
+            $fw_sisa_stmt = $conn->prepare("SELECT COUNT(*) FROM antrian WHERE tanggal=? AND fase=2 AND status='menunggu'");
+            $fw_sisa_stmt->execute([$today]);
+            $fw_sisa = (int)$fw_sisa_stmt->fetchColumn();
+
+            $float_widget = ['meja' => $fw_meja, 'current' => $fw_current, 'sisa' => $fw_sisa];
+        } catch(Throwable) {}
+    }
+}
+
+// Redirect ke home jika halaman yang diminta tidak diizinkan
+if (!array_key_exists($page, $pages)) {
+    $page = 'home';
+}
 
 // Group menu by section
 $grouped = [];
@@ -31,12 +118,9 @@ foreach ($pages as $key => $info) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Panel — PPDB SMK Lab Jakarta</title>
+    <title>Admin Panel — SPMB SMKS Lab Jakarta</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
             --sidebar-w: 260px;
@@ -48,7 +132,7 @@ foreach ($pages as $key => $info) {
             --card-shadow: 0 1px 3px rgba(0,0,0,.04), 0 1px 2px rgba(0,0,0,.06);
             --card-shadow-hover: 0 4px 12px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.06);
         }
-        * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        * { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif; }
         body { background: var(--bg); color: #2d3748; }
 
         /* Sidebar */
@@ -89,8 +173,7 @@ foreach ($pages as $key => $info) {
         }
         .sidebar .nav-link i { font-size: 1.05rem; width: 20px; text-align: center; }
         .sidebar .nav-link:hover {
-            background: rgba(255,255,255,.07); color: #fff;
-            transform: translateX(2px);
+            background: rgba(255,255,255,.1); color: #fff;
         }
         .sidebar .nav-link.active {
             background: var(--primary); color: #fff;
@@ -149,17 +232,17 @@ foreach ($pages as $key => $info) {
         .content { padding: 28px; }
 
         /* Cards */
-        .card { border: 1px solid #eaedf0; border-radius: 12px; box-shadow: var(--card-shadow); transition: box-shadow .2s; }
+        .card { border: 1px solid #eaedf0; border-radius: 12px; box-shadow: var(--card-shadow); }
         .card-header { background: #fff; border-bottom: 1px solid #f0f3f5; font-weight: 600; padding: 14px 18px; border-radius: 12px 12px 0 0 !important; }
         .card-body { padding: 18px; }
 
         /* Buttons */
-        .btn { font-weight: 500; border-radius: 8px; transition: all .15s; }
+        .btn { font-weight: 500; border-radius: 8px; }
         .btn-success { background: var(--primary); border-color: var(--primary); }
         .btn-success:hover { background: var(--primary-dark); border-color: var(--primary-dark); }
 
         /* Forms */
-        .form-control, .form-select { border-radius: 8px; border-color: #dde2e7; transition: all .15s; }
+        .form-control, .form-select { border-radius: 8px; border-color: #dde2e7; }
         .form-control:focus, .form-select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(25,135,84,.15); }
         .form-label { font-weight: 500; font-size: .88rem; color: #4a5568; margin-bottom: 6px; }
 
@@ -170,7 +253,7 @@ foreach ($pages as $key => $info) {
         .table-hover tbody tr:hover { background: #f8fafc; }
 
         /* Mobile */
-        .sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 1039; backdrop-filter: blur(2px); }
+        .sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 1039; }
         .mobile-toggle { display: none; background: var(--primary); color: #fff; border: 0; padding: 8px 12px; border-radius: 8px; margin-right: 14px; }
         @media (max-width: 992px) {
             .sidebar { transform: translateX(-100%); }
@@ -179,12 +262,18 @@ foreach ($pages as $key => $info) {
             .content-wrap { margin-left: 0; }
             .mobile-toggle { display: inline-flex; align-items: center; }
             .topbar { padding: 0 16px; }
-            .content { padding: 18px; }
+            .content { padding: 16px; }
         }
-
-        /* Animations */
-        @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        .fade-in { animation: fadeUp .3s ease-out; }
+        @media (max-width: 575px) {
+            .topbar { padding: 0 10px; min-height: 52px; }
+            .topbar h1, .topbar .fs-5 { font-size: .88rem !important; }
+            .content { padding: 10px !important; }
+            .card { border-radius: 8px; }
+            .table { font-size: .78rem; }
+            .btn-sm { padding: .22rem .48rem; font-size: .76rem; }
+            /* Tabel aksi — tampilkan tombol secara vertikal */
+            .table td.text-end { white-space: normal; display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+        }
 
         /* Badge polish */
         .badge { font-weight: 500; padding: .4em .7em; }
@@ -196,8 +285,8 @@ foreach ($pages as $key => $info) {
     <div class="sidebar-brand">
         <div class="brand-icon"><i class="bi bi-mortarboard-fill"></i></div>
         <div class="brand-text">
-            <strong>SMK Lab Jakarta</strong>
-            <small>Panel PPDB</small>
+            <strong>SMKS Lab Jakarta</strong>
+            <small>Panel SPMB</small>
         </div>
     </div>
 
@@ -205,10 +294,17 @@ foreach ($pages as $key => $info) {
         <?php foreach ($grouped as $group => $items): ?>
             <div class="nav-group-label"><?= $group ?></div>
             <?php foreach ($items as $key => $info): ?>
+                <?php if ($key === 'antrian_display'): ?>
+                <a href="antrian_display.php" target="_blank" class="nav-link">
+                    <i class="bi <?= $info['icon'] ?>"></i>
+                    <span><?= $info['label'] ?> <i class="bi bi-box-arrow-up-right ms-1" style="font-size:.65rem;opacity:.5;"></i></span>
+                </a>
+                <?php else: ?>
                 <a href="?page=<?= $key ?>" class="nav-link <?= $page === $key ? 'active' : '' ?>">
                     <i class="bi <?= $info['icon'] ?>"></i>
                     <span><?= $info['label'] ?></span>
                 </a>
+                <?php endif; ?>
             <?php endforeach; ?>
         <?php endforeach; ?>
     </nav>
@@ -226,7 +322,7 @@ foreach ($pages as $key => $info) {
                 </div>
             </div>
         </div>
-        <a href="logout.php" class="btn-logout"><i class="bi bi-box-arrow-right"></i> Logout</a>
+        <a href="logout.php" class="btn-logout" onclick="return confirm('Yakin ingin keluar dari panel admin?')"><i class="bi bi-box-arrow-right"></i> Logout</a>
     </div>
 </aside>
 
@@ -251,11 +347,15 @@ foreach ($pages as $key => $info) {
     $include_map = [
         'home'            => 'admin/home.php',
         'pendaftar'       => 'admin/pendaftar.php',
+        'antrian'         => 'admin/antrian.php',
         'ranking'         => 'admin/ranking.php',
-        'gelombang'       => 'admin/gelombang.php',
         'announcements'   => 'admin/announcements.php',
+        'pengaturan_ppdb' => 'admin/pengaturan_ppdb.php',
         'backup'          => 'admin/backup.php',
         'change_password' => 'admin/change_password.php',
+        'kelola_admin'    => 'admin/kelola_admin.php',
+        'audit_log'       => 'admin/audit_log.php',
+        'system_info'     => 'admin/system_info.php',
     ];
     $file = $include_map[$page] ?? 'admin/home.php';
     if (file_exists(__DIR__ . '/' . $file)) {
@@ -266,13 +366,132 @@ foreach ($pages as $key => $info) {
     ?>
 
     <footer class="text-center text-muted small mt-5 pb-3">
-        &copy; <?= date('Y') ?> PPDB SMK Laboratorium Jakarta · Panel Admin v2
+        &copy; <?= date('Y') ?> SPMB SMK Laboratorium Jakarta · Panel Admin v2
     </footer>
     </main>
 </div>
 
+<?php if ($float_widget): ?>
+<!-- ══ FLOATING ANTRIAN WIDGET (Fase 2) ══════════════════════════════════════ -->
+<style>
+#antrianFloat {
+    position: fixed; bottom: 24px; right: 24px; z-index: 9990;
+    width: 290px;
+    filter: drop-shadow(0 8px 24px rgba(124,58,237,.22));
+    transition: transform .2s ease;
+}
+#antrianFloat .float-header {
+    background: linear-gradient(135deg,#7c3aed,#a855f7);
+    color: #fff; padding: 10px 14px; border-radius: 14px 14px 0 0;
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer; user-select: none; font-weight: 600; font-size: .9rem;
+}
+#antrianFloat .float-header .badge-sisa {
+    margin-left: auto; background: rgba(255,255,255,.25);
+    border-radius: 20px; padding: 2px 10px; font-size: .75rem; font-weight: 600;
+}
+#antrianFloat .float-body {
+    background: #fff; border: 2px solid #c4b5fd;
+    border-top: 0; border-radius: 0 0 14px 14px; overflow: hidden;
+}
+#antrianFloat .float-nomor {
+    font-size: 3.8rem; font-weight: 900; color: #7c3aed;
+    line-height: 1; letter-spacing: -2px;
+}
+#antrianFloat .float-collapsed .float-body { display: none; }
+#antrianFloat .float-collapsed .float-header { border-radius: 14px; }
+</style>
+
+<div id="antrianFloat">
+  <div class="float-header" onclick="document.getElementById('antrianFloat').classList.toggle('float-collapsed')">
+    <i class="bi bi-grid-3x2-gap-fill"></i>
+    Meja <?= $float_widget['meja']['nomor_meja'] ?>
+    <?php if ($float_widget['meja']['nama']): ?>
+      <span class="fw-normal opacity-75">— <?= htmlspecialchars($float_widget['meja']['nama']) ?></span>
+    <?php endif; ?>
+    <span class="badge-sisa">
+      <?php if ($float_widget['current']): ?>
+        <i class="bi bi-person-fill me-1"></i>Sedang Dilayani
+      <?php elseif ($float_widget['sisa'] > 0): ?>
+        <?= $float_widget['sisa'] ?> menunggu
+      <?php else: ?>
+        Kosong
+      <?php endif; ?>
+    </span>
+    <i class="bi bi-chevron-down ms-1" style="font-size:.75rem;opacity:.7;"></i>
+  </div>
+
+  <div class="float-body">
+    <?php if ($float_widget['current']): ?>
+    <!-- Ada nomor aktif -->
+    <div class="text-center py-3 px-2">
+      <div class="small text-muted fw-semibold text-uppercase mb-1" style="letter-spacing:.5px;">Sedang Dilayani</div>
+      <div class="float-nomor">SSG<?= str_pad($float_widget['current']['nomor'], 3, '0', STR_PAD_LEFT) ?></div>
+      <div class="small text-muted mt-1">
+        Dipanggil <?= date('H:i', strtotime($float_widget['current']['dipanggil_at'])) ?>
+      </div>
+    </div>
+    <div class="px-2 pb-2 d-flex flex-column gap-2">
+      <form method="POST" action="?page=antrian">
+        <input type="hidden" name="action" value="selesai">
+        <input type="hidden" name="antrian_id" value="<?= $float_widget['current']['id'] ?>">
+        <input type="hidden" name="nomor" value="<?= $float_widget['current']['nomor'] ?>">
+        <input type="hidden" name="redirect_to" value="pendaftar">
+        <button type="submit" class="btn btn-sm w-100 fw-semibold text-white"
+                style="background:linear-gradient(135deg,#7c3aed,#a855f7);"
+                onclick="return confirm('Selesai input data? Surat Tanda Daftar akan diterbitkan untuk nomor <?= $float_widget['current']['nomor'] ?>.')">
+          <i class="bi bi-file-earmark-check me-1"></i>Selesai &amp; Terbitkan Surat
+        </button>
+      </form>
+      <form method="POST" action="?page=antrian">
+        <input type="hidden" name="action" value="skip">
+        <input type="hidden" name="antrian_id" value="<?= $float_widget['current']['id'] ?>">
+        <input type="hidden" name="redirect_to" value="pendaftar">
+        <button type="submit" class="btn btn-sm btn-outline-warning w-100"
+                onclick="return confirm('Lewati nomor <?= $float_widget['current']['nomor'] ?>? (Tidak hadir)')">
+          <i class="bi bi-forward-fill me-1"></i>Skip (Tidak Hadir)
+        </button>
+      </form>
+    </div>
+
+    <?php elseif ($float_widget['sisa'] > 0): ?>
+    <!-- Ada yang menunggu, belum dipanggil -->
+    <div class="text-center py-3 px-2">
+      <i class="bi bi-hourglass-split d-block mb-2" style="font-size:2rem;color:#a855f7;opacity:.6;"></i>
+      <div class="fw-semibold"><?= $float_widget['sisa'] ?> pendaftar menunggu</div>
+      <div class="small text-muted mb-3">Belum ada nomor yang dipanggil</div>
+      <form method="POST" action="?page=antrian">
+        <input type="hidden" name="action" value="mulai">
+        <input type="hidden" name="redirect_to" value="pendaftar">
+        <button type="submit" class="btn btn-sm fw-semibold text-white px-4"
+                style="background:linear-gradient(135deg,#7c3aed,#a855f7);">
+          <i class="bi bi-play-fill me-1"></i>Panggil Nomor Berikutnya
+        </button>
+      </form>
+    </div>
+
+    <?php else: ?>
+    <!-- Kosong -->
+    <div class="text-center py-4 px-2">
+      <i class="bi bi-inbox d-block mb-2" style="font-size:2rem;color:#c4b5fd;"></i>
+      <div class="small text-muted">Belum ada pendaftar di Fase 2.</div>
+      <div class="small text-muted">Tunggu hasil Cek Berkas (Fase 1).</div>
+    </div>
+    <?php endif; ?>
+
+    <div class="border-top text-center py-1">
+      <a href="?page=antrian" class="small text-decoration-none" style="color:#7c3aed;">
+        <i class="bi bi-grid-3x2-gap-fill me-1"></i>Buka Halaman Meja Antrian
+      </a>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<?php if ($needs_chart): ?>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<?php endif; ?>
 <script>
 const sidebar   = document.querySelector('.sidebar');
 const backdrop  = document.getElementById('sidebarBackdrop');

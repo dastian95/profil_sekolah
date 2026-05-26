@@ -164,7 +164,7 @@ profil_sekolah/
 ├── env_loader.php            Loader .env via vlucas/phpdotenv
 ├── index.php                 Halaman publik (profil + pengumuman)
 ├── logout.php                Logout admin
-├── profil_sekolah.sql        Schema database
+├── database/schema.sql        Schema database
 └── README.md                 Dokumen ini
 ```
 
@@ -172,7 +172,7 @@ profil_sekolah/
 
 ## Database
 
-5 tabel utama (lihat `profil_sekolah.sql`):
+5 tabel utama (lihat `database/schema.sql`):
 
 | Tabel           | Isi                                                       |
 |-----------------|-----------------------------------------------------------|
@@ -184,9 +184,9 @@ profil_sekolah/
 
 ### Import Database
 ```bash
-mysql -u root profil_sekolah < profil_sekolah.sql
+mysql -u root profil_sekolah < database/schema.sql
 ```
-Atau via phpMyAdmin → Import → pilih `profil_sekolah.sql`.
+Atau via phpMyAdmin → Import → pilih `database/schema.sql`.
 
 ---
 
@@ -216,7 +216,7 @@ APP_TIMEZONE=Asia/Jakarta
    composer install
    ```
 4. Copy `.env.example` → `.env`, sesuaikan `ADMIN_KEY` dan database
-5. Import `profil_sekolah.sql` ke MySQL
+5. Import `database/schema.sql` ke MySQL
 6. Buka `http://localhost/profil_sekolah/admin.php?k=smklab2026`
 7. Login dengan `admin@smklab.sch.id` / `admin123`
 8. Ganti password lewat menu **Ganti Password**

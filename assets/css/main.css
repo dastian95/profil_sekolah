@@ -175,12 +175,7 @@ h6 {
   box-shadow: 0px 0 18px rgba(0, 0, 0, 0.1);
 }
 
-/* Global Header on Scroll
-------------------------------*/
-.scrolled .header {
-  /* Keep header green after scroll as well */
-  --background-color: rgba(5, 150, 82, 0.95);
-}
+/* Global Header on Scroll — handled by frosted glass section below */
 
 /*--------------------------------------------------------------
 # Navigation Menu
@@ -2604,4 +2599,303 @@ section,
 }
 .index-page main {
   flex: 1;
+}
+
+/* ==============================================================
+   MOBILE RESPONSIVE — full HP support
+   Breakpoints: 991px, 768px, 575px, 480px, 360px
+   ============================================================== */
+
+/* ── Section spacing ── */
+@media (max-width: 768px) {
+  section, .section { padding: 40px 0; }
+  .section-title { padding-bottom: 36px; }
+  .section-title p { font-size: 22px; }
+}
+@media (max-width: 480px) {
+  section, .section { padding: 28px 0; }
+  .section-title { padding-bottom: 22px; }
+  .section-title p { font-size: 18px; }
+}
+
+/* ── Header / Logo ── */
+@media (max-width: 480px) {
+  .header { padding: 10px 0; }
+  .header .logo h1 { font-size: 17px; }
+  .header .logo img { max-height: 26px; }
+}
+
+/* ── Hero ── */
+@media (max-width: 480px) {
+  .hero h2 { font-size: 22px; margin-bottom: 14px; }
+  .hero h3 { font-size: 14px; }
+  .hero p { font-size: 13px; max-width: 95%; }
+  .hero .btn-get-started { padding: 9px 20px; font-size: 13px; }
+}
+
+/* ── About section ── */
+@media (max-width: 768px) {
+  .about img { max-height: 260px !important; }
+}
+@media (max-width: 480px) {
+  .about img { max-height: 200px !important; }
+}
+
+/* ── Jurusan tabs — 2 kolom di tablet/HP ── */
+@media (max-width: 991px) {
+  .features .nav-item.col-3 {
+    width: 50% !important;
+    flex: 0 0 50% !important;
+    max-width: 50% !important;
+  }
+}
+@media (max-width: 480px) {
+  .features .nav-link { padding: 12px 8px; }
+  .features .tab-pane h3 { font-size: 20px; }
+  .features .tab-pane ul li { font-size: 14px; }
+  .jurusan-logo-box { height: 140px !important; }
+}
+
+/* ── Jurusan foto — override fixed heights ── */
+@media (max-width: 768px) {
+  .features .tab-pane img { max-height: 200px !important; height: auto !important; }
+}
+@media (max-width: 480px) {
+  .features .tab-pane img { max-height: 160px !important; }
+}
+
+/* ── Map iframe ── */
+@media (max-width: 768px) {
+  .map-container { height: 280px !important; }
+}
+@media (max-width: 480px) {
+  .map-container { height: 220px !important; }
+}
+
+/* ── Pengumuman: search input & filter buttons ── */
+@media (max-width: 575px) {
+  [id^="cari-"] { max-width: 100% !important; width: 100% !important; }
+  .filter-btn { padding: .28rem .55rem !important; font-size: .76rem !important; }
+}
+
+/* ── Pengumuman: tabel → card layout di HP kecil ── */
+@media (max-width: 575px) {
+  [id^="tbl-"] thead { display: none; }
+  [id^="tbl-"] tbody tr {
+    display: block;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  }
+  [id^="tbl-"] tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 7px 12px;
+    border: none !important;
+    border-bottom: 1px solid #f3f3f3 !important;
+    font-size: .84rem;
+    text-align: right;
+  }
+  [id^="tbl-"] tbody td:last-child { border-bottom: none !important; }
+  [id^="tbl-"] tbody td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: #555;
+    text-align: left;
+    flex-shrink: 0;
+    white-space: nowrap;
+    font-size: .78rem;
+  }
+}
+
+/* ── Arahan Selanjutnya card ── */
+@media (max-width: 480px) {
+  .card-body ul { padding-left: 1.1rem; }
+  .card-body li { font-size: .83rem; }
+}
+
+/* ── Footer ── */
+@media (max-width: 768px) {
+  .footer h3 { font-size: 24px; }
+  .footer .copyright, .footer .credits { font-size: 13px; text-align: center; }
+}
+
+/* ── Services ── */
+@media (max-width: 768px) {
+  .services .service-item { padding: 40px 20px 40px 50px; }
+}
+
+/* ── Page title ── */
+@media (max-width: 768px) {
+  .page-title { padding: 80px 0 40px; }
+  .page-title h1 { font-size: 26px; }
+}
+
+/* ── Admin / Superadmin dashboard — small phone refinements ── */
+@media (max-width: 480px) {
+  .topbar { padding: 0 10px !important; min-height: 52px; }
+  .topbar h1, .topbar .fs-5 { font-size: .9rem !important; }
+  .content, .content-wrap .content { padding: 12px !important; }
+  .card { border-radius: 8px; }
+  .stat-card .stat-value { font-size: 1.6rem; }
+  .config-card { padding: 12px 14px; gap: 10px; }
+}
+
+/* ==============================================================
+   CONTEMPORARY DESIGN ENHANCEMENTS — 2026
+   ============================================================== */
+
+/* ── Navbar: frosted glass on scroll (pakai class .scrolled di body dari template JS) ── */
+.header {
+  transition: background 0.4s ease, box-shadow 0.4s ease;
+}
+.scrolled .header {
+  background: rgba(255, 255, 255, 0.94) !important;
+  backdrop-filter: blur(14px) saturate(180%);
+  -webkit-backdrop-filter: blur(14px) saturate(180%);
+  box-shadow: 0 2px 20px rgba(0,0,0,.08) !important;
+}
+/* Logo h1 — gelap saat scroll (putih saat di atas hero) */
+.scrolled .header .logo h1 {
+  color: #1a1a2e !important;
+}
+/* Nav links — gelap saat scroll */
+.scrolled .header .navmenu a,
+.scrolled .header .navmenu a:focus {
+  color: #2d3748 !important;
+}
+.scrolled .header .navmenu li:hover > a,
+.scrolled .header .navmenu .active,
+.scrolled .header .navmenu .active:focus {
+  color: #2f8258 !important;
+  background-color: rgba(47, 130, 88, 0.1) !important;
+}
+/* Mobile hamburger icon */
+.scrolled .header .mobile-nav-toggle {
+  color: #1a1a2e !important;
+}
+
+/* ── Hero: bigger & bolder typography ── */
+.hero h2 {
+  font-size: 52px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  line-height: 1.15;
+  text-shadow: 0 2px 12px rgba(0,0,0,.35);
+}
+.hero p {
+  font-size: 1.15rem;
+  line-height: 1.75;
+  opacity: .92;
+}
+.hero .btn-get-started {
+  font-size: 15px;
+  padding: 14px 36px;
+  border-radius: 50px;
+  background: var(--accent-color);
+  color: #fff;
+  border: none;
+  box-shadow: 0 4px 18px rgba(47,130,88,.45);
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.hero .btn-get-started:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(47,130,88,.55);
+  color: #fff;
+}
+
+/* ── Section titles: sharper ── */
+.section-title h2 {
+  font-size: 13px;
+  letter-spacing: 2.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--accent-color);
+}
+.section-title p {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--heading-color);
+  margin-bottom: 4px;
+}
+.section-title .section-subtitle {
+  font-size: 16px;
+  font-weight: 500;
+  color: #6c757d;
+  letter-spacing: 0;
+}
+
+/* ── Cards: smooth hover with shadow lift ── */
+.card {
+  border-radius: 14px !important;
+  transition: transform .25s ease, box-shadow .25s ease !important;
+}
+.card:hover {
+  transform: translateY(-5px) !important;
+  box-shadow: 0 14px 36px rgba(0,0,0,.12) !important;
+}
+
+/* ── About section: image with rounded modern style ── */
+.about .img-fluid {
+  border-radius: 18px !important;
+  box-shadow: 0 12px 40px rgba(0,0,0,.14) !important;
+}
+.about .content ul li {
+  margin-bottom: .6rem;
+  line-height: 1.6;
+}
+
+/* ── Features/Jurusan tabs: pill style (no gap — jangan rusak Bootstrap grid col-6 col-lg-3) ── */
+.features .nav-tabs {
+  border: none;
+}
+.features .nav-item {
+  padding: 4px;
+}
+.features .nav-link {
+  border-radius: 12px !important;
+  border: 1px solid #e2e8f0 !important;
+  transition: all .2s ease !important;
+  background: #fff;
+  height: 100%;
+}
+.features .nav-link.active, .features .nav-link:hover {
+  background: var(--accent-color) !important;
+  border-color: var(--accent-color) !important;
+  color: #fff !important;
+  box-shadow: 0 4px 14px rgba(47,130,88,.3) !important;
+}
+.features .nav-link.active i, .features .nav-link:hover i { color: #fff !important; }
+.features .nav-link.active h4, .features .nav-link:hover h4 { color: #fff !important; }
+
+/* ── Dark sections: vivid accent button ── */
+.dark-background .btn-outline-light {
+  border-radius: 50px;
+  padding: 10px 28px;
+  font-weight: 600;
+  transition: all .2s ease;
+}
+.dark-background .btn-outline-light:hover {
+  background: rgba(255,255,255,.15);
+  transform: translateY(-2px);
+}
+
+/* ── Footer: cleaner padding ── */
+.footer {
+  padding: 28px 0 !important;
+}
+.footer .copyright {
+  font-size: .9rem;
+  opacity: .8;
+}
+
+/* ── Announcement banners: subtle improvement ── */
+#site-announcements .alert {
+  border-left: 4px solid currentColor;
+  border-radius: 0;
+  font-size: .92rem;
 }

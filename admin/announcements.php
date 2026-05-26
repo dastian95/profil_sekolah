@@ -60,9 +60,9 @@ $type_colors = ['info'=>'primary','warning'=>'warning','danger'=>'danger','succe
     <div class="card-header fw-semibold">Daftar Pengumuman</div>
     <div class="card-body p-0">
     <div class="table-responsive">
-    <table class="table table-hover small mb-0">
-        <thead class="table-dark">
-            <tr><th>Judul</th><th>Pesan</th><th>Tipe</th><th>Status</th><th>Dibuat</th><th>Aksi</th></tr>
+    <table class="table table-hover mb-0">
+        <thead>
+            <tr><th>Judul</th><th>Pesan</th><th>Tipe</th><th>Status</th><th>Dibuat</th><th class="text-end">Aksi</th></tr>
         </thead>
         <tbody>
         <?php if (empty($list)): ?>

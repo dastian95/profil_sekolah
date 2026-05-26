@@ -1,15 +1,11 @@
 <?php
-$jurusan_list = [
-    'Rekayasa Perangkat Lunak (RPL)',
-    'Teknik Komputer dan Jaringan (TKJ)',
-    'Asisten Keperawatan (AP)',
-    'Tata Kecantikan Kulit dan Rambut (TKKR)',
-];
+$jurusan_list = JURUSAN_LIST;
+$short        = JURUSAN_SHORT;
 
 $total       = $conn->query("SELECT COUNT(*) FROM pendaftar")->fetchColumn();
-$diterima    = $conn->query("SELECT COUNT(*) FROM pendaftar WHERE status='diterima'")->fetchColumn();
-$ditolak     = $conn->query("SELECT COUNT(*) FROM pendaftar WHERE status='ditolak'")->fetchColumn();
-$pending     = $conn->query("SELECT COUNT(*) FROM pendaftar WHERE status='pending'")->fetchColumn();
+$diterima    = $conn->query("SELECT COUNT(*) FROM pendaftar WHERE status='terima'")->fetchColumn();
+$ditolak     = $conn->query("SELECT COUNT(*) FROM pendaftar WHERE status='gugur'")->fetchColumn();
+$pending     = $conn->query("SELECT COUNT(*) FROM pendaftar WHERE status='diproses'")->fetchColumn();
 $gugur_usia  = $conn->query("SELECT COUNT(*) FROM pendaftar WHERE lolos_usia=0")->fetchColumn();
 
 $per_jurusan = [];
@@ -28,8 +24,6 @@ for ($g = 1; $g <= 2; $g++) {
 
 $recent = $conn->query("SELECT no_pendaftaran, nama, jurusan, gelombang, nilai_akhir, status, created_at FROM pendaftar ORDER BY created_at DESC LIMIT 8")->fetchAll();
 $gel_rows = $conn->query("SELECT * FROM gelombang ORDER BY gelombang")->fetchAll();
-$short = ['Rekayasa Perangkat Lunak (RPL)'=>'RPL','Teknik Komputer dan Jaringan (TKJ)'=>'TKJ','Asisten Keperawatan (AP)'=>'AP','Tata Kecantikan Kulit dan Rambut (TKKR)'=>'TKKR'];
-
 $persen_diterima = $total > 0 ? round(($diterima / $total) * 100, 1) : 0;
 ?>
 
@@ -64,7 +58,7 @@ $persen_diterima = $total > 0 ? round(($diterima / $total) * 100, 1) : 0;
 <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
     <div>
         <h2 class="mb-1" style="font-weight:700;color:#1a3c34;">Selamat datang, <?= htmlspecialchars($_SESSION['admin_name']) ?> 👋</h2>
-        <p class="text-muted mb-0">Ringkasan PPDB SMK Laboratorium Jakarta hari ini.</p>
+        <p class="text-muted mb-0">Ringkasan SPMB SMK Laboratorium Jakarta hari ini.</p>
     </div>
     <a href="?page=pendaftar" class="btn btn-success">
         <i class="bi bi-plus-lg me-1"></i> Tambah Pendaftar
@@ -101,7 +95,7 @@ $persen_diterima = $total > 0 ? round(($diterima / $total) * 100, 1) : 0;
         <div class="stat-card stat-warning">
             <i class="bi bi-hourglass-split stat-icon"></i>
             <div class="stat-value"><?= $pending ?></div>
-            <div class="stat-label">Belum Diproses</div>
+            <div class="stat-label">Diproses</div>
             <div class="stat-sub">Menunggu seleksi</div>
         </div>
     </div>
@@ -118,8 +112,8 @@ $persen_diterima = $total > 0 ? round(($diterima / $total) * 100, 1) : 0;
 <!-- Gelombang Status -->
 <div class="row g-3 mb-4">
     <?php foreach ($gel_rows as $g):
-        $kuota_glm = (int)round($g['kuota_per_jurusan'] * $g['persen_gelombang'] / 100);
-        $total_kuota = $kuota_glm * 4;
+        $kuota_glm = (int)($g['kuota_glm'] ?? round($g['kuota_per_jurusan'] * $g['persen_gelombang'] / 100));
+        $total_kuota = $kuota_glm * count(JURUSAN_LIST);
         $pct = $total_kuota > 0 ? min(100, round(($glm[$g['gelombang']] / $total_kuota) * 100)) : 0;
     ?>
     <div class="col-md-6">
@@ -129,7 +123,7 @@ $persen_diterima = $total > 0 ? round(($diterima / $total) * 100, 1) : 0;
                     <div class="gel-number"><?= $g['gelombang'] ?></div>
                     <div>
                         <div class="fw-bold">Gelombang <?= $g['gelombang'] ?></div>
-                        <div class="text-muted small"><?= (int)$g['persen_gelombang'] ?>% kuota · ambil <?= $kuota_glm ?>/jurusan</div>
+                        <div class="text-muted small">Ambil <?= $kuota_glm ?> terbaik per jurusan · total <?= $total_kuota ?> kursi</div>
                     </div>
                 </div>
                 <?php if ($g['is_published']): ?>
@@ -201,7 +195,7 @@ $persen_diterima = $total > 0 ? round(($diterima / $total) * 100, 1) : 0;
                     Belum ada data pendaftar.
                 </td></tr>
             <?php else: foreach ($recent as $r):
-                $badge = match($r['status']) { 'diterima'=>'bg-success', 'ditolak'=>'bg-danger', default=>'bg-warning text-dark' };
+                $badge = match($r['status']) { 'terima'=>'bg-success', 'gugur'=>'bg-danger', default=>'bg-warning text-dark' };
             ?>
                 <tr>
                     <td><span class="no-pendaftaran"><?= htmlspecialchars($r['no_pendaftaran']) ?></span></td>
@@ -244,7 +238,7 @@ new Chart(document.getElementById('chartJurusan'), {
 new Chart(document.getElementById('chartStatus'), {
     type: 'doughnut',
     data: {
-        labels: ['Diterima', 'Ditolak', 'Pending'],
+        labels: ['Diterima', 'Ditolak', 'Diproses'],
         datasets: [{
             data: [<?= $diterima ?>, <?= $ditolak ?>, <?= $pending ?>],
             backgroundColor: ['#11998e','#eb3349','#f7b733'],

@@ -2,3 +2,4 @@
 .env
 debug.log
 error.log
+*.zip

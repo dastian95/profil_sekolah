@@ -1,27 +1,76 @@
 <?php
-$jurusan_list = [
-    'Rekayasa Perangkat Lunak (RPL)',
-    'Teknik Komputer dan Jaringan (TKJ)',
-    'Asisten Keperawatan (AP)',
-    'Tata Kecantikan Kulit dan Rambut (TKKR)',
-];
+$jurusan_list = JURUSAN_LIST;
+$short        = JURUSAN_SHORT;
+$mapel_list   = MATA_PELAJARAN;
+$semester_list = SEMESTER_LIST;
 
 $msg = $err = '';
 
-// ── Helper: hitung nilai & usia ──────────────────────────────────────────────
-function hitungPendaftar(array $data): array {
-    $lahir     = new DateTime($data['tanggal_lahir']);
-    $sekarang  = new DateTime();
-    $usia      = (int)$lahir->diff($sekarang)->y;
-    $nilai_akhir = round(($data['nilai_raport'] * 0.70) + ($data['nilai_tka'] * 0.30), 4);
+// ─── Helper: hitung usia & nilai_akhir ──────────────────────────────────────
+function hitungPendaftar(array $data, float $rata_raport, string $sistem = 'reguler'): array {
+    $lahir       = new DateTime($data['tanggal_lahir']);
+    $sekarang    = new DateTime();
+    $usia        = (int)$lahir->diff($sekarang)->y;
+    // Daftar Khusus (usia >= KHUSUS_MIN_USIA) → 100% nilai raport, TKA diabaikan
+    $is_khusus   = ($sistem === 'khusus' || $usia >= KHUSUS_MIN_USIA);
+    $nilai_akhir = $is_khusus
+        ? round($rata_raport, 4)
+        : round(($rata_raport * 0.70) + ($data['nilai_tka'] * 0.30), 4);
     $lolos_usia  = ($usia <= 21) ? 1 : 0;
-    return array_merge($data, ['usia' => $usia, 'nilai_akhir' => $nilai_akhir, 'lolos_usia' => $lolos_usia]);
+    return array_merge($data, [
+        'usia'         => $usia,
+        'nilai_raport' => round($rata_raport, 4),
+        'nilai_tka'    => $is_khusus ? 0 : $data['nilai_tka'],
+        'nilai_akhir'  => $nilai_akhir,
+        'lolos_usia'   => $lolos_usia,
+    ]);
 }
 
-// ── Nomor pendaftaran otomatis ────────────────────────────────────────────────
+// ─── Helper: rata-rata raport dari matrix ───────────────────────────────────
+function rataRaportFromMatrix(array $matrix): float {
+    $sum = 0; $cnt = 0;
+    foreach ($matrix as $row) {
+        foreach ($row as $v) {
+            if ($v !== '' && $v !== null) { $sum += (float)$v; $cnt++; }
+        }
+    }
+    return $cnt > 0 ? $sum / $cnt : 0;
+}
+
+// ─── Helper: simpan matrix raport ───────────────────────────────────────────
+function saveRaportMatrix(PDO $conn, int $pendaftar_id, array $matrix, array $mapel_list, array $semester_list): void {
+    $conn->prepare("DELETE FROM pendaftar_raport WHERE pendaftar_id=?")->execute([$pendaftar_id]);
+    $ins = $conn->prepare("INSERT INTO pendaftar_raport (pendaftar_id, mata_pelajaran, semester, nilai) VALUES (?, ?, ?, ?)");
+    foreach ($mapel_list as $mp) {
+        foreach ($semester_list as $s) {
+            $v = $matrix[$mp][$s] ?? '';
+            if ($v !== '' && is_numeric($v)) {
+                $ins->execute([$pendaftar_id, $mp, $s, (float)$v]);
+            }
+        }
+    }
+}
+
+// ─── Helper: load matrix raport ─────────────────────────────────────────────
+function loadRaportMatrix(PDO $conn, int $pendaftar_id, array $mapel_list, array $semester_list): array {
+    $matrix = [];
+    foreach ($mapel_list as $mp) {
+        foreach ($semester_list as $s) {
+            $matrix[$mp][$s] = '';
+        }
+    }
+    $stmt = $conn->prepare("SELECT mata_pelajaran, semester, nilai FROM pendaftar_raport WHERE pendaftar_id=?");
+    $stmt->execute([$pendaftar_id]);
+    foreach ($stmt as $r) {
+        $matrix[$r['mata_pelajaran']][(int)$r['semester']] = (float)$r['nilai'];
+    }
+    return $matrix;
+}
+
+// ─── Generate no_pendaftaran ────────────────────────────────────────────────
 function generateNoPendaftaran(PDO $conn, int $gelombang): string {
     $tahun  = date('Y');
-    $prefix = "PPDB-{$tahun}-G{$gelombang}-";
+    $prefix = "SPMB-{$tahun}-G{$gelombang}-";
     $last   = $conn->prepare("SELECT no_pendaftaran FROM pendaftar WHERE gelombang=? ORDER BY id DESC LIMIT 1");
     $last->execute([$gelombang]);
     $row    = $last->fetchColumn();
@@ -29,55 +78,100 @@ function generateNoPendaftaran(PDO $conn, int $gelombang): string {
     return $prefix . str_pad($seq, 4, '0', STR_PAD_LEFT);
 }
 
-// ── POST: Tambah / Edit / Hapus ───────────────────────────────────────────────
+// Tentukan gelombang aktif (auto) — dipakai untuk default saat tambah baru
+$gelombang_aktif = getActiveGelombang($conn);
+
+// Data untuk preserve form saat validasi gagal
+$formData   = [];
+$formRaport = [];
+$formAction = 'add';
+$formId     = '';
+$showModalOnLoad = false;
+
+// ─── POST: Tambah / Edit / Hapus ────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'add' || $action === 'edit') {
-        $required = ['nama','nisn','tanggal_lahir','jenis_kelamin','asal_sekolah','jurusan','gelombang','nilai_raport','nilai_tka'];
-        $missing  = array_filter($required, fn($f) => empty($_POST[$f]));
+        $sistem = in_array($_POST['sistem_pendidikan'] ?? '', ['reguler','pkbm','khusus'])
+            ? $_POST['sistem_pendidikan'] : 'reguler';
+        // Daftar Khusus tidak memerlukan TKA
+        $required = ['nama','nisn','tanggal_lahir','jenis_kelamin','asal_sekolah','jurusan'];
+        if ($sistem !== 'khusus') $required[] = 'nilai_tka';
+        $missing  = array_filter($required, fn($f) => empty($_POST[$f]) && $_POST[$f] !== '0');
         if ($missing) {
             $err = 'Field wajib belum diisi: ' . implode(', ', $missing);
         } else {
-            $d = hitungPendaftar([
-                'nama'          => trim($_POST['nama']),
-                'nisn'          => trim($_POST['nisn']),
-                'tanggal_lahir' => $_POST['tanggal_lahir'],
-                'jenis_kelamin' => $_POST['jenis_kelamin'],
-                'asal_sekolah'  => trim($_POST['asal_sekolah']),
-                'no_telp'       => trim($_POST['no_telp'] ?? ''),
-                'alamat'        => trim($_POST['alamat'] ?? ''),
-                'jurusan'       => $_POST['jurusan'],
-                'gelombang'     => (int)$_POST['gelombang'],
-                'nilai_raport'  => (float)$_POST['nilai_raport'],
-                'nilai_tka'     => (float)$_POST['nilai_tka'],
-            ]);
-
-            if ($action === 'add') {
-                $no = generateNoPendaftaran($conn, $d['gelombang']);
-                $stmt = $conn->prepare("INSERT INTO pendaftar
-                    (no_pendaftaran,gelombang,nama,nisn,tanggal_lahir,usia,jenis_kelamin,asal_sekolah,no_telp,alamat,jurusan,nilai_raport,nilai_tka,nilai_akhir,lolos_usia,status)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending')");
-                $stmt->execute([$no,$d['gelombang'],$d['nama'],$d['nisn'],$d['tanggal_lahir'],$d['usia'],
-                    $d['jenis_kelamin'],$d['asal_sekolah'],$d['no_telp'],$d['alamat'],$d['jurusan'],
-                    $d['nilai_raport'],$d['nilai_tka'],$d['nilai_akhir'],$d['lolos_usia']]);
-
-                $logStmt = $conn->prepare("INSERT INTO admin_logs (admin_id,action,details,ip_address) VALUES (?,?,?,?)");
-                $logStmt->execute([$_SESSION['admin_id'],'TAMBAH_PENDAFTAR',"Tambah pendaftar: {$d['nama']} ({$no})",$_SERVER['REMOTE_ADDR']]);
-                $msg = "Pendaftar <strong>{$d['nama']}</strong> berhasil ditambahkan dengan nomor <strong>{$no}</strong>.";
+            if ($sistem === 'pkbm') {
+                $matrix       = $_POST['pkbm_raport'] ?? [];
+                $mapel_active = PKBM_MAPEL;
+                $sem_active   = array_keys(PKBM_TINGKAT);
             } else {
-                $id = (int)$_POST['id'];
-                $stmt = $conn->prepare("UPDATE pendaftar SET
-                    gelombang=?,nama=?,nisn=?,tanggal_lahir=?,usia=?,jenis_kelamin=?,asal_sekolah=?,
-                    no_telp=?,alamat=?,jurusan=?,nilai_raport=?,nilai_tka=?,nilai_akhir=?,lolos_usia=?
-                    WHERE id=?");
-                $stmt->execute([$d['gelombang'],$d['nama'],$d['nisn'],$d['tanggal_lahir'],$d['usia'],
-                    $d['jenis_kelamin'],$d['asal_sekolah'],$d['no_telp'],$d['alamat'],$d['jurusan'],
-                    $d['nilai_raport'],$d['nilai_tka'],$d['nilai_akhir'],$d['lolos_usia'],$id]);
+                $matrix       = $_POST['raport'] ?? [];
+                $mapel_active = $mapel_list;
+                $sem_active   = $semester_list;
+            }
+            $rata = rataRaportFromMatrix($matrix);
 
-                $logStmt = $conn->prepare("INSERT INTO admin_logs (admin_id,action,details,ip_address) VALUES (?,?,?,?)");
-                $logStmt->execute([$_SESSION['admin_id'],'EDIT_PENDAFTAR',"Edit pendaftar ID:{$id} — {$d['nama']}",$_SERVER['REMOTE_ADDR']]);
-                $msg = "Data <strong>{$d['nama']}</strong> berhasil diperbarui.";
+            if ($rata <= 0) {
+                $err = 'Detail nilai raport belum diisi. Minimal isi 1 nilai.';
+            } else {
+                // Saat tambah: pakai gelombang aktif otomatis; saat edit: pertahankan gelombang lama
+                $gel = 0;
+                if ($action === 'add') {
+                    if (!$gelombang_aktif) {
+                        $err = 'Tidak ada gelombang aktif. Atur tanggal gelombang di menu Pengaturan Gelombang.';
+                    } else {
+                        $gel = (int)$gelombang_aktif['gelombang'];
+                    }
+                } else {
+                    $cur = $conn->prepare("SELECT gelombang FROM pendaftar WHERE id=?");
+                    $cur->execute([(int)$_POST['id']]);
+                    $gel = (int)$cur->fetchColumn();
+                }
+
+                if (!$err) {
+                $d = hitungPendaftar([
+                    'nama'          => trim($_POST['nama']),
+                    'nisn'          => trim($_POST['nisn']),
+                    'tanggal_lahir' => $_POST['tanggal_lahir'],
+                    'jenis_kelamin' => $_POST['jenis_kelamin'],
+                    'asal_sekolah'  => trim($_POST['asal_sekolah']),
+                    'no_telp'       => trim($_POST['no_telp'] ?? ''),
+                    'alamat'        => trim($_POST['alamat'] ?? ''),
+                    'jurusan'       => $_POST['jurusan'],
+                    'gelombang'     => $gel,
+                    'nilai_tka'     => $sistem === 'khusus' ? 0 : (float)$_POST['nilai_tka'],
+                ], $rata, $sistem);
+
+                if ($action === 'add') {
+                    $no = generateNoPendaftaran($conn, $d['gelombang']);
+                    $stmt = $conn->prepare("INSERT INTO pendaftar
+                        (no_pendaftaran,gelombang,nama,nisn,tanggal_lahir,usia,jenis_kelamin,asal_sekolah,no_telp,alamat,jurusan,sistem_pendidikan,nilai_raport,nilai_tka,nilai_akhir,lolos_usia,status)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'diproses')");
+                    $stmt->execute([$no,$d['gelombang'],$d['nama'],$d['nisn'],$d['tanggal_lahir'],$d['usia'],
+                        $d['jenis_kelamin'],$d['asal_sekolah'],$d['no_telp'],$d['alamat'],$d['jurusan'],
+                        $sistem,$d['nilai_raport'],$d['nilai_tka'],$d['nilai_akhir'],$d['lolos_usia']]);
+                    $id = (int)$conn->lastInsertId();
+                    saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
+
+                    log_admin_action($conn, 'TAMBAH_PENDAFTAR', "Tambah pendaftar: {$d['nama']} ({$no})");
+                    $msg = "Pendaftar <strong>{$d['nama']}</strong> berhasil ditambahkan dengan nomor <strong>{$no}</strong>.";
+                } else {
+                    $id = (int)$_POST['id'];
+                    $stmt = $conn->prepare("UPDATE pendaftar SET
+                        gelombang=?,nama=?,nisn=?,tanggal_lahir=?,usia=?,jenis_kelamin=?,asal_sekolah=?,
+                        no_telp=?,alamat=?,jurusan=?,sistem_pendidikan=?,nilai_raport=?,nilai_tka=?,nilai_akhir=?,lolos_usia=?
+                        WHERE id=?");
+                    $stmt->execute([$d['gelombang'],$d['nama'],$d['nisn'],$d['tanggal_lahir'],$d['usia'],
+                        $d['jenis_kelamin'],$d['asal_sekolah'],$d['no_telp'],$d['alamat'],$d['jurusan'],
+                        $sistem,$d['nilai_raport'],$d['nilai_tka'],$d['nilai_akhir'],$d['lolos_usia'],$id]);
+                    saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
+
+                    log_admin_action($conn, 'EDIT_PENDAFTAR', "Edit pendaftar ID:{$id} — {$d['nama']}");
+                    $msg = "Data <strong>{$d['nama']}</strong> berhasil diperbarui.";
+                }
+                } // end if (!$err)
             }
         }
     } elseif ($action === 'delete') {
@@ -86,13 +180,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $row->execute([$id]);
         $del = $row->fetch();
         $conn->prepare("DELETE FROM pendaftar WHERE id=?")->execute([$id]);
-        $logStmt = $conn->prepare("INSERT INTO admin_logs (admin_id,action,details,ip_address) VALUES (?,?,?,?)");
-        $logStmt->execute([$_SESSION['admin_id'],'HAPUS_PENDAFTAR',"Hapus: {$del['nama']} ({$del['no_pendaftaran']})",$_SERVER['REMOTE_ADDR']]);
+        log_admin_action($conn, 'HAPUS_PENDAFTAR', "Hapus: {$del['nama']} ({$del['no_pendaftaran']})");
         $msg = "Pendaftar <strong>{$del['nama']}</strong> berhasil dihapus.";
+    }
+
+    // Preserve form data so modal reopens with filled values when validation fails
+    if ($err) {
+        $formData        = $_POST;
+        $formRaport      = $_POST['raport'] ?? [];
+        $formAction      = $action;
+        $formId          = $_POST['id'] ?? '';
+        $showModalOnLoad = true;
     }
 }
 
-// ── Filter & paginasi ─────────────────────────────────────────────────────────
+// ─── Filter & paginasi ──────────────────────────────────────────────────────
 $fJurusan  = $_GET['jurusan']  ?? '';
 $fGelombang= $_GET['gelombang']?? '';
 $fStatus   = $_GET['status']   ?? '';
@@ -106,7 +208,7 @@ if ($fGelombang) { $where[] = 'gelombang=?';$params[] = $fGelombang; }
 if ($fStatus)    { $where[] = 'status=?';   $params[] = $fStatus; }
 if ($fCari)      { $where[] = '(nama LIKE ? OR nisn LIKE ? OR no_pendaftaran LIKE ?)'; $params = array_merge($params, ["%$fCari%","%$fCari%","%$fCari%"]); }
 
-$whereStr  = implode(' AND ', $where);
+$whereStr = implode(' AND ', $where);
 $countStmt = $conn->prepare("SELECT COUNT(*) FROM pendaftar WHERE $whereStr");
 $countStmt->execute($params);
 $total_rows = $countStmt->fetchColumn();
@@ -117,7 +219,32 @@ $dataStmt = $conn->prepare("SELECT * FROM pendaftar WHERE $whereStr ORDER BY nil
 $dataStmt->execute($params);
 $rows = $dataStmt->fetchAll();
 
-$short = ['Rekayasa Perangkat Lunak (RPL)'=>'RPL','Teknik Komputer dan Jaringan (TKJ)'=>'TKJ','Asisten Keperawatan (AP)'=>'AP','Tata Kecantikan Kulit dan Rambut (TKKR)'=>'TKKR'];
+// Untuk JS edit form, kita perlu data raport per pendaftar — load semua sekaligus untuk halaman ini
+$raport_per_pendaftar = [];
+if ($rows) {
+    $ids = array_column($rows, 'id');
+    $in = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $conn->prepare("SELECT pendaftar_id, mata_pelajaran, semester, nilai FROM pendaftar_raport WHERE pendaftar_id IN ($in)");
+    $stmt->execute($ids);
+    foreach ($stmt as $r) {
+        $raport_per_pendaftar[$r['pendaftar_id']][$r['mata_pelajaran']][(int)$r['semester']] = (float)$r['nilai'];
+    }
+}
+// Auto-open edit modal jika redirect dari Ranking
+$editFromRanking = null;
+$edit_id_get = (int)($_GET['edit_id'] ?? 0);
+if ($edit_id_get > 0) {
+    $s = $conn->prepare("SELECT * FROM pendaftar WHERE id=?");
+    $s->execute([$edit_id_get]);
+    $editFromRanking = $s->fetch();
+    if ($editFromRanking) {
+        $rs = $conn->prepare("SELECT mata_pelajaran, semester, nilai FROM pendaftar_raport WHERE pendaftar_id=?");
+        $rs->execute([$edit_id_get]);
+        $rm = [];
+        foreach ($rs as $r) { $rm[$r['mata_pelajaran']][(int)$r['semester']] = (float)$r['nilai']; }
+        $editFromRanking['raport_matrix'] = $rm;
+    }
+}
 ?>
 
 <?php if ($msg): ?><div class="alert alert-success alert-dismissible fade show"><?= $msg ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div><?php endif; ?>
@@ -127,6 +254,9 @@ $short = ['Rekayasa Perangkat Lunak (RPL)'=>'RPL','Teknik Komputer dan Jaringan 
 <div class="d-flex flex-wrap gap-2 mb-3 align-items-center justify-content-between">
     <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalPendaftar" onclick="resetForm()">
         <i class="bi bi-plus-lg me-1"></i>Tambah Pendaftar
+    </button>
+    <button class="btn btn-outline-secondary" onclick="loadTemplate()">
+        <i class="bi bi-file-earmark-text me-1"></i>Template
     </button>
     <form class="d-flex flex-wrap gap-2" method="GET">
         <input type="hidden" name="page" value="pendaftar">
@@ -144,9 +274,9 @@ $short = ['Rekayasa Perangkat Lunak (RPL)'=>'RPL','Teknik Komputer dan Jaringan 
         </select>
         <select name="status" class="form-select form-select-sm" style="width:auto">
             <option value="">Semua Status</option>
-            <option value="pending"  <?= $fStatus==='pending' ?'selected':'' ?>>Pending</option>
-            <option value="diterima" <?= $fStatus==='diterima'?'selected':'' ?>>Diterima</option>
-            <option value="ditolak"  <?= $fStatus==='ditolak' ?'selected':'' ?>>Ditolak</option>
+            <option value="diproses" <?= $fStatus==='diproses'?'selected':'' ?>>Diproses</option>
+            <option value="terima"   <?= $fStatus==='terima'  ?'selected':'' ?>>Terima</option>
+            <option value="gugur"    <?= $fStatus==='gugur'   ?'selected':'' ?>>Gugur</option>
         </select>
         <button type="submit" class="btn btn-primary btn-sm">Filter</button>
         <a href="?page=pendaftar" class="btn btn-outline-secondary btn-sm">Reset</a>
@@ -160,42 +290,53 @@ $short = ['Rekayasa Perangkat Lunak (RPL)'=>'RPL','Teknik Komputer dan Jaringan 
     </div>
     <div class="card-body p-0">
     <div class="table-responsive">
-    <table class="table table-hover table-sm mb-0 small">
-        <thead class="table-dark">
+    <table class="table table-hover mb-0">
+        <thead>
             <tr>
-                <th>No. Daftar</th><th>Nama</th><th>NISN</th><th>L/P</th>
-                <th>Jurusan</th><th>Glm</th><th>Raport</th><th>TKA</th>
-                <th>Nilai Akhir</th><th>Usia</th><th>Status</th><th>Aksi</th>
+                <th>No. Daftar</th><th>Nama</th><th>NISN</th><th class="text-center">L/P</th>
+                <th>Jurusan</th><th class="text-center">Glm</th>
+                <th class="text-center">Raport</th><th class="text-center">TKA</th>
+                <th class="text-center">Nilai Akhir</th><th class="text-center">Usia</th>
+                <th>Status</th><th class="text-end">Aksi</th>
             </tr>
         </thead>
         <tbody>
         <?php if (empty($rows)): ?>
             <tr><td colspan="12" class="text-center py-4 text-muted">Tidak ada data.</td></tr>
         <?php else: foreach ($rows as $r):
-            $badge = match($r['status']) { 'diterima'=>'bg-success', 'ditolak'=>'bg-danger', default=>'bg-warning text-dark' };
+            $badge = match($r['status']) { 'terima'=>'bg-success', 'gugur'=>'bg-danger', default=>'bg-warning text-dark' };
             $gugur = !$r['lolos_usia'];
+            // Sertakan matrix raport ke data row
+            $r_with_raport = $r;
+            $r_with_raport['raport_matrix'] = $raport_per_pendaftar[$r['id']] ?? [];
         ?>
             <tr class="<?= $gugur ? 'table-secondary text-muted' : '' ?>">
                 <td><?= htmlspecialchars($r['no_pendaftaran']) ?></td>
                 <td>
                     <?= htmlspecialchars($r['nama']) ?>
                     <?php if ($gugur): ?><i class="bi bi-exclamation-circle text-danger" title="Gugur: usia > 21"></i><?php endif; ?>
+                    <?php if (($r['sistem_pendidikan'] ?? '') === 'khusus'): ?>
+                      <span class="badge bg-warning text-dark ms-1" title="Daftar Khusus — 100% Raport">Khusus</span>
+                    <?php elseif (($r['sistem_pendidikan'] ?? '') === 'pkbm'): ?>
+                      <span class="badge bg-info text-dark ms-1">PKBM</span>
+                    <?php endif; ?>
                 </td>
                 <td><?= htmlspecialchars($r['nisn']) ?></td>
-                <td><?= $r['jenis_kelamin'] ?></td>
+                <td class="text-center"><?= $r['jenis_kelamin'] ?></td>
                 <td><?= $short[$r['jurusan']] ?? $r['jurusan'] ?></td>
                 <td class="text-center"><?= $r['gelombang'] ?></td>
                 <td class="text-center"><?= number_format($r['nilai_raport'], 2) ?></td>
                 <td class="text-center"><?= number_format($r['nilai_tka'], 2) ?></td>
-                <td class="text-center fw-semibold"><?= number_format($r['nilai_akhir'], 2) ?></td>
+                <td class="text-center fw-bold text-success"><?= number_format($r['nilai_akhir'], 2) ?></td>
                 <td class="text-center"><?= $r['usia'] ?></td>
                 <td><span class="badge <?= $badge ?>"><?= ucfirst($r['status']) ?></span></td>
-                <td>
-                    <button class="btn btn-xs btn-warning btn-sm py-0 px-1" onclick='editForm(<?= json_encode($r) ?>)' title="Edit"><i class="bi bi-pencil"></i></button>
-                    <form method="POST" class="d-inline" onsubmit="return confirm('Hapus pendaftar ini?')">
+                <td class="text-end">
+                    <button class="btn btn-sm btn-outline-info me-1" onclick='printBukti(<?= json_encode($r, JSON_HEX_APOS|JSON_HEX_QUOT) ?>)' title="Cetak Bukti"><i class="bi bi-printer"></i></button>
+                    <button class="btn btn-sm btn-outline-primary" onclick='editForm(<?= json_encode($r_with_raport, JSON_HEX_APOS|JSON_HEX_QUOT) ?>)' title="Edit"><i class="bi bi-pencil"></i></button>
+                    <form method="POST" class="d-inline" onsubmit="return confirm('Hapus pendaftar ini? Detail raport akan ikut terhapus.')">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="id" value="<?= $r['id'] ?>">
-                        <button type="submit" class="btn btn-sm btn-danger py-0 px-1" title="Hapus"><i class="bi bi-trash"></i></button>
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus"><i class="bi bi-trash"></i></button>
                     </form>
                 </td>
             </tr>
@@ -204,7 +345,6 @@ $short = ['Rekayasa Perangkat Lunak (RPL)'=>'RPL','Teknik Komputer dan Jaringan 
     </table>
     </div>
     </div>
-    <!-- Paginasi -->
     <?php if ($total_pages > 1): ?>
     <div class="card-footer d-flex justify-content-center">
         <nav><ul class="pagination pagination-sm mb-0">
@@ -218,125 +358,915 @@ $short = ['Rekayasa Perangkat Lunak (RPL)'=>'RPL','Teknik Komputer dan Jaringan 
     <?php endif; ?>
 </div>
 
-<!-- Modal Tambah/Edit -->
-<div class="modal fade" id="modalPendaftar" tabindex="-1">
-  <div class="modal-dialog modal-lg">
+<!-- Modal Tambah/Edit Pendaftar -->
+<div class="modal fade" id="modalPendaftar" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-xl">
     <div class="modal-content">
       <div class="modal-header bg-success text-white">
         <h5 class="modal-title" id="modalTitle">Tambah Pendaftar</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
-      <form method="POST">
-        <input type="hidden" name="action" id="formAction" value="add">
-        <input type="hidden" name="id" id="formId" value="">
+      <form method="POST" id="formPendaftar" novalidate>
+        <input type="hidden" name="action" id="formAction" value="<?= htmlspecialchars($formAction) ?>">
+        <input type="hidden" name="id" id="formId" value="<?= htmlspecialchars($formId) ?>">
+
+        <!-- Tab Navigation -->
+        <ul class="nav nav-tabs px-3 pt-2" role="tablist">
+          <li class="nav-item"><button type="button" class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabDiri"><i class="bi bi-person me-1"></i> Data Diri</button></li>
+          <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#tabRaport"><i class="bi bi-table me-1"></i> Detail Raport</button></li>
+        </ul>
+
         <div class="modal-body">
-          <div class="row g-3">
-            <div class="col-md-6">
-              <label class="form-label fw-semibold">Nama Lengkap <span class="text-danger">*</span></label>
-              <input type="text" name="nama" id="fNama" class="form-control" required>
+        <div class="tab-content">
+
+          <!-- ── Tab Data Diri ───────────────────────────────────────────── -->
+          <div class="tab-pane fade show active" id="tabDiri">
+            <?php if ($gelombang_aktif): ?>
+            <div class="alert alert-success small d-flex align-items-center gap-3 py-2">
+              <i class="bi bi-broadcast fs-5"></i>
+              <div class="flex-fill">
+                <strong>Gelombang Aktif: <?= $gelombang_aktif['gelombang'] ?></strong>
+                <span class="text-muted">— Sistem otomatis menetapkan gelombang ini untuk pendaftar baru.</span>
+              </div>
             </div>
-            <div class="col-md-3">
-              <label class="form-label fw-semibold">NISN <span class="text-danger">*</span></label>
-              <input type="text" name="nisn" id="fNisn" class="form-control" maxlength="20" required>
+            <?php else: ?>
+            <div class="alert alert-warning small">
+              <i class="bi bi-exclamation-triangle me-1"></i>Tidak ada gelombang aktif saat ini. Atur tanggal di menu <strong>Pengaturan Gelombang</strong>.
             </div>
-            <div class="col-md-3">
-              <label class="form-label fw-semibold">L/P <span class="text-danger">*</span></label>
-              <select name="jenis_kelamin" id="fJK" class="form-select" required>
-                <option value="L">Laki-laki</option>
-                <option value="P">Perempuan</option>
-              </select>
+            <?php endif; ?>
+
+            <div class="row g-3">
+              <div class="col-md-7">
+                <label class="form-label fw-semibold">Nama Lengkap <span class="text-danger">*</span></label>
+                <input type="text" name="nama" id="fNama" class="form-control" value="<?= htmlspecialchars($formData['nama'] ?? '') ?>" required>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">NISN <span class="text-danger">*</span></label>
+                <input type="text" name="nisn" id="fNisn" class="form-control" value="<?= htmlspecialchars($formData['nisn'] ?? '') ?>" maxlength="20" required>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label fw-semibold">L/P <span class="text-danger">*</span></label>
+                <select name="jenis_kelamin" id="fJK" class="form-select" required>
+                  <option value="L" <?= ($formData['jenis_kelamin'] ?? 'L') === 'L' ? 'selected' : '' ?>>L</option>
+                  <option value="P" <?= ($formData['jenis_kelamin'] ?? '') === 'P' ? 'selected' : '' ?>>P</option>
+                </select>
+              </div>
+              <div class="col-md-7">
+                <label class="form-label fw-semibold">Jurusan Pilihan <span class="text-danger">*</span></label>
+                <select name="jurusan" id="fJurusan" class="form-select" required>
+                  <?php foreach ($jurusan_list as $j): ?>
+                  <option value="<?= htmlspecialchars($j) ?>" <?= ($formData['jurusan'] ?? '') === $j ? 'selected' : '' ?>><?= htmlspecialchars($j) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label fw-semibold">No. Telepon</label>
+                <input type="text" name="no_telp" id="fTelp" class="form-control" value="<?= htmlspecialchars($formData['no_telp'] ?? '') ?>" placeholder="08...">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Umur</label>
+                <input type="text" id="previewUsia" class="form-control bg-light" readonly placeholder="auto" style="font-size:.82rem;">
+              </div>
+              <div class="col-12">
+                <label class="form-label fw-semibold">Alamat</label>
+                <textarea name="alamat" id="fAlamat" class="form-control" rows="2"><?= htmlspecialchars($formData['alamat'] ?? '') ?></textarea>
+              </div>
             </div>
-            <div class="col-md-4">
-              <label class="form-label fw-semibold">Tanggal Lahir <span class="text-danger">*</span></label>
-              <input type="date" name="tanggal_lahir" id="fTgl" class="form-control" required onchange="hitungUsia()">
+
+            <!-- Ringkasan Auto-Calc (dihitung dari Tab "Data Raport") -->
+            <hr>
+            <div class="row g-2 mt-2">
+              <div class="col-md-3">
+                <div class="card bg-light border-0 h-100">
+                  <div class="card-body py-2 px-3 text-center">
+                    <small class="text-muted d-block">Rata-rata Raport</small>
+                    <strong class="text-success fs-5" id="displayRata">—</strong>
+                    <small class="text-muted d-block" style="font-size:.7rem;">auto dari matrix</small>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="card bg-light border-0 h-100">
+                  <div class="card-body py-2 px-3 text-center">
+                    <small class="text-muted d-block">Nilai TKA</small>
+                    <strong class="text-primary fs-5" id="displayTka">—</strong>
+                    <small class="text-muted d-block" style="font-size:.7rem;">dari tab Data Raport</small>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="card bg-success text-white border-0 h-100">
+                  <div class="card-body py-2 px-3 text-center">
+                    <small class="opacity-75 d-block">Nilai Akhir</small>
+                    <strong class="fs-5" id="displayAkhir">—</strong>
+                    <small class="opacity-75 d-block" style="font-size:.7rem;" id="formulaLabel">R×70% + T×30%</small>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="card bg-light border-0 h-100">
+                  <div class="card-body py-2 px-3 text-center">
+                    <small class="text-muted d-block">Status</small>
+                    <strong class="text-warning fs-6">Diproses</strong>
+                    <small class="text-muted d-block" style="font-size:.7rem;">otomatis saat tambah</small>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="col-md-2">
-              <label class="form-label fw-semibold">Usia (otomatis)</label>
-              <input type="text" id="previewUsia" class="form-control" readonly placeholder="—">
-            </div>
-            <div class="col-md-6">
-              <label class="form-label fw-semibold">Asal Sekolah <span class="text-danger">*</span></label>
-              <input type="text" name="asal_sekolah" id="fAsal" class="form-control" required>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label fw-semibold">Jurusan Pilihan <span class="text-danger">*</span></label>
-              <select name="jurusan" id="fJurusan" class="form-select" required>
-                <?php foreach ($jurusan_list as $j): ?>
-                <option value="<?= htmlspecialchars($j) ?>"><?= htmlspecialchars($j) ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-            <div class="col-md-3">
-              <label class="form-label fw-semibold">Gelombang <span class="text-danger">*</span></label>
-              <select name="gelombang" id="fGelombang" class="form-select" required>
-                <option value="1">Gelombang 1</option>
-                <option value="2">Gelombang 2</option>
-              </select>
-            </div>
-            <div class="col-md-3">
-              <label class="form-label fw-semibold">Nilai Raport (rata²) <span class="text-danger">*</span></label>
-              <input type="number" name="nilai_raport" id="fRaport" class="form-control" min="0" max="100" step="0.01" required onchange="hitungPreview()">
-            </div>
-            <div class="col-md-3">
-              <label class="form-label fw-semibold">Nilai TKA <span class="text-danger">*</span></label>
-              <input type="number" name="nilai_tka" id="fTka" class="form-control" min="0" max="100" step="0.01" required onchange="hitungPreview()">
-            </div>
-            <div class="col-md-3">
-              <label class="form-label fw-semibold">Nilai Akhir (preview)</label>
-              <input type="text" id="previewNilai" class="form-control fw-bold text-success" readonly placeholder="—">
-              <small class="text-muted">(Raport×70%) + (TKA×30%)</small>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">No. Telepon</label>
-              <input type="text" name="no_telp" id="fTelp" class="form-control">
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Alamat</label>
-              <input type="text" name="alamat" id="fAlamat" class="form-control">
+
+            <div class="alert alert-info mt-3 mb-0 small py-2">
+              <i class="bi bi-arrow-right-circle me-1"></i>
+              Lanjut ke tab <strong>"Data Raport"</strong> untuk input Tanggal Lahir, Asal Sekolah, Nilai TKA, dan detail nilai raport.
             </div>
           </div>
+
+          <!-- ── Tab Data Raport ─────────────────────────────────────────── -->
+          <div class="tab-pane fade" id="tabRaport">
+
+            <!-- Sistem Penilaian -->
+            <div class="p-3 mb-3 rounded border bg-light d-flex align-items-center gap-4 flex-wrap">
+              <span class="fw-semibold small"><i class="bi bi-mortarboard text-success me-1"></i>Sistem Penilaian:</span>
+              <div class="form-check mb-0">
+                <input class="form-check-input" type="radio" name="sistem_pendidikan" id="sistemReguler" value="reguler"
+                       <?= ($formData['sistem_pendidikan'] ?? 'reguler') === 'reguler' ? 'checked' : '' ?>
+                       onchange="switchSistem('reguler')">
+                <label class="form-check-label" for="sistemReguler">
+                  <strong>Reguler</strong> <small class="text-muted">— Raport 70% + TKA 30%</small>
+                </label>
+              </div>
+              <div class="form-check mb-0">
+                <input class="form-check-input" type="radio" name="sistem_pendidikan" id="sistemPKBM" value="pkbm"
+                       <?= ($formData['sistem_pendidikan'] ?? '') === 'pkbm' ? 'checked' : '' ?>
+                       onchange="switchSistem('pkbm')">
+                <label class="form-check-label" for="sistemPKBM">
+                  <strong>PKBM</strong> <small class="text-muted">— Paket B Setara SMP</small>
+                </label>
+              </div>
+              <div class="form-check mb-0">
+                <input class="form-check-input" type="radio" name="sistem_pendidikan" id="sistemKhusus" value="khusus"
+                       <?= ($formData['sistem_pendidikan'] ?? '') === 'khusus' ? 'checked' : '' ?>
+                       onchange="switchSistem('khusus')">
+                <label class="form-check-label" for="sistemKhusus">
+                  <strong class="text-warning">Daftar Khusus</strong>
+                  <small class="text-muted">— 100% Raport, tanpa TKA (usia ≥ <?= KHUSUS_MIN_USIA ?> thn)</small>
+                </label>
+              </div>
+            </div>
+            <div id="notifKhusus" class="alert alert-warning py-2 small mb-3 d-none">
+              <i class="bi bi-stars me-1"></i>
+              <strong>Daftar Khusus diaktifkan otomatis</strong> — Pendaftar berusia ≥ <?= KHUSUS_MIN_USIA ?> tahun. Nilai akhir dihitung 100% dari rata-rata raport. TKA tidak diperlukan.
+            </div>
+
+            <!-- Field lain (Tgl Lahir, Asal Sekolah, TKA) -->
+            <div class="row g-3 mb-3">
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Tanggal Lahir <span class="text-danger">*</span></label>
+                <input type="date" name="tanggal_lahir" id="fTgl" class="form-control" value="<?= htmlspecialchars($formData['tanggal_lahir'] ?? '') ?>" required onchange="hitungUsia()">
+                <small class="text-muted">Mengisi Umur di tab Data Diri</small>
+              </div>
+              <div class="col-md-5">
+                <label class="form-label fw-semibold">Asal Sekolah <span class="text-danger">*</span></label>
+                <input type="text" name="asal_sekolah" id="fAsal" class="form-control" value="<?= htmlspecialchars($formData['asal_sekolah'] ?? '') ?>" placeholder="contoh: SMPN 1 Jakarta" required>
+              </div>
+              <div class="col-md-4" id="wrapTka">
+                <label class="form-label fw-semibold">Nilai TKA <span class="text-danger" id="tkaStar">*</span></label>
+                <input type="number" name="nilai_tka" id="fTka" class="form-control" value="<?= htmlspecialchars($formData['nilai_tka'] ?? '') ?>" min="0" max="100" step="0.01" placeholder="0-100" onchange="updatePreviewNilai()" oninput="updatePreviewNilai()">
+                <small class="text-muted" id="tkaNote">Bobot 30% pada Nilai Akhir</small>
+              </div>
+            </div>
+
+            <hr>
+            <h6 class="fw-bold mb-2"><i class="bi bi-table me-2"></i>Detail Nilai Raport per Mata Pelajaran</h6>
+
+            <!-- Toolbar Shortcut -->
+            <div class="card mb-2 border-0 bg-light">
+              <div class="card-body py-2 px-3">
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                  <span class="small fw-semibold text-muted me-2"><i class="bi bi-lightning-fill text-warning"></i> Shortcut:</span>
+
+                  <!-- Isi semua dengan nilai sama -->
+                  <div class="input-group input-group-sm" style="width:auto;">
+                    <input type="number" id="fillAllVal" class="form-control form-control-sm" placeholder="Isi semua" min="0" max="100" step="0.01" style="width:90px;">
+                    <button type="button" class="btn btn-outline-success" onclick="fillAll()" title="Isi semua cell kosong"><i class="bi bi-grid-3x3-gap"></i> Isi Semua</button>
+                  </div>
+
+                  <!-- Fill down (Ctrl+D) -->
+                  <button type="button" class="btn btn-outline-primary btn-sm" onclick="fillDown()" title="Salin dari atas (Ctrl+D)">
+                    <i class="bi bi-arrow-down-square"></i> Fill Down
+                  </button>
+
+                  <!-- Fill right (Ctrl+R) -->
+                  <button type="button" class="btn btn-outline-primary btn-sm" onclick="fillRight()" title="Salin dari kiri (Ctrl+R)">
+                    <i class="bi bi-arrow-right-square"></i> Fill Right
+                  </button>
+
+                  <!-- Copy column (semester) -->
+                  <div class="input-group input-group-sm" style="width:auto;">
+                    <span class="input-group-text">Copy Smt</span>
+                    <select id="copyFromSmt" class="form-select form-select-sm" style="width:70px;">
+                      <?php foreach ($semester_list as $s): ?><option value="<?= $s ?>"><?= $s ?></option><?php endforeach; ?>
+                    </select>
+                    <span class="input-group-text">→</span>
+                    <select id="copyToSmt" class="form-select form-select-sm" style="width:70px;">
+                      <?php foreach ($semester_list as $s): ?><option value="<?= $s ?>" <?= $s===2?'selected':'' ?>><?= $s ?></option><?php endforeach; ?>
+                    </select>
+                    <button type="button" class="btn btn-outline-secondary" onclick="copySemester()" title="Salin semua nilai semester ke semester lain"><i class="bi bi-clipboard-plus"></i></button>
+                  </div>
+
+                  <!-- Clear all -->
+                  <button type="button" class="btn btn-outline-danger btn-sm" onclick="clearAllRaport()" title="Kosongkan semua nilai">
+                    <i class="bi bi-eraser"></i> Hapus Semua
+                  </button>
+
+                  <!-- Undo / Redo -->
+                  <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-dark" id="btnUndo" onclick="undo()" disabled title="Undo (Ctrl+Z)">
+                      <i class="bi bi-arrow-counterclockwise"></i> Undo
+                    </button>
+                    <button type="button" class="btn btn-outline-dark" id="btnRedo" onclick="redo()" disabled title="Redo (Ctrl+Y)">
+                      <i class="bi bi-arrow-clockwise"></i> Redo
+                    </button>
+                  </div>
+
+                  <!-- Help -->
+                  <button type="button" class="btn btn-outline-info btn-sm ms-auto" data-bs-toggle="collapse" data-bs-target="#helpRaportCollapse">
+                    <i class="bi bi-keyboard"></i> Cara Pakai
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="collapse mb-2" id="helpRaportCollapse">
+              <div class="card card-body py-2 small border-info">
+                <table class="table table-sm mb-0" style="font-size:.8rem;">
+                  <tr><td><kbd>↑↓←→</kbd></td><td>Pindah antar cell</td><td><kbd>Enter</kbd></td><td>Turun / wrap ke kolom berikut</td></tr>
+                  <tr><td><kbd>Tab</kbd></td><td>Pindah kanan</td><td><kbd>Shift+Tab</kbd></td><td>Pindah kiri</td></tr>
+                  <tr><td><kbd>Ctrl+D</kbd></td><td>Copy dari atas</td><td><kbd>Ctrl+R</kbd></td><td>Copy dari kiri</td></tr>
+                  <tr><td><kbd>Ctrl+V</kbd></td><td>Paste dari Excel (TSV)</td><td><kbd>Esc</kbd></td><td>Kosongkan cell</td></tr>
+                  <tr class="table-warning"><td><kbd>Ctrl+Z</kbd></td><td>Undo</td><td><kbd>Ctrl+Y</kbd></td><td>Redo</td></tr>
+                </table>
+              </div>
+            </div>
+            <p class="text-muted small mb-2">
+              <i class="bi bi-info-circle me-1"></i>
+              Skala 0–100. Gunakan <kbd>↑↓←→</kbd> · <kbd>Enter</kbd> turun · <kbd>Tab</kbd> kanan · <kbd>Ctrl+V</kbd> paste Excel.
+            </p>
+
+            <div id="matrixRegular">
+            <div class="table-responsive">
+            <table class="table table-bordered mb-0 align-middle" id="tabelRaport">
+              <thead>
+                <tr class="text-center">
+                  <th style="min-width:180px; background:#1a3c34; color:#fff;">Mata Pelajaran</th>
+                  <?php foreach ($semester_list as $s): ?>
+                  <th style="width:80px; background:#1a3c34; color:#fff;">Smt <?= $s ?></th>
+                  <?php endforeach; ?>
+                  <th style="width:80px; background:#198754; color:#fff;">Rata-rata</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php foreach ($mapel_list as $i => $mp): ?>
+                <tr>
+                  <td class="fw-semibold small" style="background:#f8f9fa;"><?= htmlspecialchars($mp) ?></td>
+                  <?php foreach ($semester_list as $s):
+                      $col_idx = array_search($s, $semester_list, true);
+                  ?>
+                  <td class="p-0">
+                    <input type="number" name="raport[<?= htmlspecialchars($mp) ?>][<?= $s ?>]"
+                           class="form-control form-control-sm text-center raport-cell border-0 rounded-0"
+                           data-row="<?= $i ?>" data-col="<?= $col_idx ?>"
+                           min="0" max="100" step="0.01" placeholder="—"
+                           value="<?= htmlspecialchars((string)($formRaport[$mp][$s] ?? '')) ?>"
+                           oninput="clampCell(this); updateRataRata()"
+                           onfocus="this.select(); this.parentElement.style.background='#fff3cd';"
+                           onblur="this.parentElement.style.background=''">
+                  </td>
+                  <?php endforeach; ?>
+                  <td class="text-center fw-semibold text-success" id="avgMp<?= $i ?>">—</td>
+                </tr>
+                <?php endforeach; ?>
+              </tbody>
+              <tfoot>
+                <tr class="table-success">
+                  <th class="text-end">Rata-rata Raport (auto):</th>
+                  <th colspan="<?= count($semester_list) ?>" class="text-end">→</th>
+                  <th class="text-center fs-5" id="rataTotal">—</th>
+                </tr>
+              </tfoot>
+            </table>
+            </div>
+            </div><!-- /matrixRegular -->
+
+            <!-- Matrix PKBM -->
+            <div id="matrixPKBM" style="display:none;">
+            <div class="table-responsive">
+            <table class="table table-bordered mb-0 align-middle">
+              <thead>
+                <tr class="text-center">
+                  <th style="min-width:220px;background:#1a3c34;color:#fff;">Mata Pelajaran</th>
+                  <?php foreach (PKBM_TINGKAT as $tlabel): ?>
+                  <th style="width:140px;background:#1a3c34;color:#fff;"><?= htmlspecialchars($tlabel) ?></th>
+                  <?php endforeach; ?>
+                  <th style="width:80px;background:#198754;color:#fff;">Rata-rata</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="table-secondary"><td colspan="4" class="fw-bold small ps-2 py-1"><i class="bi bi-bookmark-fill text-success me-1"></i>Kelompok Umum</td></tr>
+                <?php foreach (PKBM_MAPEL_UMUM as $pi => $pmp): ?>
+                <tr>
+                  <td class="fw-semibold small" style="background:#f8f9fa;"><?= htmlspecialchars($pmp) ?></td>
+                  <?php foreach (array_keys(PKBM_TINGKAT) as $tki => $tk): ?>
+                  <td class="p-0">
+                    <input type="number" name="pkbm_raport[<?= htmlspecialchars($pmp) ?>][<?= $tk ?>]"
+                           class="form-control form-control-sm text-center pkbm-cell border-0 rounded-0"
+                           data-pkbm-row="<?= $pi ?>" data-pkbm-col="<?= $tki ?>"
+                           min="0" max="100" step="0.01" placeholder="—"
+                           value="<?= htmlspecialchars((string)($formRaport[$pmp][$tk] ?? '')) ?>"
+                           oninput="clampCell(this); updateRataRataPKBM()"
+                           onfocus="this.select(); this.parentElement.style.background='#fff3cd';"
+                           onblur="this.parentElement.style.background=''">
+                  </td>
+                  <?php endforeach; ?>
+                  <td class="text-center fw-semibold text-success" id="pkbmAvgRow<?= $pi ?>">—</td>
+                </tr>
+                <?php endforeach; ?>
+                <tr class="table-secondary"><td colspan="4" class="fw-bold small ps-2 py-1"><i class="bi bi-bookmark-fill text-warning me-1"></i>Kelompok Khusus</td></tr>
+                <?php foreach (PKBM_MAPEL_KHUSUS as $pi => $pmp): $pi_abs = count(PKBM_MAPEL_UMUM) + $pi; ?>
+                <tr>
+                  <td class="fw-semibold small" style="background:#f8f9fa;"><?= htmlspecialchars($pmp) ?></td>
+                  <?php foreach (array_keys(PKBM_TINGKAT) as $tki => $tk): ?>
+                  <td class="p-0">
+                    <input type="number" name="pkbm_raport[<?= htmlspecialchars($pmp) ?>][<?= $tk ?>]"
+                           class="form-control form-control-sm text-center pkbm-cell border-0 rounded-0"
+                           data-pkbm-row="<?= $pi_abs ?>" data-pkbm-col="<?= $tki ?>"
+                           min="0" max="100" step="0.01" placeholder="—"
+                           value="<?= htmlspecialchars((string)($formRaport[$pmp][$tk] ?? '')) ?>"
+                           oninput="clampCell(this); updateRataRataPKBM()"
+                           onfocus="this.select(); this.parentElement.style.background='#fff3cd';"
+                           onblur="this.parentElement.style.background=''">
+                  </td>
+                  <?php endforeach; ?>
+                  <td class="text-center fw-semibold text-success" id="pkbmAvgRow<?= $pi_abs ?>">—</td>
+                </tr>
+                <?php endforeach; ?>
+              </tbody>
+              <tfoot>
+                <tr class="table-success">
+                  <th class="text-end">Rata-rata Raport (auto):</th>
+                  <th colspan="2" class="text-end">→</th>
+                  <th class="text-center fs-5" id="rataTotalPKBM">—</th>
+                </tr>
+              </tfoot>
+            </table>
+            </div>
+            </div><!-- /matrixPKBM -->
+
+          </div>
+
         </div>
+        </div>
+
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-          <button type="submit" class="btn btn-success"><i class="bi bi-save me-1"></i>Simpan</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="saveTemplate()" title="Simpan jurusan & asal sekolah sebagai template">
+            <i class="bi bi-bookmark-plus"></i>
+          </button>
+          <button type="submit" class="btn btn-success" id="btnSubmit">
+            <i class="bi bi-arrow-right-circle me-1" id="btnSubmitIcon"></i>
+            <span id="btnSubmitText">Lanjut ke Data Raport</span>
+          </button>
         </div>
       </form>
     </div>
   </div>
 </div>
 
+
 <script>
-function hitungPreview() {
-    const r = parseFloat(document.getElementById('fRaport').value) || 0;
-    const t = parseFloat(document.getElementById('fTka').value)    || 0;
-    document.getElementById('previewNilai').value = ((r * 0.70) + (t * 0.30)).toFixed(2);
+const MAPEL_LIST    = <?= json_encode($mapel_list) ?>;
+const SEMESTER_LIST = <?= json_encode($semester_list) ?>;
+const ROW_COUNT  = MAPEL_LIST.length;
+const COL_COUNT  = SEMESTER_LIST.length;
+const HISTORY_LIMIT = 100;
+const PKBM_MAPEL = <?= json_encode(PKBM_MAPEL) ?>;
+const PKBM_TINGKAT_KEYS = <?= json_encode(array_keys(PKBM_TINGKAT)) ?>;
+
+function getSistem() {
+    return document.querySelector('input[name="sistem_pendidikan"]:checked')?.value || 'reguler';
 }
+
+function switchSistem(sistem) {
+    const isReg    = (sistem === 'reguler');
+    const isPKBM   = (sistem === 'pkbm');
+    const isKhusus = (sistem === 'khusus');
+    document.getElementById('matrixRegular').style.display = (isReg || isKhusus) ? '' : 'none';
+    document.getElementById('matrixPKBM').style.display    = isPKBM ? '' : 'none';
+
+    // TKA field: sembunyikan untuk Daftar Khusus
+    const wrapTka = document.getElementById('wrapTka');
+    if (wrapTka) {
+        wrapTka.style.display = isKhusus ? 'none' : '';
+        document.getElementById('fTka').required = !isKhusus;
+        if (isKhusus) document.getElementById('fTka').value = '';
+    }
+
+    // Notif khusus
+    const notif = document.getElementById('notifKhusus');
+    if (notif) notif.classList.toggle('d-none', !isKhusus);
+
+    // Label formula
+    const lbl = document.getElementById('formulaLabel');
+    if (lbl) lbl.textContent = isKhusus ? '100% Raport' : 'R×70% + T×30%';
+
+    if (isReg || isKhusus) updateRataRata(); else updateRataRataPKBM();
+}
+
+function updateRataRataPKBM() {
+    let totalSum = 0, totalCount = 0;
+    PKBM_MAPEL.forEach((mp, i) => {
+        let sum = 0, cnt = 0;
+        PKBM_TINGKAT_KEYS.forEach(tk => {
+            const cell = document.querySelector(`input[name="pkbm_raport[${mp}][${tk}]"]`);
+            if (cell && cell.value !== '') {
+                const v = parseFloat(cell.value) || 0;
+                sum += v; cnt++; totalSum += v; totalCount++;
+            }
+        });
+        const el = document.getElementById('pkbmAvgRow' + i);
+        if (el) el.textContent = cnt > 0 ? (sum / cnt).toFixed(2) : '—';
+    });
+    const rata = totalCount > 0 ? totalSum / totalCount : 0;
+    const elTotal = document.getElementById('rataTotalPKBM');
+    if (elTotal) elTotal.textContent = totalCount > 0 ? rata.toFixed(2) : '—';
+    document.getElementById('displayRata').textContent = totalCount > 0 ? rata.toFixed(2) : '—';
+    updatePreviewNilai();
+}
+
+function saveTemplate() {
+    const tpl = {
+        jurusan:       document.getElementById('fJurusan').value,
+        asal_sekolah:  document.getElementById('fAsal').value,
+        sistem: document.querySelector('input[name="sistem_pendidikan"]:checked')?.value || 'reguler',
+    };
+    localStorage.setItem('ppdb_template', JSON.stringify(tpl));
+    const btn = document.querySelector('[onclick="saveTemplate()"]');
+    if (btn) { btn.innerHTML = '<i class="bi bi-bookmark-check-fill text-success"></i>'; setTimeout(() => { btn.innerHTML = '<i class="bi bi-bookmark-plus"></i>'; }, 1500); }
+}
+
+function loadTemplate() {
+    let tpl = {};
+    try { tpl = JSON.parse(localStorage.getItem('ppdb_template') || '{}'); } catch(e) {}
+    if (!tpl.jurusan && !tpl.asal_sekolah) { alert('Belum ada template tersimpan. Isi form lalu klik tombol 🔖 untuk menyimpan template.'); return; }
+    resetForm();
+    if (tpl.jurusan)      document.getElementById('fJurusan').value = tpl.jurusan;
+    if (tpl.asal_sekolah) document.getElementById('fAsal').value    = tpl.asal_sekolah;
+    if (tpl.sistem) {
+        const r = document.querySelector(`input[name="sistem_pendidikan"][value="${tpl.sistem}"]`);
+        if (r) { r.checked = true; switchSistem(tpl.sistem); }
+    }
+    new bootstrap.Modal(document.getElementById('modalPendaftar')).show();
+}
+
+// ── History Stack untuk Undo / Redo ─────────────────────────────────────
+let undoStack = [];
+let redoStack = [];
+let focusSnapshot = null;  // snapshot saat cell di-focus, di-push ke undo saat input pertama
+
+function getCell(row, col) {
+    return document.querySelector(`.raport-cell[data-row="${row}"][data-col="${col}"]`);
+}
+
+function moveTo(row, col) {
+    const r = Math.max(0, Math.min(ROW_COUNT - 1, row));
+    const c = Math.max(0, Math.min(COL_COUNT - 1, col));
+    const cell = getCell(r, c);
+    if (cell) cell.focus();
+}
+
+function getSnapshot() {
+    const snap = [];
+    document.querySelectorAll('.raport-cell').forEach(c => snap.push(c.value));
+    return snap;
+}
+
+function applySnapshot(snap) {
+    const cells = document.querySelectorAll('.raport-cell');
+    cells.forEach((c, i) => c.value = snap[i] ?? '');
+    updateRataRata();
+}
+
+function pushHistory() {
+    undoStack.push(getSnapshot());
+    if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
+    redoStack = [];  // clear redo setelah aksi baru
+    updateUndoButtons();
+}
+
+function updateUndoButtons() {
+    const u = document.getElementById('btnUndo');
+    const r = document.getElementById('btnRedo');
+    if (u) u.disabled = undoStack.length === 0;
+    if (r) r.disabled = redoStack.length === 0;
+}
+
+function undo() {
+    if (undoStack.length === 0) return;
+    redoStack.push(getSnapshot());
+    applySnapshot(undoStack.pop());
+    updateUndoButtons();
+}
+
+function redo() {
+    if (redoStack.length === 0) return;
+    undoStack.push(getSnapshot());
+    applySnapshot(redoStack.pop());
+    updateUndoButtons();
+}
+
+function resetHistory() {
+    undoStack = [];
+    redoStack = [];
+    focusSnapshot = null;
+    updateUndoButtons();
+}
+
+// ── Hook input cell: capture snapshot on first edit after focus ─────────
+document.addEventListener('focusin', function(e) {
+    if (e.target.classList && e.target.classList.contains('raport-cell')) {
+        focusSnapshot = getSnapshot();
+    }
+});
+
+document.addEventListener('input', function(e) {
+    if (e.target.classList && e.target.classList.contains('raport-cell') && focusSnapshot) {
+        undoStack.push(focusSnapshot);
+        if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
+        redoStack = [];
+        focusSnapshot = null;  // hanya push sekali per fokus
+        updateUndoButtons();
+    }
+});
+
+// ── Excel-like keyboard navigation ──────────────────────────────────────
+document.addEventListener('keydown', function(e) {
+    // Ctrl+Z / Ctrl+Y untuk undo / redo (berlaku di seluruh modal)
+    const inModal = document.getElementById('modalPendaftar').classList.contains('show');
+    if (inModal && e.ctrlKey) {
+        if (e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
+        if (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey)) { e.preventDefault(); redo(); return; }
+    }
+
+    const t = e.target;
+    if (!t.classList || !t.classList.contains('raport-cell')) return;
+
+    const row = parseInt(t.dataset.row), col = parseInt(t.dataset.col);
+
+    // Escape: clear cell (track undo)
+    if (e.key === 'Escape') {
+        e.preventDefault();
+        if (t.value !== '') {
+            pushHistory();
+            t.value = '';
+            updateRataRata();
+        }
+        return;
+    }
+
+    // Enter / Shift+Enter: pindah vertikal, wrap ke kolom berikutnya saat sampai ujung
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        if (e.shiftKey) {
+            // Naik: kalau sudah di atas, wrap ke bottom kolom sebelumnya
+            if (row > 0) moveTo(row - 1, col);
+            else if (col > 0) moveTo(ROW_COUNT - 1, col - 1);
+        } else {
+            // Turun: kalau sudah di bawah, wrap ke top kolom berikutnya
+            if (row < ROW_COUNT - 1) moveTo(row + 1, col);
+            else if (col < COL_COUNT - 1) moveTo(0, col + 1);
+        }
+        return;
+    }
+
+    // Tab handled natively (next/prev focusable), tapi kita override agar tetap di matrix
+    if (e.key === 'Tab') {
+        const nextCol = col + (e.shiftKey ? -1 : 1);
+        if (nextCol >= 0 && nextCol < COL_COUNT) {
+            e.preventDefault(); moveTo(row, nextCol);
+        }
+        // else: biarkan native (keluar dari matrix)
+        return;
+    }
+
+    // Arrow keys
+    if (e.key === 'ArrowUp')    { e.preventDefault(); moveTo(row - 1, col); return; }
+    if (e.key === 'ArrowDown')  { e.preventDefault(); moveTo(row + 1, col); return; }
+    if (e.key === 'ArrowLeft' && t.selectionStart === 0)  { e.preventDefault(); moveTo(row, col - 1); return; }
+    if (e.key === 'ArrowRight' && t.selectionEnd === t.value.length) { e.preventDefault(); moveTo(row, col + 1); return; }
+
+    // Ctrl+D: fill down (copy from cell above)
+    if (e.ctrlKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        const above = getCell(row - 1, col);
+        if (above && above.value !== '' && t.value !== above.value) {
+            pushHistory();
+            t.value = above.value;
+            updateRataRata();
+        }
+        return;
+    }
+
+    // Ctrl+R: fill right (copy from cell left)
+    if (e.ctrlKey && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        const left = getCell(row, col - 1);
+        if (left && left.value !== '' && t.value !== left.value) {
+            pushHistory();
+            t.value = left.value;
+            updateRataRata();
+        }
+        return;
+    }
+});
+
+// ── Paste dari Excel (Tab-separated values atau newline) ────────────────
+document.addEventListener('paste', function(e) {
+    const t = e.target;
+    if (!t.classList || !t.classList.contains('raport-cell')) return;
+
+    const data = (e.clipboardData || window.clipboardData).getData('text');
+    if (!data) return;
+
+    // Deteksi multi-cell paste (mengandung tab atau newline)
+    if (!data.includes('\t') && !data.includes('\n')) return; // single value, biarkan native
+
+    e.preventDefault();
+    pushHistory();  // simpan state sebelum paste
+
+    const startRow = parseInt(t.dataset.row), startCol = parseInt(t.dataset.col);
+    const lines = data.replace(/\r/g, '').split('\n').filter(l => l.length > 0);
+
+    lines.forEach((line, ri) => {
+        const cells = line.split('\t');
+        cells.forEach((val, ci) => {
+            const cell = getCell(startRow + ri, startCol + ci);
+            if (cell && val.trim() !== '') {
+                const num = parseFloat(val.trim().replace(',', '.'));
+                if (!isNaN(num)) cell.value = num;
+            }
+        });
+    });
+    updateRataRata();
+});
+
+// ── Shortcut buttons ────────────────────────────────────────────────────
+function fillAll() {
+    const v = document.getElementById('fillAllVal').value;
+    if (v === '' || isNaN(parseFloat(v))) {
+        alert('Masukkan nilai dulu di kotak "Isi Semua".');
+        return;
+    }
+    pushHistory();
+    document.querySelectorAll('.raport-cell').forEach(c => {
+        if (c.value === '') c.value = v;
+    });
+    updateRataRata();
+}
+
+function fillDown() {
+    const focused = document.activeElement;
+    if (!focused || !focused.classList.contains('raport-cell')) {
+        alert('Klik cell tujuan dulu, lalu tekan Fill Down.');
+        return;
+    }
+    const row = parseInt(focused.dataset.row), col = parseInt(focused.dataset.col);
+    const above = getCell(row - 1, col);
+    if (above && above.value !== '' && focused.value !== above.value) {
+        pushHistory();
+        focused.value = above.value;
+        updateRataRata();
+    }
+}
+
+function fillRight() {
+    const focused = document.activeElement;
+    if (!focused || !focused.classList.contains('raport-cell')) {
+        alert('Klik cell tujuan dulu, lalu tekan Fill Right.');
+        return;
+    }
+    const row = parseInt(focused.dataset.row), col = parseInt(focused.dataset.col);
+    const left = getCell(row, col - 1);
+    if (left && left.value !== '' && focused.value !== left.value) {
+        pushHistory();
+        focused.value = left.value;
+        updateRataRata();
+    }
+}
+
+function copySemester() {
+    const from = parseInt(document.getElementById('copyFromSmt').value);
+    const to   = parseInt(document.getElementById('copyToSmt').value);
+    if (from === to) { alert('Pilih semester berbeda.'); return; }
+    const fromCol = SEMESTER_LIST.indexOf(from);
+    const toCol   = SEMESTER_LIST.indexOf(to);
+    if (fromCol < 0 || toCol < 0) return;
+
+    pushHistory();
+    for (let r = 0; r < ROW_COUNT; r++) {
+        const src = getCell(r, fromCol);
+        const dst = getCell(r, toCol);
+        if (src && dst && src.value !== '') dst.value = src.value;
+    }
+    updateRataRata();
+}
+
+function clearAllRaport() {
+    if (!confirm('Yakin kosongkan semua nilai raport?')) return;
+    pushHistory();
+    document.querySelectorAll('.raport-cell').forEach(c => c.value = '');
+    updateRataRata();
+}
+
+const KHUSUS_MIN_USIA = <?= KHUSUS_MIN_USIA ?>;
+
 function hitungUsia() {
     const tgl = document.getElementById('fTgl').value;
     if (!tgl) return;
     const lahir = new Date(tgl), now = new Date();
-    let usia = now.getFullYear() - lahir.getFullYear();
-    const m = now.getMonth() - lahir.getMonth();
-    if (m < 0 || (m === 0 && now.getDate() < lahir.getDate())) usia--;
+
+    let years  = now.getFullYear() - lahir.getFullYear();
+    let months = now.getMonth()    - lahir.getMonth();
+    let days   = now.getDate()     - lahir.getDate();
+
+    if (days < 0) {
+        months--;
+        days += new Date(now.getFullYear(), now.getMonth(), 0).getDate();
+    }
+    if (months < 0) { years--; months += 12; }
+
     const el = document.getElementById('previewUsia');
-    el.value = usia + ' tahun';
-    el.className = 'form-control ' + (usia > 21 ? 'text-danger fw-bold' : 'text-success');
+    el.value = `${years} thn ${months} bln ${days} hr`;
+    el.className = 'form-control bg-light ' + (years > 21 ? 'text-danger fw-bold' : 'text-success');
+
+    // Auto-switch ke Daftar Khusus jika usia >= batas
+    const sistemSaat = getSistem();
+    if (years >= KHUSUS_MIN_USIA && sistemSaat === 'reguler') {
+        document.getElementById('sistemKhusus').checked = true;
+        switchSistem('khusus');
+    } else if (years < KHUSUS_MIN_USIA && sistemSaat === 'khusus') {
+        // Balik ke reguler jika tanggal lahir diubah ke < batas
+        document.getElementById('sistemReguler').checked = true;
+        switchSistem('reguler');
+    }
 }
+
+function clampCell(el) {
+    const v = parseFloat(el.value);
+    if (!isNaN(v)) {
+        if (v > 100) el.value = 100;
+        else if (v < 0) el.value = 0;
+    }
+}
+
+function updateRataRata() {
+    let totalSum = 0, totalCount = 0;
+    MAPEL_LIST.forEach((mp, i) => {
+        let sum = 0, cnt = 0;
+        SEMESTER_LIST.forEach(s => {
+            const cell = document.querySelector(`input[name="raport[${mp}][${s}]"]`);
+            if (cell && cell.value !== '') {
+                sum += parseFloat(cell.value) || 0; cnt++;
+                totalSum += parseFloat(cell.value) || 0; totalCount++;
+            }
+        });
+        document.getElementById('avgMp' + i).textContent = cnt > 0 ? (sum / cnt).toFixed(2) : '—';
+    });
+    const rata = totalCount > 0 ? (totalSum / totalCount) : 0;
+    document.getElementById('rataTotal').textContent = totalCount > 0 ? rata.toFixed(2) : '—';
+    document.getElementById('displayRata').textContent = totalCount > 0 ? rata.toFixed(2) : '—';
+    updatePreviewNilai();
+}
+
+function updatePreviewNilai() {
+    const rataText = document.getElementById('displayRata').textContent;
+    const rata  = parseFloat(rataText) || 0;
+    const tka   = parseFloat(document.getElementById('fTka').value) || 0;
+    const isKhusus = getSistem() === 'khusus';
+
+    document.getElementById('displayTka').textContent = isKhusus ? 'N/A' : (tka > 0 ? tka.toFixed(2) : '—');
+    const lbl = document.getElementById('formulaLabel');
+    if (lbl) lbl.textContent = isKhusus ? '100% Raport' : 'R×70% + T×30%';
+
+    if (rata > 0) {
+        const nilai = isKhusus ? rata : (rata * 0.70) + (tka * 0.30);
+        document.getElementById('displayAkhir').textContent = nilai.toFixed(2);
+    } else {
+        document.getElementById('displayAkhir').textContent = '—';
+    }
+}
+
+// ── Tab-aware submit button ──────────────────────────────────────────────
+function updateSubmitBtn() {
+    const onTab1 = document.getElementById('tabDiri').classList.contains('active');
+    const icon = document.getElementById('btnSubmitIcon');
+    const text = document.getElementById('btnSubmitText');
+    if (onTab1) {
+        icon.className = 'bi bi-arrow-right-circle me-1';
+        text.textContent = 'Lanjut ke Data Raport';
+    } else {
+        icon.className = 'bi bi-save me-1';
+        text.textContent = 'Simpan Pendaftar';
+    }
+}
+
+// Intercept form submit: jika masih di Tab 1, validasi lalu pindah ke Tab 2
+document.getElementById('formPendaftar').addEventListener('submit', function(e) {
+    const onTab1 = document.getElementById('tabDiri').classList.contains('active');
+    if (!onTab1) return; // Tab 2: biarkan submit normal
+
+    e.preventDefault();
+
+    // Validasi field wajib Tab 1
+    const fields = [
+        { el: document.getElementById('fNama'),    label: 'Nama Lengkap' },
+        { el: document.getElementById('fNisn'),    label: 'NISN' },
+        { el: document.getElementById('fJurusan'), label: 'Jurusan' },
+    ];
+    const kosong = fields.filter(f => !f.el.value.trim());
+    if (kosong.length > 0) {
+        kosong.forEach(f => {
+            f.el.classList.add('is-invalid');
+            f.el.addEventListener('input', () => f.el.classList.remove('is-invalid'), { once: true });
+        });
+        const namaField = kosong[0].el;
+        namaField.focus();
+        return;
+    }
+
+    // Semua wajib Tab 1 terisi → pindah ke Tab 2
+    new bootstrap.Tab(document.querySelector('[data-bs-target="#tabRaport"]')).show();
+});
+
+// Update label tombol saat tab berubah
+document.querySelectorAll('[data-bs-target="#tabDiri"], [data-bs-target="#tabRaport"]').forEach(btn => {
+    btn.addEventListener('shown.bs.tab', updateSubmitBtn);
+});
+
 function resetForm() {
     document.getElementById('modalTitle').textContent = 'Tambah Pendaftar';
     document.getElementById('formAction').value = 'add';
     document.getElementById('formId').value = '';
-    ['fNama','fNisn','fAsal','fTelp','fAlamat','previewNilai','previewUsia'].forEach(id => {
-        const el = document.getElementById(id); if (el) el.value = '';
+    // Explicit clear — jangan pakai form.reset() karena akan restore nilai PHP yang di-preserve
+    document.getElementById('fNama').value    = '';
+    document.getElementById('fNisn').value    = '';
+    document.getElementById('fJK').value      = 'L';
+    document.getElementById('fJurusan').selectedIndex = 0;
+    document.getElementById('fTelp').value    = '';
+    document.getElementById('fAlamat').value  = '';
+    document.getElementById('fTgl').value     = '';
+    document.getElementById('fAsal').value    = '';
+    document.getElementById('fTka').value     = '';
+    document.getElementById('previewUsia').value = '';
+    document.getElementById('previewUsia').className = 'form-control bg-light';
+    document.querySelectorAll('.raport-cell').forEach(c => c.value = '');
+    document.querySelectorAll('.pkbm-cell').forEach(c => c.value = '');
+    document.querySelectorAll('[id^="avgMp"], [id^="pkbmAvgRow"]').forEach(el => el.textContent = '—');
+    ['rataTotal','rataTotalPKBM','displayRata','displayTka','displayAkhir'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.textContent = '—';
     });
-    document.getElementById('fTgl').value = '';
-    document.getElementById('fRaport').value = '';
-    document.getElementById('fTka').value = '';
-    document.getElementById('fJK').value = 'L';
-    document.getElementById('fGelombang').value = '1';
+    // Reset sistem ke Reguler
+    const rReg = document.getElementById('sistemReguler');
+    if (rReg) { rReg.checked = true; switchSistem('reguler'); }
+    resetHistory();
+    new bootstrap.Tab(document.querySelector('[data-bs-target="#tabDiri"]')).show();
+    updateSubmitBtn();
 }
+
+<?php if ($editFromRanking): ?>
+window.addEventListener('load', function() {
+    editForm(<?= json_encode($editFromRanking, JSON_HEX_APOS|JSON_HEX_QUOT) ?>);
+});
+<?php endif; ?>
+
+<?php if ($showModalOnLoad): ?>
+// Reopen modal after validation error — preserve all data
+window.addEventListener('load', function() {
+    const modalEl = document.getElementById('modalPendaftar');
+    const modal   = new bootstrap.Modal(modalEl);
+    document.getElementById('modalTitle').textContent =
+        <?= $formAction === 'edit' ? "'Edit Pendaftar'" : "'Tambah Pendaftar'" ?>;
+    modal.show();
+    modalEl.addEventListener('shown.bs.modal', function() {
+        hitungUsia();
+        updateRataRata();
+        <?php if ($formAction === 'edit'): ?>
+        // Scroll to tab where the error likely is
+        new bootstrap.Tab(document.querySelector('[data-bs-target="#tabDiri"]')).show();
+        <?php endif; ?>
+    }, { once: true });
+});
+<?php endif; ?>
+
 function editForm(d) {
-    document.getElementById('modalTitle').textContent = 'Edit Pendaftar';
+    document.getElementById('modalTitle').textContent = 'Edit Pendaftar — ' + d.no_pendaftaran;
     document.getElementById('formAction').value = 'edit';
     document.getElementById('formId').value   = d.id;
     document.getElementById('fNama').value    = d.nama;
@@ -347,10 +1277,95 @@ function editForm(d) {
     document.getElementById('fTelp').value    = d.no_telp || '';
     document.getElementById('fAlamat').value  = d.alamat || '';
     document.getElementById('fJurusan').value = d.jurusan;
-    document.getElementById('fGelombang').value = d.gelombang;
-    document.getElementById('fRaport').value  = d.nilai_raport;
     document.getElementById('fTka').value     = d.nilai_tka;
-    hitungPreview(); hitungUsia();
+
+    // Set sistem penilaian
+    const sistem = d.sistem_pendidikan || 'reguler';
+    const radioEl = document.querySelector(`input[name="sistem_pendidikan"][value="${sistem}"]`);
+    if (radioEl) radioEl.checked = true;
+    switchSistem(sistem);
+
+    // Populate matrix
+    const matrix = d.raport_matrix || {};
+    document.querySelectorAll('.raport-cell').forEach(c => c.value = '');
+    document.querySelectorAll('.pkbm-cell').forEach(c => c.value = '');
+    if (sistem === 'pkbm') {
+        PKBM_MAPEL.forEach(mp => {
+            PKBM_TINGKAT_KEYS.forEach(tk => {
+                const v = (matrix[mp] && matrix[mp][tk] !== undefined) ? matrix[mp][tk] : '';
+                const cell = document.querySelector(`input[name="pkbm_raport[${mp}][${tk}]"]`);
+                if (cell) cell.value = v;
+            });
+        });
+        updateRataRataPKBM();
+    } else {
+        MAPEL_LIST.forEach(mp => {
+            SEMESTER_LIST.forEach(s => {
+                const v = (matrix[mp] && matrix[mp][s] !== undefined) ? matrix[mp][s] : '';
+                const cell = document.querySelector(`input[name="raport[${mp}][${s}]"]`);
+                if (cell) cell.value = v;
+            });
+        });
+        updateRataRata();
+    }
+    hitungUsia();
+    resetHistory();
+    updateSubmitBtn();
     new bootstrap.Modal(document.getElementById('modalPendaftar')).show();
+}
+
+function printBukti(r) {
+    const jk   = r.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan';
+    const tgl  = r.tanggal_lahir ? new Date(r.tanggal_lahir).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}) : '-';
+    const daft = r.tanggal_daftar ? new Date(r.tanggal_daftar).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}) : '-';
+    const html = `<!DOCTYPE html>
+<html lang="id"><head><meta charset="UTF-8">
+<title>Bukti Pendaftaran - ${r.nama}</title>
+<style>
+  body{font-family:Arial,sans-serif;font-size:13px;margin:0;padding:24px;color:#111;}
+  .header{text-align:center;border-bottom:2px solid #333;padding-bottom:12px;margin-bottom:20px;}
+  .header h2{margin:4px 0;font-size:16px;text-transform:uppercase;}
+  .header p{margin:2px 0;font-size:12px;}
+  table.info{width:100%;border-collapse:collapse;margin-bottom:24px;}
+  table.info td{padding:5px 8px;vertical-align:top;}
+  table.info td:first-child{width:180px;font-weight:bold;color:#444;}
+  .badge{display:inline-block;padding:3px 10px;border-radius:4px;font-weight:bold;font-size:12px;}
+  .badge-terima{background:#198754;color:#fff;}
+  .badge-gugur{background:#dc3545;color:#fff;}
+  .badge-diproses{background:#ffc107;color:#000;}
+  .footer{margin-top:40px;display:flex;justify-content:space-between;}
+  .ttd{text-align:center;width:200px;}
+  .ttd .line{margin-top:60px;border-top:1px solid #333;}
+  @media print{body{padding:0;}}
+</style></head>
+<body>
+<div class="header">
+  <h2>SMKS Laboratorium Jakarta</h2>
+  <p>Jl. Laboratorium No. 1, Jakarta</p>
+  <h2 style="margin-top:10px;">BUKTI TANDA DAFTAR SPMB</h2>
+</div>
+<table class="info">
+  <tr><td>No. Pendaftaran</td><td>: <strong>${r.no_pendaftaran || '-'}</strong></td></tr>
+  <tr><td>Nama Lengkap</td><td>: ${r.nama}</td></tr>
+  <tr><td>NISN</td><td>: ${r.nisn}</td></tr>
+  <tr><td>Tanggal Lahir</td><td>: ${tgl}</td></tr>
+  <tr><td>Jenis Kelamin</td><td>: ${jk}</td></tr>
+  <tr><td>Jurusan Pilihan</td><td>: ${r.jurusan}</td></tr>
+  <tr><td>Gelombang</td><td>: ${r.gelombang}</td></tr>
+  <tr><td>Asal Sekolah</td><td>: ${r.asal_sekolah || '-'}</td></tr>
+  <tr><td>Nilai Akhir</td><td>: ${parseFloat(r.nilai_akhir||0).toFixed(2)}</td></tr>
+  <tr><td>Tanggal Daftar</td><td>: ${daft}</td></tr>
+  <tr><td>Status</td><td>: <span class="badge badge-${r.status}">${r.status.charAt(0).toUpperCase()+r.status.slice(1)}</span></td></tr>
+</table>
+<p style="font-size:12px;color:#555;">Catatan: Bukti ini hanya sah sebagai tanda daftar dan bukan merupakan jaminan penerimaan. Simpan bukti ini untuk keperluan lebih lanjut.</p>
+<div class="footer">
+  <div class="ttd"><div class="line">Orang Tua / Wali</div></div>
+  <div class="ttd"><div class="line">Panitia SPMB</div></div>
+</div>
+</body></html>`;
+    const w = window.open('', '_blank', 'width=700,height=900');
+    w.document.write(html);
+    w.document.close();
+    w.onload = () => w.print();
 }
 </script>

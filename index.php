@@ -1,5 +1,15 @@
 <?php
 require_once __DIR__ . '/conn.php';
+
+// Load site_settings — graceful fallback jika tabel belum ada
+$_ss = [];
+try {
+    foreach ($conn->query("SELECT setting_key, setting_value FROM site_settings") as $r) {
+        $_ss[$r['setting_key']] = $r['setting_value'];
+    }
+} catch (Exception $e) { /* tabel belum dibuat, pakai default */ }
+$s = fn($k, $d = '') => htmlspecialchars($_ss[$k] ?? $d);
+$sr = fn($k, $d = '') => $_ss[$k] ?? $d; // raw (unescaped), untuk URL/src
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -7,7 +17,7 @@ require_once __DIR__ . '/conn.php';
 <head>
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
-  <title>Pendaftaran - SMK Lab Jakarta</title>
+  <title><?= $s('sekolah_nama', 'SMKS Laboratorium Jakarta') ?> — SPMB</title>
   <meta name="description" content="">
   <meta name="keywords" content="">
 
@@ -30,7 +40,7 @@ require_once __DIR__ . '/conn.php';
 
   <!-- Main CSS File -->
   <!-- Cache buster: ensures browser reloads the latest CSS after edits -->
-  <link href="assets/css/main.css?v=20260117" rel="stylesheet">
+  <link href="assets/css/main.css?v=20260522" rel="stylesheet">
 
   <style>
     /* MOBILE RESPONSIVENESS */
@@ -103,12 +113,11 @@ require_once __DIR__ . '/conn.php';
 
     @media (prefers-reduced-motion: reduce) {
 
+      /* Hanya matikan animasi looping, JANGAN matikan transition agar AOS tetap jalan */
       *,
       *::before,
       *::after {
-        animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
       }
     }
 
@@ -130,9 +139,88 @@ require_once __DIR__ . '/conn.php';
     }
 
     .nav-link.active {
-      color: #667eea !important;
+      color: #fff !important;
       border-bottom: 3px solid #667eea;
       padding-bottom: 5px;
+    }
+
+    /* CARD HOVER LIFT */
+    .card {
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.13) !important;
+    }
+
+    /* SECTION ICON CIRCLES — subtle pulse on hover */
+    .rounded-circle[style*="background:#198754"],
+    .rounded-circle[style*="background:#667eea"] {
+      transition: transform 0.2s ease;
+    }
+
+    .rounded-circle[style*="background:#198754"]:hover,
+    .rounded-circle[style*="background:#667eea"]:hover {
+      transform: scale(1.12);
+    }
+
+    /* TAB SWITCHING ENTRANCE ANIMATION */
+    @keyframes tabSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(22px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .tab-pane-animate {
+      animation: tabSlideIn 0.45s ease-out forwards;
+    }
+
+    /* JURUSAN TAB NAV — responsive text truncation */
+    .features .nav-link h4 {
+      font-size: 15px;
+      white-space: normal;
+      line-height: 1.25;
+      text-align: center;
+    }
+
+    @media (max-width: 991px) {
+      .features .nav-link h4 {
+        font-size: 13px;
+      }
+    }
+
+    /* JURUSAN LOGO DISPLAY BOX */
+    .jurusan-logo-box {
+      background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .jurusan-logo-box img {
+      max-height: 200px;
+      max-width: 90%;
+      object-fit: contain;
+    }
+
+    /* Hero — gambar sekolah sebagai background full-width */
+    .hero {
+      background: linear-gradient(rgba(0, 0, 0, .55), rgba(0, 0, 0, .55)),
+        url('<?= htmlspecialchars($sr('hero_bg_image', 'assets/img/gedung-sekolah.webp')) ?>') center/cover no-repeat !important;
+    }
+
+    .hero .carousel-container {
+      position: relative;
+      z-index: 1;
     }
   </style>
 
@@ -152,7 +240,7 @@ require_once __DIR__ . '/conn.php';
 
       <a href="index.php" class="logo d-flex align-items-center">
         <img class="sitename" src="assets/img/smk.png" style="max-height: 50px;">
-        <h1>SMK Laboratorium Jakarta</h1>
+        <h1><?= $s('sekolah_nama', 'SMKS Laboratorium Jakarta') ?></h1>
       </a>
 
       <nav id="navmenu" class="navmenu">
@@ -174,20 +262,32 @@ require_once __DIR__ . '/conn.php';
     <!-- Hero Section -->
     <section id="home" class="hero section dark-background">
 
-      <div id="hero-carousel" data-bs-interval="5000" class="container carousel carousel-fade" data-bs-ride="carousel">
-
-        <!-- Slide 1 -->
-        <div class="carousel-item active">
-          <div class="carousel-container">
-            <h2 class="animate__animated animate__fadeInDown">Selamat Datang di <span>Pendaftaran SMK</span></h2>
-            <h3 class="animate__animated animate__fadeInUp">Tahun Ajaran 2026 / 2027</h3>
-            <p class="animate__animated animate__fadeInUp">Segera daftarkan dirimu untuk bergabung dengan SMK Laboratorium Jakarta dan raih masa depan cerah bersama kami!</p>
-            <a href="#about" class="btn-get-started animate__animated animate__fadeInUp scrollto">Read More</a>
-          </div>
-        </div>
+      <div class="carousel-container container">
+        <h2 class="animate__animated animate__fadeInDown"><?= $s('hero_title', 'Bergabunglah di SMKS Laboratorium Jakarta') ?></h2>
+        <h3 class="animate__animated animate__fadeInUp"><?= $s('hero_subtitle2', 'Tahun Ajaran 2026 / 2027') ?></h3>
+        <p class="animate__animated animate__fadeInUp"><?= $s('hero_subtitle', 'Wujudkan impianmu bersama kami — sekolah kejuruan terpercaya dengan fasilitas modern dan tenaga pengajar berpengalaman.') ?></p>
+        <a href="#jurusan" class="btn-get-started animate__animated animate__fadeInUp scrollto">Lihat Jurusan</a>
       </div>
 
     </section><!-- /Hero Section -->
+
+    <!-- Announcements Banner (from DB) -->
+    <?php
+    $banners = $conn->query("SELECT * FROM announcements WHERE is_active=1 ORDER BY created_at DESC")->fetchAll();
+    if (!empty($banners)):
+    ?>
+      <div id="site-announcements">
+        <?php foreach ($banners as $b):
+          $cls = ['info' => 'alert-primary', 'warning' => 'alert-warning', 'danger' => 'alert-danger', 'success' => 'alert-success'][$b['type']] ?? 'alert-info';
+        ?>
+          <div class="alert <?= $cls ?> alert-dismissible fade show mb-0 rounded-0 text-center py-2 px-5" role="alert" style="font-size:.9rem;">
+            <i class="bi bi-megaphone-fill me-2"></i>
+            <strong><?= htmlspecialchars($b['title']) ?></strong> &mdash; <?= htmlspecialchars($b['message']) ?>
+            <button type="button" class="btn-close py-2" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    <?php endif; ?>
 
     <!-- About Section -->
     <section id="about" class="about section">
@@ -200,21 +300,26 @@ require_once __DIR__ . '/conn.php';
 
       <div class="container">
 
-        <div class="row gy-4">
+        <div class="row gy-4 align-items-start">
 
           <div class="col-lg-6 content" data-aos="fade-up" data-aos-delay="100">
-            <p>
-              SMK Laboratorium Jakarta adalah sekolah menengah kejuruan yang berdedikasi untuk menghasilkan lulusan berkompeten di bidang teknologi, kesehatan, dan kecantikan. Kami berkomitmen memberikan pendidikan berkualitas dengan menggunakan fasilitas laboratorium modern dan metode pembelajaran yang relevan dengan industri.
-            </p>
+            <p><?= $s('about_text', 'SMKS Laboratorium Jakarta adalah sekolah menengah kejuruan yang berdedikasi untuk menghasilkan lulusan berkompeten di bidang teknologi, kesehatan, dan kecantikan. Kami berkomitmen memberikan pendidikan berkualitas dengan menggunakan fasilitas laboratorium modern dan metode pembelajaran yang relevan dengan industri.') ?></p>
             <ul>
-              <li><i class="bi bi-check2-circle"></i> <span>Program pendidikan yang sesuai dengan standar industri dan kurikulum nasional</span></li>
-              <li><i class="bi bi-check2-circle"></i> <span>Fasilitas laboratorium dan praktik yang lengkap dan modern</span></li>
-              <li><i class="bi bi-check2-circle"></i> <span>Tenaga pengajar berpengalaman dan profesional di bidangnya</span></li>
+              <li data-aos="fade-right" data-aos-delay="150"><i class="bi bi-check2-circle"></i> <span>Program pendidikan yang sesuai dengan standar industri dan kurikulum nasional</span></li>
+              <li data-aos="fade-right" data-aos-delay="250"><i class="bi bi-check2-circle"></i> <span>Fasilitas laboratorium dan praktik yang lengkap dan modern</span></li>
+              <li data-aos="fade-right" data-aos-delay="350"><i class="bi bi-check2-circle"></i> <span>Tenaga pengajar berpengalaman dan profesional di bidangnya</span></li>
             </ul>
+            <p class="mt-3">Dengan berbagai program keahlian yang kami tawarkan, kami mempersiapkan peserta didik untuk siap bekerja dan bersaing di era digital. Kesuksesan lulusan kami adalah bukti komitmen kami terhadap keunggulan pendidikan.</p>
+            <div class="mt-2 small text-muted">
+              <i class="bi bi-geo-alt-fill me-1" style="color:#198754;"></i>
+              <?= $sr('sekolah_alamat') ? $s('sekolah_alamat') : 'Jl. Rawa Jaya No.37, Duren Sawit, RT008/RW004, Jakarta Timur 13460' ?>
+            </div>
           </div>
 
           <div class="col-lg-6" data-aos="fade-up" data-aos-delay="200">
-            <p>Dengan berbagai kejuruan yang kami tawarkan, kami mempersiapkan peserta didik untuk siap bekerja dan bersaing di era digital. Kami juga mendorong siswa untuk mengembangkan sikap profesional, etika kerja yang baik, dan kemampuan kepemimpinan. Kesuksesan lulusan kami adalah bukti komitmen kami terhadap keunggulan pendidikan.</p>
+            <img src="<?= htmlspecialchars($sr('about_image', 'assets/img/gedung-sekolah.webp')) ?>" alt="Gedung <?= $s('sekolah_nama', 'SMKS Laboratorium Jakarta') ?>"
+              class="img-fluid rounded shadow" style="width:100%;max-height:380px;object-fit:cover;">
+            <div class="text-center mt-2 small text-muted">Gedung Sekolah Laboratorium Jakarta</div>
           </div>
 
         </div>
@@ -228,35 +333,35 @@ require_once __DIR__ . '/conn.php';
 
       <!-- Section Title -->
       <div class="container section-title" data-aos="fade-up">
-        <h2>Productif</h2>
-        <p>Jurusan Kami</p>
+        <h2>Produktif</h2>
+        <p>Program Keahlian</p>
       </div><!-- End Section Title -->
 
 
       <div class="container">
 
         <ul class="nav nav-tabs row  d-flex" data-aos="fade-up" data-aos-delay="100">
-          <li class="nav-item col-3">
+          <li class="nav-item col-6 col-lg-3">
             <a class="nav-link active show" data-bs-toggle="tab" data-bs-target="#features-tab-1">
-              <i class="bi bi-binoculars"></i>
+              <i class="bi bi-code-slash"></i>
               <h4 class="d-none d-lg-block">RPL - Rekayasa Perangkat Lunak</h4>
             </a>
           </li>
-          <li class="nav-item col-3">
+          <li class="nav-item col-6 col-lg-3">
             <a class="nav-link" data-bs-toggle="tab" data-bs-target="#features-tab-2">
-              <i class="bi bi-box-seam"></i>
+              <i class="bi bi-hdd-network"></i>
               <h4 class="d-none d-lg-block">TKJ - Teknik Komputer Jaringan</h4>
             </a>
           </li>
-          <li class="nav-item col-3">
+          <li class="nav-item col-6 col-lg-3">
             <a class="nav-link" data-bs-toggle="tab" data-bs-target="#features-tab-3">
-              <i class="bi bi-brightness-high"></i>
+              <i class="bi bi-heart-pulse"></i>
               <h4 class="d-none d-lg-block">AP - Asisten Keperawatan</h4>
             </a>
           </li>
-          <li class="nav-item col-3">
+          <li class="nav-item col-6 col-lg-3">
             <a class="nav-link" data-bs-toggle="tab" data-bs-target="#features-tab-4">
-              <i class="bi bi-command"></i>
+              <i class="bi bi-stars"></i>
               <h4 class="d-none d-lg-block">TKKR - Tata Kecantikan Kulit dan Rambut</h4>
             </a>
           </li>
@@ -265,97 +370,249 @@ require_once __DIR__ . '/conn.php';
         <div class="tab-content" data-aos="fade-up" data-aos-delay="200">
 
           <div class="tab-pane fade active show" id="features-tab-1">
-            <div class="row">
-              <div class="col-lg-6 order-2 order-lg-1 mt-3 mt-lg-0">
-                <h3>Rekayasa Perangkat Lunak (RPL)</h3>
+            <!-- Baris 1: Deskripsi + Foto Lab -->
+            <div class="row align-items-start mb-4">
+              <div class="col-lg-7 order-2 order-lg-1 mt-3 mt-lg-0">
+                <div class="d-flex align-items-center gap-3 mb-3">
+                  <img src="assets/img/logo-rpl-1.webp" alt="Logo RPL" style="width:70px;height:70px;object-fit:contain;border-radius:50%;border:3px solid #e0e7ff;background:#fff;">
+                  <h3 class="mb-0">Rekayasa Perangkat Lunak (RPL)</h3>
+                </div>
                 <p class="fst-italic">
-                  Mempersiapkan siswa untuk menjadi software developer profesional yang mampu mengembangkan, menguji, dan memelihara aplikasi perangkat lunak.
+                  Program keahlian yang membekali siswa dengan kemampuan merancang, membangun, dan mengelola perangkat lunak sesuai kebutuhan dunia industri teknologi informasi yang terus berkembang.
                 </p>
                 <ul>
-                  <li><i class="bi bi-check2-all"></i>
-                    <span>Pemrograman web, desktop, dan mobile</span>
-                  </li>
-                  <li><i class="bi bi-check2-all"></i> <span>Database design dan management</span></li>
-                  <li><i class="bi bi-check2-all"></i> <span>Framework pengembangan aplikasi modern</span></li>
-                  <li><i class="bi bi-check2-all"></i> <span>Praktik industry-standard dan project-based learning</span></li>
+                  <li><i class="bi bi-check2-all"></i><span>Pemrograman web: HTML, CSS, JavaScript, PHP, Python</span></li>
+                  <li><i class="bi bi-check2-all"></i><span>Pengembangan aplikasi mobile Android &amp; iOS</span></li>
+                  <li><i class="bi bi-check2-all"></i><span>Basis data, sistem informasi, dan UI/UX Design</span></li>
+                  <li><i class="bi bi-check2-all"></i><span>Algoritma, struktur data, dan pemrograman berorientasi objek</span></li>
                 </ul>
-                <p>
-                  Lulusan RPL kami siap bekerja sebagai programmer, developer, atau mendirikan startup teknologi. Program ini dilengkapi dengan sertifikasi profesional dan kesempatan magang di perusahaan IT terkemuka.
-                </p>
+                <p>Lulusan RPL siap berkarir sebagai software developer, web programmer, atau entrepreneur di bidang teknologi dengan bekal sertifikasi kompetensi nasional dan pengalaman proyek nyata.</p>
               </div>
-              <div class="col-lg-6 order-1 order-lg-2 text-center">
-                <img src="assets/img/working-1.jpg" alt="" class="img-fluid">
+              <div class="col-lg-5 order-1 order-lg-2">
+                <div class="row g-2">
+                  <div class="col-12">
+                    <div class="jurusan-logo-box" style="height:200px;">
+                      <img src="assets/img/logo-rpl-1.webp" alt="Logo RPL">
+                    </div>
+                  </div>
+                  <div class="col-6">
+                    <img src="assets/img/rpl-lab-2.webp" alt="Kegiatan RPL" class="img-fluid rounded" style="width:100%;height:120px;object-fit:cover;object-position:center;">
+                  </div>
+                  <div class="col-6">
+                    <img src="assets/img/rpl-lab-4.webp" alt="Kegiatan RPL" class="img-fluid rounded" style="width:100%;height:120px;object-fit:cover;object-position:center;">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Baris 2: Makna Logo -->
+            <div class="mb-4 p-4 rounded-3" style="background:#f0f4ff;">
+              <h5 class="fw-bold mb-3"><i class="bi bi-patch-question-fill me-2" style="color:#667eea;"></i>Makna Logo RPL</h5>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <div class="d-flex gap-3">
+                    <div class="flex-shrink-0">
+                      <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width:36px;height:36px;background:#667eea;color:#fff;font-size:.8rem;">1</div>
+                    </div>
+                    <div>
+                      <strong class="small">Lingkaran Ganda</strong>
+                      <p class="small text-muted mb-0">Melambangkan kesinambungan ilmu, kekompakan, dan proses belajar yang terus berjalan. Dunia teknologi berkembang tanpa henti, begitu pula semangat belajar siswa RPL.</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="d-flex gap-3">
+                    <div class="flex-shrink-0">
+                      <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width:36px;height:36px;background:#667eea;color:#fff;font-size:.8rem;">2</div>
+                    </div>
+                    <div>
+                      <strong class="small">Warna Dominan</strong>
+                      <p class="small text-muted mb-0"><span style="color:#1d4ed8;font-weight:600;">Biru (R)</span> — Logika &amp; kecerdasan. <span style="color:#dc2626;font-weight:600;">Merah (P)</span> — Semangat &amp; kreativitas. <span style="color:#ca8a04;font-weight:600;">Kuning (L)</span> — Keceriaan &amp; inovasi tanpa batas.</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="d-flex gap-3">
+                    <div class="flex-shrink-0">
+                      <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width:36px;height:36px;background:#667eea;color:#fff;font-size:.8rem;">3</div>
+                    </div>
+                    <div>
+                      <strong class="small">Laptop di Tengah</strong>
+                      <p class="small text-muted mb-0">Mewakili pusat kegiatan siswa RPL dalam membuat aplikasi, website, dan teknologi digital. Laptop menjadi simbol utama rekayasa perangkat lunak.</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="d-flex gap-3">
+                    <div class="flex-shrink-0">
+                      <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width:36px;height:36px;background:#667eea;color:#fff;font-size:.8rem;">4</div>
+                    </div>
+                    <div>
+                      <strong class="small">Label Bahasa Pemrograman</strong>
+                      <p class="small text-muted mb-0"><strong>HTML</strong> — Dasar website. <strong>CSS</strong> — Desain tampilan. <strong>Python</strong> — Bahasa serbaguna industri. <strong>&lt;/&gt;</strong> — Simbol logika komputer.</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="d-flex gap-3">
+                    <div class="flex-shrink-0">
+                      <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width:36px;height:36px;background:#667eea;color:#fff;font-size:.8rem;">5</div>
+                    </div>
+                    <div>
+                      <strong class="small">Simbol Awan</strong>
+                      <p class="small text-muted mb-0">Menunjukkan dunia teknologi modern berbasis cloud computing, serta pemikiran kreatif yang luas dan terbuka terhadap perkembangan zaman.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Baris 3: Visi & Misi -->
+            <div class="row g-4 mb-4">
+              <div class="col-md-6">
+                <div class="card h-100 border-0 shadow-sm">
+                  <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3"><i class="bi bi-eye-fill me-2" style="color:#667eea;"></i>Visi Jurusan RPL</h5>
+                    <p class="fst-italic text-muted mb-0">Mewujudkan lulusan Rekayasa Perangkat Lunak SMKS Laboratorium Jakarta yang unggul, berkarakter, inovatif, dan kompeten di bidang teknologi digital serta siap bersaing di dunia industri.</p>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="card h-100 border-0 shadow-sm">
+                  <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3"><i class="bi bi-list-check me-2" style="color:#667eea;"></i>Misi Jurusan RPL</h5>
+                    <ol class="mb-0 ps-3 small text-muted">
+                      <li class="mb-2">Menyelenggarakan pembelajaran RPL yang berkualitas dan sesuai perkembangan teknologi.</li>
+                      <li class="mb-2">Membekali siswa dengan keterampilan pemrograman dan pengembangan perangkat lunak berbasis industri.</li>
+                      <li class="mb-2">Menanamkan sikap disiplin, kreatif, dan bertanggung jawab dalam berkarya digital.</li>
+                      <li>Menyiapkan lulusan yang siap kerja, berwirausaha, dan melanjutkan pendidikan.</li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Baris 4: Foto Kegiatan Siswa -->
+            <div>
+              <h5 class="fw-bold mb-3"><i class="bi bi-camera-fill me-2" style="color:#667eea;"></i>Kegiatan Siswa RPL</h5>
+              <div class="row g-2">
+                <div class="col-6 col-sm-4 col-lg">
+                  <img src="assets/img/rpl-lab-1.webp" alt="Kegiatan RPL" class="img-fluid rounded" style="height:160px;object-fit:cover;width:100%;">
+                </div>
+                <div class="col-6 col-sm-4 col-lg">
+                  <img src="assets/img/rpl-lab-2.webp" alt="Kegiatan RPL" class="img-fluid rounded" style="height:160px;object-fit:cover;width:100%;">
+                </div>
+                <div class="col-6 col-sm-4 col-lg">
+                  <img src="assets/img/rpl-lab-3.webp" alt="Kegiatan RPL" class="img-fluid rounded" style="height:160px;object-fit:cover;width:100%;">
+                </div>
+                <div class="col-6 col-sm-4 col-lg">
+                  <img src="assets/img/rpl-lab-4.webp" alt="Kegiatan RPL" class="img-fluid rounded" style="height:160px;object-fit:cover;width:100%;">
+                </div>
+                <div class="col-6 col-sm-4 col-lg">
+                  <img src="assets/img/rpl-lab-5.webp" alt="Kegiatan RPL" class="img-fluid rounded" style="height:160px;object-fit:cover;width:100%;">
+                </div>
               </div>
             </div>
           </div><!-- End Tab Content Item -->
 
           <div class="tab-pane fade" id="features-tab-2">
-            <div class="row">
-              <div class="col-lg-6 order-2 order-lg-1 mt-3 mt-lg-0">
+            <div class="row align-items-start mb-4">
+              <div class="col-lg-7 order-2 order-lg-1 mt-3 mt-lg-0">
                 <h3>Teknik Komputer dan Jaringan (TKJ)</h3>
-                <p>
-                  Program TKJ memencetak teknisi dan administrator jaringan yang kompeten dalam mengelola infrastruktur IT, keamanan jaringan, dan sistem komputer modern.
-                </p>
                 <p class="fst-italic">
-                  Dengan fasilitas lab networking terlengkap, siswa mendapat pengalaman langsung dalam setup, konfigurasi, dan troubleshooting sistem jaringan.
+                  Program keahlian yang mempersiapkan tenaga ahli instalasi, konfigurasi, dan pemeliharaan infrastruktur jaringan komputer serta sistem keamanan informasi di berbagai skala organisasi.
                 </p>
                 <ul>
-                  <li><i class="bi bi-check2-all"></i> <span>Administrator jaringan dan sistem</span></li>
-                  <li><i class="bi bi-check2-all"></i> <span>Cybersecurity dan keamanan data</span></li>
-                  <li><i class="bi bi-check2-all"></i> <span>Server management dan cloud computing</span></li>
-                  <li><i class="bi bi-check2-all"></i> <span>Sertifikasi Cisco, CompTIA, dan vendor lainnya</span></li>
+                  <li><i class="bi bi-check2-all"></i><span>Instalasi &amp; konfigurasi jaringan LAN, WAN, dan WLAN</span></li>
+                  <li><i class="bi bi-check2-all"></i><span>Keamanan siber, firewall, VPN, dan proteksi data</span></li>
+                  <li><i class="bi bi-check2-all"></i><span>Cloud computing, virtualisasi server, dan troubleshooting</span></li>
+                  <li><i class="bi bi-check2-all"></i><span>Routing &amp; switching (Cisco), administrasi jaringan</span></li>
                 </ul>
+                <p>Lulusan TKJ siap bekerja sebagai network engineer, IT support, sistem administrator, atau melanjutkan ke perguruan tinggi bidang informatika.</p>
               </div>
-              <div class="col-lg-6 order-1 order-lg-2 text-center">
-                <img src="assets/img/working-2.jpg" alt="" class="img-fluid">
+              <div class="col-lg-5 order-1 order-lg-2">
+                <img src="assets/img/tkj-lab-2.webp" alt="Laboratorium Jaringan TKJ"
+                  class="img-fluid rounded" style="width:100%;height:280px;object-fit:cover;object-position:center;">
               </div>
             </div>
           </div><!-- End Tab Content Item -->
 
           <div class="tab-pane fade" id="features-tab-3">
-            <div class="row">
-              <div class="col-lg-6 order-2 order-lg-1 mt-3 mt-lg-0">
+            <div class="row align-items-start mb-4">
+              <div class="col-lg-7 order-2 order-lg-1 mt-3 mt-lg-0">
                 <h3>Asisten Keperawatan (AP)</h3>
-                <p>
-                  Program AP melatih tenaga medis profesional yang siap memberikan pelayanan kesehatan berkualitas di berbagai fasilitas kesehatan dengan standar etika dan kompetensi tinggi.
+                <p class="fst-italic">
+                  Program keahlian yang mencetak tenaga asisten perawat profesional dan berkarakter, siap memberikan pelayanan kesehatan terbaik di rumah sakit, puskesmas, klinik, dan berbagai fasilitas kesehatan lainnya.
                 </p>
                 <ul>
-                  <li><i class="bi bi-check2-all"></i> <span>Asisten perawat rumah sakit dan klinik</span></li>
-                  <li><i class="bi bi-check2-all"></i> <span>Perawatan dasar pasien dan monitoring vital signs</span></li>
-                  <li><i class="bi bi-check2-all"></i> <span>Praktik laboratorium kesehatan dan farmasi</span></li>
-                  <li><i class="bi bi-check2-all"></i> <span>Etika profesi dan komunikasi pasien</span></li>
+                  <li><i class="bi bi-check2-all"></i><span>Perawatan dasar pasien &amp; pemantauan tanda-tanda vital</span></li>
+                  <li><i class="bi bi-check2-all"></i><span>Prosedur keperawatan klinis dan kegawatdaruratan</span></li>
+                  <li><i class="bi bi-check2-all"></i><span>Farmakologi dasar, dokumentasi medis &amp; rekam medis</span></li>
+                  <li><i class="bi bi-check2-all"></i><span>Etika profesi keperawatan &amp; komunikasi terapeutik</span></li>
                 </ul>
-                <p class="fst-italic">
-                  Lulusan AP kami tersebar di rumah sakit, puskesmas, dan fasilitas kesehatan lainnya dengan peluang karir yang menjanjikan dan kontribusi nyata terhadap kesehatan masyarakat.
-                </p>
+                <p>Lulusan AP siap bekerja sebagai asisten tenaga kesehatan yang kompeten dengan peluang karir luas di seluruh fasilitas pelayanan kesehatan Indonesia.</p>
               </div>
-              <div class="col-lg-6 order-1 order-lg-2 text-center">
-                <img src="assets/img/working-3.jpg" alt="" class="img-fluid">
+              <div class="col-lg-5 order-1 order-lg-2">
+                <img src="assets/img/ap-lab-1.webp" alt="Siswa Asisten Keperawatan" class="img-fluid rounded shadow-sm" style="width:100%;height:280px;object-fit:cover;object-position:center;">
               </div>
             </div>
           </div><!-- End Tab Content Item -->
 
           <div class="tab-pane fade" id="features-tab-4">
-            <div class="row">
-              <div class="col-lg-6 order-2 order-lg-1 mt-3 mt-lg-0">
-                <h3>Tata Kecantikan Kulit dan Rambut (TKKR)</h3>
-                <p>
-                  Program TKKR mempersiapkan profesional kecantikan yang terampil dalam perawatan kulit, styling rambut, dan makeup. Lulusan kami siap bekerja di salon, spa, atau membuka usaha kecantikan sendiri.
+
+            <!-- Baris 1: Header + foto -->
+            <div class="row g-4 align-items-center mb-4">
+              <div class="col-lg-7">
+                <div class="d-flex align-items-center gap-3 mb-3">
+                  <h3 class="mb-0">Tata Kecantikan Kulit dan Rambut (TKKR)</h3>
+                </div>
+                <p class="fst-italic text-muted">
+                  Program keahlian yang mencetak tenaga profesional kecantikan kreatif dan terampil, siap bersaing di industri kecantikan nasional maupun internasional dengan bekal teknik terkini.
                 </p>
-                <p class="fst-italic">
-                  Dengan praktik langsung menggunakan peralatan profesional dan produk berkualitas, siswa mendapatkan pengalaman nyata di industri kecantikan.
-                </p>
-                <ul>
-                  <li><i class="bi bi-check2-all"></i> <span>Perawatan wajah, kulit, dan tubuh profesional</span></li>
-                  <li><i class="bi bi-check2-all"></i> <span>Styling, coloring, dan perawatan rambut</span></li>
-                  <li><i class="bi bi-check2-all"></i> <span>Tata rias dan makeup untuk berbagai acara</span></li>
-                  <li><i class="bi bi-check2-all"></i> <span>Kewirausahaan dan manajemen salon kecantikan</span></li>
+                <ul class="mb-0">
+                  <li><i class="bi bi-check2-all"></i><span>Perawatan &amp; treatment kulit wajah, leher, dan tubuh</span></li>
+                  <li><i class="bi bi-check2-all"></i><span>Teknik styling, coloring, dan perawatan rambut</span></li>
+                  <li><i class="bi bi-check2-all"></i><span>Tata rias pengantin, karakter, dan make-up artistik</span></li>
+                  <li><i class="bi bi-check2-all"></i><span>Kosmetologi, manajemen salon &amp; kewirausahaan kecantikan</span></li>
                 </ul>
               </div>
-              <div class="col-lg-6 order-1 order-lg-2 text-center">
-                <img src="assets/img/working-4.jpg" alt="" class="img-fluid">
+              <div class="col-lg-5">
+                <img src="assets/img/tkkr-siswa-1.webp" alt="Siswa TKKR"
+                  class="img-fluid rounded shadow"
+                  style="width:100%;height:300px;object-fit:cover;object-position:center top;">
               </div>
             </div>
+
+            <!-- Baris 2: Visi & Misi -->
+            <div class="row g-3">
+              <div class="col-md-5">
+                <div class="card border-0 h-100" style="background:linear-gradient(135deg,#fdf4ff,#fae8ff);border-left:4px solid #c026d3 !important;border-radius:12px;">
+                  <div class="card-body p-4">
+                    <h6 class="fw-bold mb-3" style="color:#7e22ce;">
+                      <i class="bi bi-eye-fill me-2"></i>Visi
+                    </h6>
+                    <p class="mb-0 small" style="line-height:1.7;">
+                      Menghasilkan lulusan yang siap kerja, siap berwirausaha, serta mampu beradaptasi dengan perkembangan industri kecantikan modern.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-7">
+                <div class="card border-0 h-100" style="background:linear-gradient(135deg,#fdf4ff,#fae8ff);border-left:4px solid #a855f7 !important;border-radius:12px;">
+                  <div class="card-body p-4">
+                    <h6 class="fw-bold mb-3" style="color:#7e22ce;">
+                      <i class="bi bi-list-check me-2"></i>Misi
+                    </h6>
+                    <ul class="mb-0 small ps-3" style="line-height:1.8;">
+                      <li>Membekali peserta didik dengan keterampilan perawatan kulit, perawatan rambut, dan tata kecantikan sesuai standar industri.</li>
+                      <li>Menanamkan sikap disiplin, tanggung jawab, kreativitas, serta etika profesi.</li>
+                      <li>Mengikuti perkembangan teknologi dan tren kecantikan modern guna meningkatkan kompetensi peserta didik.</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div><!-- End Tab Content Item -->
 
         </div>
@@ -369,13 +626,13 @@ require_once __DIR__ . '/conn.php';
       <div class="container" data-aos="fade-up">
         <div class="section-title">
           <h2 class="text-white">Lokasi</h2>
-          <p class="text-white">Jl. Rawa Jaya No.37, Pd. Kopi, Kec. Duren Sawit, Kota Jakarta Timur</p>
+          <p class="text-white">Sekolah Laboratorium Jakarta</p>
         </div>
         <div class="map-container" data-aos="zoom-in" data-aos-delay="200" style="width: 100%; height: 450px; border-radius: 10px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
-          <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3966.217658585353!2d106.94115297576462!3d-6.235014561059455!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e698cecdd9893b7%3A0xb42576feb885ccd3!2sTK%20SD%20SMP%20SMK%20Laboratorium%20Islamic%20Technology%20Jakarta!5e0!3m2!1sid!2sid!4v1769870240589!5m2!1sid!2sid" width="100%" height="100%" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+          <iframe src="<?= htmlspecialchars($sr('maps_embed_url', 'https://maps.google.com/maps?q=-6.2350331,106.9439031&z=17&output=embed')) ?>" width="100%" height="100%" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
         </div>
         <div class="text-center mt-4" data-aos="fade-up" data-aos-delay="300">
-          <a href="https://maps.app.goo.gl/5W5phhTxe5JfTB7p6" target="_blank" class="btn btn-outline-light"><i class="bi bi-geo-alt-fill me-2"></i> Buka di Google Maps</a>
+          <a href="https://maps.app.goo.gl/ZdjZz5CfwK7nzNrG8" target="_blank" class="btn btn-outline-light"><i class="bi bi-geo-alt-fill me-2"></i> Buka di Google Maps</a>
         </div>
       </div>
     </section><!-- /Lokasi Section -->
@@ -384,62 +641,90 @@ require_once __DIR__ . '/conn.php';
     <section id="cara-mendaftar" class="section" style="background: #f8f9fa;">
       <div class="container section-title" data-aos="fade-up">
         <h2>Cara Mendaftar</h2>
-        <p>Informasi Lengkap PPDB SMK Laboratorium Jakarta</p>
+        <p>Informasi Lengkap SPMB SMKS Laboratorium Jakarta</p>
+        <p class="section-subtitle">Datang Langsung Ke SMKS Laboratorium Jakarta</p>
       </div>
 
       <div class="container" data-aos="fade-up" data-aos-delay="100">
         <?php
-        require_once __DIR__ . '/conn.php';
         $cara_gel = $conn->query("SELECT * FROM gelombang ORDER BY gelombang")->fetchAll();
-        $bulan_id = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-        function tgl_id($tgl, $bulan_id) {
-          $t = strtotime($tgl);
-          return date('j', $t) . ' ' . $bulan_id[(int)date('n', $t)] . ' ' . date('Y', $t);
-        }
-        function rentang_id($buka, $tutup, $bulan_id) {
-          $b = strtotime($buka); $t = strtotime($tutup);
-          if (date('n-Y', $b) === date('n-Y', $t)) {
-            return date('j', $b) . ' - ' . date('j', $t) . ' ' . $bulan_id[(int)date('n', $b)] . ' ' . date('Y', $b);
-          }
-          return tgl_id($buka, $bulan_id) . ' - ' . tgl_id($tutup, $bulan_id);
-        }
         ?>
 
         <!-- Jadwal Gelombang -->
-        <div class="row g-4 mb-5">
-        <?php foreach ($cara_gel as $g): ?>
-          <div class="col-md-6">
-            <div class="card h-100 shadow-sm border-0">
-              <div class="card-body p-4">
-                <div class="d-flex align-items-center mb-3">
-                  <div class="rounded-circle d-flex align-items-center justify-content-center me-3"
-                       style="width:48px; height:48px; background:#198754; color:#fff; font-weight:700; font-size:1.3rem;">
-                    <?= $g['gelombang'] ?>
+        <div class="row g-4 mb-4">
+          <?php foreach ($cara_gel as $idx => $g): ?>
+            <div class="col-md-6" data-aos="fade-up" data-aos-delay="<?= $idx * 150 + 100 ?>">
+              <div class="card h-100 shadow-sm border-0">
+                <div class="card-body p-4">
+                  <div class="d-flex align-items-center mb-3">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center me-3"
+                      style="width:48px; height:48px; background:#198754; color:#fff; font-weight:700; font-size:1.3rem;">
+                      <?= $g['gelombang'] ?>
+                    </div>
+                    <h4 class="mb-0 fw-bold">Gelombang <?= $g['gelombang'] ?></h4>
                   </div>
-                  <h4 class="mb-0 fw-bold">Gelombang <?= $g['gelombang'] ?></h4>
+                  <div class="mb-3">
+                    <div class="d-flex align-items-center mb-1"><i class="bi bi-calendar-event text-success me-2"></i><strong>Pendaftaran</strong></div>
+                    <div class="ms-4 small" style="white-space: pre-line;"><?= htmlspecialchars($g['jadwal_pendaftaran_text'] ?? '') ?></div>
+                  </div>
+                  <div class="mb-3">
+                    <div class="d-flex align-items-center mb-1"><i class="bi bi-megaphone text-success me-2"></i><strong>Pengumuman</strong></div>
+                    <div class="ms-4 small" style="white-space: pre-line;"><?= htmlspecialchars($g['jadwal_pengumuman_text'] ?? '') ?></div>
+                  </div>
+                  <div>
+                    <div class="d-flex align-items-center mb-1"><i class="bi bi-clipboard-check text-success me-2"></i><strong>Daftar Ulang</strong></div>
+                    <div class="ms-4 small" style="white-space: pre-line;"><?= htmlspecialchars($g['jadwal_daftar_ulang_text'] ?? '') ?></div>
+                  </div>
                 </div>
-                <ul class="list-unstyled mb-0">
-                  <li class="mb-2"><i class="bi bi-calendar-event text-success me-2"></i><strong>Pendaftaran:</strong><br><span class="ms-4"><?= rentang_id($g['tanggal_buka'], $g['tanggal_tutup'], $bulan_id) ?></span></li>
-                  <li><i class="bi bi-megaphone text-success me-2"></i><strong>Pengumuman:</strong><br><span class="ms-4"><?= tgl_id($g['tanggal_pengumuman'], $bulan_id) ?></span></li>
-                </ul>
               </div>
             </div>
-          </div>
-        <?php endforeach; ?>
+          <?php endforeach; ?>
         </div>
+
+        <!-- Alur Pendaftaran dari DB -->
+        <?php
+        $tahapan_pub = $conn->query("SELECT id, nama, icon, deskripsi FROM tahapan WHERE is_active=1 ORDER BY urutan")->fetchAll();
+        if (!empty($tahapan_pub)):
+        ?>
+          <div class="mb-4" data-aos="fade-up" data-aos-delay="150">
+            <h5 class="fw-bold mb-3 text-center"><i class="bi bi-list-ol text-success me-2"></i>Alur Pendaftaran</h5>
+            <div class="d-flex flex-wrap justify-content-center align-items-center gap-2">
+              <?php foreach ($tahapan_pub as $i => $t): ?>
+                <?php if ($i > 0): ?>
+                  <div class="text-success d-none d-sm-block" style="font-size:1.4rem;"><i class="bi bi-chevron-right"></i></div>
+                <?php endif; ?>
+                <div class="card border-0 shadow-sm text-center" data-aos="zoom-in" data-aos-delay="<?= $i * 80 + 100 ?>" style="width:150px;min-height:110px;">
+                  <div class="card-body py-3 px-2">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center mx-auto mb-2"
+                      style="width:42px;height:42px;background:#198754;color:#fff;font-size:1.1rem;">
+                      <i class="bi <?= htmlspecialchars($t['icon']) ?>"></i>
+                    </div>
+                    <div class="fw-semibold" style="font-size:.82rem;line-height:1.3;"><?= htmlspecialchars($t['nama']) ?></div>
+                    <?php if ($t['deskripsi']): ?>
+                      <div class="text-muted mt-1" style="font-size:.72rem;"><?= htmlspecialchars(mb_substr($t['deskripsi'], 0, 55)) ?></div>
+                    <?php endif; ?>
+                  </div>
+                </div>
+              <?php endforeach; ?>
+            </div>
+          </div>
+        <?php endif; ?>
 
         <!-- Berkas yang Dibawa -->
         <div class="row justify-content-center">
-          <div class="col-lg-8" data-aos="fade-up">
+          <div class="col-lg-8" data-aos="fade-up" data-aos-delay="200">
             <div class="card shadow-sm border-0">
               <div class="card-body p-4">
-                <h4 class="fw-bold mb-3"><i class="bi bi-folder2-open text-success me-2"></i>Berkas yang Dibawa</h4>
-                <p class="text-muted small">Calon siswa datang langsung ke sekolah dengan membawa:</p>
+                <h4 class="fw-bold mb-3"><i class="bi bi-folder2-open text-success me-2"></i>Berkas Photocopy yang Dibawa</h4>
+                <p class="text-muted small">Calon siswa datang langsung ke sekolah dengan membawa fotocopy:</p>
                 <ul class="list-group list-group-flush">
-                  <li class="list-group-item border-0 ps-0"><i class="bi bi-check-circle-fill text-success me-2"></i>Ijazah / SKHU</li>
-                  <li class="list-group-item border-0 ps-0"><i class="bi bi-check-circle-fill text-success me-2"></i>Kartu Keluarga (KK) DKI Jakarta</li>
-                  <li class="list-group-item border-0 ps-0"><i class="bi bi-check-circle-fill text-success me-2"></i>Raport semester 1 - 6</li>
-                  <li class="list-group-item border-0 ps-0"><i class="bi bi-check-circle-fill text-success me-2"></i>Fotocopy hasil TKA</li>
+                  <li class="list-group-item border-0 ps-0"><i class="bi bi-check-circle-fill text-success me-2"></i>Kartu Keluarga (KK) DKI Jakarta <small class="text-muted">(cut off 15 Juni 2025)</small></li>
+                  <li class="list-group-item border-0 ps-0"><i class="bi bi-check-circle-fill text-success me-2"></i>Nilai Raport semester 1 - 5</li>
+                  <li class="list-group-item border-0 ps-0"><i class="bi bi-check-circle-fill text-success me-2"></i>NISN (Nomor Induk Siswa Nasional)</li>
+                  <li class="list-group-item border-0 ps-0"><i class="bi bi-check-circle-fill text-success me-2"></i>Akte Kelahiran</li>
+                  <li class="list-group-item border-0 ps-0"><i class="bi bi-check-circle-fill text-success me-2"></i>KTP Orang Tua</li>
+                  <li class="list-group-item border-0 ps-0"><i class="bi bi-check-circle-fill text-success me-2"></i>Wajib Membawa Surat Keterangan Tidak Buta warna(Puskesmas/Klinik)</li>
+                  <li class="list-group-item border-0 ps-0"><i class="bi bi-check-circle-fill text-success me-2"></i>Map Kertas TKJ (Hijau), RPL (Merah), Asisten Keperawatan (Biru), Tata Kecantikan (Kuning)</li>
                 </ul>
               </div>
             </div>
@@ -454,85 +739,171 @@ require_once __DIR__ . '/conn.php';
 
       <div class="container section-title" data-aos="fade-up">
         <h2>Pengumuman Penerimaan</h2>
-        <p>Hasil Seleksi PPDB SMK Laboratorium Jakarta</p>
+        <p>Hasil Seleksi SPMB SMKS Laboratorium Jakarta</p>
       </div>
 
       <div class="container" data-aos="fade" data-aos-delay="100">
         <?php
-        require_once __DIR__ . '/conn.php';
         $gel_rows = $conn->query("SELECT * FROM gelombang WHERE is_published=1 ORDER BY gelombang")->fetchAll();
         $short_j  = [
-            'Rekayasa Perangkat Lunak (RPL)'          => 'RPL',
-            'Teknik Komputer dan Jaringan (TKJ)'       => 'TKJ',
-            'Asisten Keperawatan (AP)'                 => 'AP',
-            'Tata Kecantikan Kulit dan Rambut (TKKR)'  => 'TKKR',
+          'Rekayasa Perangkat Lunak (RPL)'          => 'RPL',
+          'Teknik Komputer dan Jaringan (TKJ)'       => 'TKJ',
+          'Asisten Keperawatan (AP)'                 => 'AP',
+          'Tata Kecantikan Kulit dan Rambut (TKKR)'  => 'TKKR',
         ];
 
         if (empty($gel_rows)):
         ?>
-        <div class="row justify-content-center">
-          <div class="col-lg-7 text-center py-5">
-            <i class="bi bi-clock-history" style="font-size:3rem;color:#6c757d"></i>
-            <h5 class="mt-3 text-muted">Pengumuman belum tersedia</h5>
-            <p class="text-muted">Hasil seleksi akan diumumkan sesuai jadwal yang telah ditetapkan.</p>
-          </div>
-        </div>
-
-        <?php else: foreach ($gel_rows as $g):
-            $diterima = $conn->prepare("SELECT no_pendaftaran, nama, nisn, jurusan FROM pendaftar
-                WHERE gelombang=? AND status='diterima' ORDER BY jurusan, nilai_akhir DESC, usia DESC");
-            $diterima->execute([$g['gelombang']]);
-            $list = $diterima->fetchAll();
-        ?>
-        <div class="mb-5" data-aos="fade-up">
-          <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
-            <h4 class="mb-0 fw-bold">Gelombang <?= $g['gelombang'] ?></h4>
-            <span class="badge bg-success px-3 py-2">
-              <i class="bi bi-broadcast me-1"></i>Pengumuman Resmi
-            </span>
-            <span class="text-muted small">
-              Diumumkan: <?= date('d F Y', strtotime($g['tanggal_pengumuman'])) ?>
-            </span>
+          <div class="row justify-content-center">
+            <div class="col-lg-7 text-center py-5">
+              <i class="bi bi-clock-history" style="font-size:3rem;color:#6c757d"></i>
+              <h5 class="mt-3 text-muted">Pengumuman belum tersedia</h5>
+              <p class="text-muted">Hasil seleksi akan diumumkan sesuai jadwal yang telah ditetapkan.</p>
+            </div>
           </div>
 
-          <div class="alert alert-success py-2 small mb-3">
-            <i class="bi bi-info-circle me-1"></i>
-            Periode pendaftaran: <strong><?= date('d M Y', strtotime($g['tanggal_buka'])) ?></strong>
-            s/d <strong><?= date('d M Y', strtotime($g['tanggal_tutup'])) ?></strong> |
-            Total diterima: <strong><?= count($list) ?></strong> pendaftar
-          </div>
+          <?php else: foreach ($gel_rows as $g):
+            $hasil_live = !empty($g['is_hasil_published']);
+            $list = [];
+            if ($hasil_live) {
+              $diterima = $conn->prepare("SELECT no_pendaftaran, nama, nisn, jurusan FROM pendaftar
+                    WHERE gelombang=? AND status='terima' ORDER BY jurusan, nilai_akhir DESC");
+              $diterima->execute([$g['gelombang']]);
+              $list = $diterima->fetchAll();
+            }
+          ?>
+            <div class="mb-5" data-aos="fade-up">
+              <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+                <h4 class="mb-0 fw-bold">Gelombang <?= $g['gelombang'] ?></h4>
+                <?php if ($hasil_live): ?>
+                  <span class="badge bg-success px-3 py-2">
+                    <i class="bi bi-trophy me-1"></i>Hasil Resmi
+                  </span>
+                <?php else: ?>
+                  <span class="badge bg-info text-dark px-3 py-2">
+                    <i class="bi bi-broadcast me-1"></i>Sedang Berjalan
+                  </span>
+                <?php endif; ?>
+                <span class="text-muted small">
+                  Tanggal pengumuman: <?= date('d F Y', strtotime($g['tanggal_pengumuman'])) ?>
+                </span>
+              </div>
 
-          <?php if (empty($list)): ?>
-          <p class="text-muted">Belum ada data penerimaan untuk gelombang ini.</p>
-          <?php else: ?>
-          <div class="table-responsive">
-            <table class="table table-bordered table-hover">
-              <thead class="table-dark">
-                <tr>
-                  <th style="width:50px">No.</th>
-                  <th>Nama</th>
-                  <th>NISN</th>
-                  <th>Jurusan</th>
-                </tr>
-              </thead>
-              <tbody>
-                <?php $no = 1; foreach ($list as $r): ?>
-                <tr>
-                  <td class="text-center"><?= $no++ ?></td>
-                  <td class="fw-semibold"><?= htmlspecialchars($r['nama']) ?></td>
-                  <td><?= htmlspecialchars($r['nisn']) ?></td>
-                  <td>
-                    <span class="badge bg-primary"><?= $short_j[$r['jurusan']] ?? $r['jurusan'] ?></span>
-                    <span class="ms-1 small text-muted"><?= htmlspecialchars($r['jurusan']) ?></span>
-                  </td>
-                </tr>
-                <?php endforeach; ?>
-              </tbody>
-            </table>
-          </div>
-          <?php endif; ?>
-        </div>
-        <?php endforeach; endif; ?>
+              <?php if (!$hasil_live): ?>
+                <!-- Tahap 1: Banner — pengumuman dibuka, hasil belum ada -->
+                <div class="alert alert-info">
+                  <div class="d-flex align-items-start gap-3">
+                    <i class="bi bi-megaphone-fill fs-4 flex-shrink-0 mt-1"></i>
+                    <div>
+                      <strong>Pendaftaran Gelombang <?= $g['gelombang'] ?> Sedang Berlangsung</strong>
+                      <p class="mb-1 mt-1">
+                        Periode pendaftaran: <strong><?= date('d M Y', strtotime($g['tanggal_buka'])) ?></strong>
+                        s/d <strong><?= date('d M Y', strtotime($g['tanggal_tutup'])) ?></strong>
+                      </p>
+                      <?php if ($g['jadwal_pengumuman_text']): ?>
+                        <p class="mb-0 small">
+                          <i class="bi bi-calendar-check me-1"></i>
+                          Pengumuman hasil: <strong><?= htmlspecialchars($g['jadwal_pengumuman_text']) ?></strong>
+                        </p>
+                      <?php endif; ?>
+                    </div>
+                  </div>
+                </div>
+                <?php if ($g['tanggal_daftar_ulang_mulai']): ?>
+                  <p class="text-muted small">
+                    <i class="bi bi-arrow-right-circle me-1"></i>
+                    Daftar ulang bagi yang diterima: <strong><?= date('d M Y', strtotime($g['tanggal_daftar_ulang_mulai'])) ?></strong>
+                    <?php if ($g['tanggal_daftar_ulang_selesai'] && $g['tanggal_daftar_ulang_selesai'] !== $g['tanggal_daftar_ulang_mulai']): ?>
+                      s/d <strong><?= date('d M Y', strtotime($g['tanggal_daftar_ulang_selesai'])) ?></strong>
+                    <?php endif; ?>
+                  </p>
+                <?php endif; ?>
+
+              <?php else: ?>
+                <!-- Tahap 2: Hasil penerimaan live -->
+                <div class="alert alert-success py-2 small mb-3">
+                  <i class="bi bi-info-circle me-1"></i>
+                  Periode pendaftaran: <strong><?= date('d M Y', strtotime($g['tanggal_buka'])) ?></strong>
+                  s/d <strong><?= date('d M Y', strtotime($g['tanggal_tutup'])) ?></strong> |
+                  Total diterima: <strong><?= count($list) ?></strong> pendaftar
+                </div>
+
+                <?php if (empty($list)): ?>
+                  <p class="text-muted">Belum ada data penerimaan untuk gelombang ini.</p>
+                <?php else: ?>
+                  <!-- Search + Filter jurusan -->
+                  <?php
+                  $glm_id = 'glm' . $g['gelombang'];
+                  $per_jurusan = [];
+                  foreach ($list as $r) {
+                    $kd = $short_j[$r['jurusan']] ?? $r['jurusan'];
+                    $per_jurusan[$kd] = ($per_jurusan[$kd] ?? 0) + 1;
+                  }
+                  ?>
+                  <input type="text" id="cari-<?= $glm_id ?>" placeholder="Cari nama atau NISN..." class="form-control form-control-sm mb-2" style="max-width:280px;">
+                  <div class="d-flex flex-wrap gap-2 mb-3" id="filter-<?= $glm_id ?>">
+                    <button class="btn btn-sm btn-dark filter-btn active" data-filter="all">Semua</button>
+                    <?php foreach ($per_jurusan as $kd => $cnt): ?>
+                      <button class="btn btn-sm btn-outline-primary filter-btn" data-filter="<?= $kd ?>"><?= $kd ?></button>
+                    <?php endforeach; ?>
+                  </div>
+
+                  <div class="table-responsive">
+                    <table class="table table-bordered table-hover" id="tbl-<?= $glm_id ?>">
+                      <thead class="table-dark">
+                        <tr>
+                          <th>Nama</th>
+                          <th>NISN</th>
+                          <th>Jurusan</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <?php foreach ($list as $r):
+                          $kd = $short_j[$r['jurusan']] ?? $r['jurusan'];
+                        ?>
+                          <tr data-jurusan="<?= $kd ?>" data-nama="<?= strtolower(htmlspecialchars($r['nama'])) ?>" data-nisn="<?= htmlspecialchars($r['nisn']) ?>">
+                            <td data-label="Nama" class="fw-semibold"><?= htmlspecialchars($r['nama']) ?></td>
+                            <td data-label="NISN"><?= htmlspecialchars($r['nisn']) ?></td>
+                            <td data-label="Jurusan">
+                              <span class="badge bg-primary"><?= $kd ?></span>
+                              <span class="ms-1 small text-muted d-none d-sm-inline"><?= htmlspecialchars($r['jurusan']) ?></span>
+                            </td>
+                          </tr>
+                        <?php endforeach; ?>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <!-- Arahan Selanjutnya -->
+                  <div class="card border-success mt-4 mb-2">
+                    <div class="card-header bg-success text-white fw-bold"><i class="bi bi-check2-circle me-2"></i>Arahan Selanjutnya</div>
+                    <div class="card-body">
+                      <p class="mb-2">Jika nama Anda tercantum dalam daftar di atas, segera lakukan <strong>daftar ulang</strong> ke sekolah.</p>
+                      <?php if (!empty($g['tanggal_daftar_ulang_mulai'])): ?>
+                        <div class="alert alert-info py-2 mb-2">
+                          <i class="bi bi-calendar-event me-1"></i>
+                          Periode daftar ulang: <strong><?= date('d M Y', strtotime($g['tanggal_daftar_ulang_mulai'])) ?></strong>
+                          <?php if (!empty($g['tanggal_daftar_ulang_selesai']) && $g['tanggal_daftar_ulang_selesai'] !== $g['tanggal_daftar_ulang_mulai']): ?>
+                            s/d <strong><?= date('d M Y', strtotime($g['tanggal_daftar_ulang_selesai'])) ?></strong>
+                          <?php endif; ?>
+                        </div>
+                      <?php endif; ?>
+                      <p class="mb-1 fw-semibold">Dokumen yang harus dibawa:</p>
+                      <ul class="mb-2">
+                        <li>Ijazah / Surat Keterangan Lulus (SKL) asli dan fotokopi</li>
+                        <li>SKHUN (Surat Keterangan Hasil Ujian Nasional) asli dan fotokopi</li>
+                        <li>Pas foto terbaru ukuran 3×4 (4 lembar)</li>
+                        <li>Kartu Keluarga (KK) asli dan fotokopi</li>
+                        <li>Akta kelahiran fotokopi</li>
+                      </ul>
+                      <p class="mb-0 text-muted small"><i class="bi bi-info-circle me-1"></i>Pendaftaran yang tidak dilengkapi dokumen pada batas waktu dianggap mengundurkan diri.</p>
+                    </div>
+                  </div>
+                <?php endif; ?>
+              <?php endif; ?>
+            </div>
+        <?php endforeach;
+        endif; ?>
       </div>
 
     </section><!-- /Pengumuman Section -->
@@ -542,15 +913,11 @@ require_once __DIR__ . '/conn.php';
   <footer id="footer" class="footer dark-background">
     <div class="container">
       <div class="copyright">
-        <span>Copyright</span> <strong class="px-1 sitename">Selecao</strong> <span>All Rights Reserved</span>
+        <span>&copy; <?= date('Y') ?></span> <strong class="px-1 sitename"><?= $s('sekolah_nama', 'SMKS Laboratorium Jakarta') ?></strong> <span>All Rights Reserved</span>
       </div>
-      <div class="credits">
-        <!-- All the links in the footer should remain intact. -->
-        <!-- You can delete the links only if you've purchased the pro version. -->
-        <!-- Licensing information: https://bootstrapmade.com/license/ -->
-        <!-- Purchase the pro version with working PHP/AJAX contact form: [buy-url] -->
-        Designed by <a href="https://bootstrapmade.com/">BootstrapMade</a> Distributed By <a href="https://themewagon.com">ThemeWagon</a>
-      </div>
+      <?php if ($sr('footer_text')): ?>
+      <div class="credits"><?= $s('footer_text') ?></div>
+      <?php endif; ?>
     </div>
   </footer>
 
@@ -571,495 +938,87 @@ require_once __DIR__ . '/conn.php';
 
   <!-- Main JS File -->
   <!-- Cache buster: ensures browser reloads the latest JS after edits -->
-  <script src="assets/js/main.js?v=20260117"></script>
+  <script src="assets/js/main.js?v=20260522"></script>
 
   <script>
-    // ============================================================
-    // ENHANCEMENTS INLINE SCRIPTS
-    // ============================================================
-
-    // FORM VALIDATOR CLASS
-    class FormValidator {
-      constructor(formSelector) {
-        this.form = document.querySelector(formSelector);
-        if (!this.form) return;
-
-        this.validatedFields = new Set();
-        this.init();
-      }
-
-      init() {
-        this.setupInputValidation();
-        this.setupPasswordStrength();
-        this.setupPasswordMatching();
-      }
-
-      setupInputValidation() {
-        const inputs = this.form.querySelectorAll('input[type="text"], input[type="email"], input[type="password"]');
-
-        inputs.forEach(input => {
-          if (input.name === 'password_verify') return;
-
-          input.addEventListener('blur', () => {
-            this.validatedFields.add(input.name);
-            this.validateField(input);
-          });
-
-          input.addEventListener('input', () => {
-            if (this.validatedFields.has(input.name)) {
-              if (input.validateTimeout) clearTimeout(input.validateTimeout);
-              input.validateTimeout = setTimeout(() => {
-                if (input.type !== 'password') {
-                  this.validateField(input);
-                }
-              }, 300);
-            }
-          });
-        });
-      }
-
-      validateField(input) {
-        const value = input.value.trim();
-        const type = input.type;
-        const name = input.name;
-        let isValid = true,
-          errorMsg = '';
-
-        input.classList.remove('is-valid', 'is-invalid');
-
-        if (input.hasAttribute('required') && !value) {
-          isValid = false;
-          errorMsg = 'Field ini harus diisi';
-        } else if (value) {
-          if (type === 'email') {
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailRegex.test(value)) {
-              isValid = false;
-              errorMsg = 'Format email tidak valid';
-            }
-          } else if (type === 'text' && name === 'name') {
-            if (!/^[a-zA-Z\s]+$/.test(value)) {
-              isValid = false;
-              errorMsg = 'Nama hanya boleh huruf dan spasi';
-            } else if (value.length < 3) {
-              isValid = false;
-              errorMsg = 'Nama minimal 3 karakter';
-            }
-          } else if (type === 'password' && name === 'password') {
-            const hasLength = value.length >= 8;
-            const hasUpper = /[A-Z]/.test(value);
-            const hasNumber = /[0-9]/.test(value);
-            isValid = hasLength && hasUpper && hasNumber;
-          }
-        }
-
-        if (isValid && value) {
-          input.classList.add('is-valid');
-        } else if (!isValid) {
-          input.classList.add('is-invalid');
-        }
-
-        const feedback = input.nextElementSibling;
-        if (feedback && feedback.classList.contains('small')) {
-          if (errorMsg) {
-            feedback.className = `small mt-1 ${isValid ? 'text-success' : 'text-danger'}`;
-            feedback.textContent = errorMsg;
-          }
-        }
-
-        return isValid;
-      }
-
-      setupPasswordStrength() {
-        const passwordInput = document.getElementById('reg_password');
-        if (!passwordInput) return;
-
-        passwordInput.addEventListener('input', () => {
-          const val = passwordInput.value;
-          const strengthBar = document.getElementById('password-strength-bar');
-
-          if (!strengthBar) return;
-
-          let strength = 0;
-          if (val.length >= 8) strength += 25;
-          if (/[a-z]+/.test(val)) strength += 25;
-          if (/[A-Z]+/.test(val)) strength += 25;
-          if (/[0-9]+/.test(val)) strength += 25;
-
-          strengthBar.style.width = strength + '%';
-          strengthBar.className = 'progress-bar';
-
-          if (strength <= 40) {
-            strengthBar.classList.add('bg-danger');
-          } else if (strength <= 80) {
-            strengthBar.classList.add('bg-warning');
-          } else {
-            strengthBar.classList.add('bg-success');
-          }
-
-          const reqLength = document.getElementById('req-length');
-          const reqUpper = document.getElementById('req-upper');
-          const reqNumber = document.getElementById('req-number');
-
-          if (reqLength) reqLength.className = val.length >= 8 ? 'text-success' : 'text-danger';
-          if (reqUpper) reqUpper.className = /[A-Z]/.test(val) ? 'text-success' : 'text-danger';
-          if (reqNumber) reqNumber.className = /[0-9]/.test(val) ? 'text-success' : 'text-danger';
-        });
-      }
-
-      setupPasswordMatching() {
-        const passInput = document.getElementById('reg_password');
-        const verifyInput = document.getElementById('reg_password_verify');
-        const matchFeedback = document.getElementById('password_match_feedback');
-
-        if (!passInput || !verifyInput || !matchFeedback) return;
-
-        const checkMatch = () => {
-          if (!verifyInput.value) {
-            verifyInput.classList.remove('is-valid', 'is-invalid');
-            matchFeedback.textContent = '';
-            return;
-          }
-
-          const isMatch = passInput.value === verifyInput.value;
-          verifyInput.classList.toggle('is-valid', isMatch);
-          verifyInput.classList.toggle('is-invalid', !isMatch);
-
-          matchFeedback.className = `small mt-1 ${isMatch ? 'text-success' : 'text-danger'}`;
-          matchFeedback.textContent = isMatch ? '✓ Password cocok' : '✗ Password tidak cocok';
-        };
-
-        passInput.addEventListener('input', checkMatch);
-        verifyInput.addEventListener('input', checkMatch);
-      }
-    }
-
-    // Initialize enhancements on page load
-    document.addEventListener('DOMContentLoaded', () => {
-      const form = document.querySelector('form.php-email-form');
-      if (form) {
-        new FormValidator('form.php-email-form');
-      }
-
-      // CAPTCHA refresh button
-      const captchaImg = document.querySelector('img[src*="captcha"]');
-      if (captchaImg && !captchaImg.nextElementSibling?.classList.contains('btn-outline-secondary')) {
-        const refreshBtn = document.createElement('button');
-        refreshBtn.type = 'button';
-        refreshBtn.className = 'btn btn-sm btn-outline-secondary ms-2';
-        refreshBtn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Refresh';
-        refreshBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          captchaImg.src = 'captcha.php?' + new Date().getTime();
-        });
-        captchaImg.parentNode.insertBefore(refreshBtn, captchaImg.nextSibling);
-      }
-    });
-
-    // Show toast notification
-    window.showToast = function(message, type = 'info') {
-      const toastContainer = document.getElementById('toastContainer') || (() => {
-        const container = document.createElement('div');
-        container.id = 'toastContainer';
-        container.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999;';
-        document.body.appendChild(container);
-        return container;
-      })();
-
-      const toast = document.createElement('div');
-      toast.className = `alert alert-${type} alert-dismissible fade show`;
-      toast.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
-
-      toastContainer.appendChild(toast);
-      setTimeout(() => toast.remove(), 5000);
-    };
-  </script>
-
-  <script>
-    // ============================================================
-    // UNIFIED FORM VALIDATION & TAB NAVIGATION SYSTEM
-    // ============================================================
-
-    // Utility: Debounce function to prevent excessive API calls
-    function debounce(func, delayMs = 500) {
-      let timeoutId;
-      return function(...args) {
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => func.apply(this, args), delayMs);
-      };
-    }
-
-    // PASSWORD TOGGLE HANDLER
-    function setupPasswordToggle(inputId, toggleId) {
-      const passwordInput = document.getElementById(inputId);
-      const toggleButton = document.getElementById(toggleId);
-      if (!passwordInput || !toggleButton) return;
-
-      toggleButton.addEventListener('click', function(e) {
-        e.preventDefault();
-        const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-        passwordInput.setAttribute('type', type);
-
-        const icon = this.querySelector('i');
-        if (icon) {
-          icon.classList.toggle('bi-eye');
-          icon.classList.toggle('bi-eye-slash');
-        }
-      });
-    }
-
-    // FORM VALIDATION
-    function checkFormValidity() {
-      const submitBtn = document.querySelector('form.php-email-form button[type="submit"]');
-      const emailInput = document.getElementById('email_daftar');
-      const passInput = document.getElementById('reg_password');
-      const verifyInput = document.getElementById('reg_password_verify');
-      const nameInput = document.getElementById('reg_nama');
-
-      if (!submitBtn || !emailInput || !passInput || !verifyInput || !nameInput) return;
-
-      const isEmailValid = emailInput.classList.contains('is-valid');
-      const passVal = passInput.value;
-      const isPassValid = passVal.length >= 8 && /[A-Z]/.test(passVal) && /[0-9]/.test(passVal);
-      const isMatch = passVal === verifyInput.value && passVal.length > 0;
-      const isNameValid = /^[a-zA-Z\s]+$/.test(nameInput.value);
-
-      submitBtn.disabled = !(isEmailValid && isPassValid && isMatch && isNameValid);
-    }
-
-    // EMAIL AVAILABILITY CHECK - WITH DEBOUNCING
-    function setupEmailValidation() {
-      const emailInput = document.getElementById('email_daftar');
-      const btnCheckEmail = document.getElementById('btnCheckEmail');
-      const feedback = document.getElementById('email_feedback');
-
-      if (!emailInput) return;
-
-      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      let lastCheckedEmail = '';
-      let isChecking = false;
-
-      function performEmailCheck() {
-        const email = emailInput.value.trim();
-
-        if (!email) {
-          emailInput.classList.remove('is-invalid', 'is-valid');
-          feedback.textContent = '';
-          checkFormValidity();
-          return;
-        }
-
-        if (!emailPattern.test(email)) {
-          emailInput.classList.add('is-invalid');
-          emailInput.classList.remove('is-valid');
-          feedback.className = 'small mt-1 text-danger';
-          feedback.textContent = 'Format email tidak valid.';
-          checkFormValidity();
-          return;
-        }
-
-        if (email === lastCheckedEmail || isChecking) return;
-
-        isChecking = true;
-        lastCheckedEmail = email;
-
-        if (btnCheckEmail) {
-          btnCheckEmail.disabled = true;
-          btnCheckEmail.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
-        }
-
-        fetch('check_email_availability.php', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: 'email=' + encodeURIComponent(email)
-          })
-          .then(response => response.json())
-          .then(data => {
-            if (data.status === 'taken') {
-              emailInput.classList.add('is-invalid');
-              emailInput.classList.remove('is-valid');
-              feedback.className = 'small mt-1 text-danger';
-              feedback.textContent = data.message || 'Email sudah terdaftar.';
-            } else if (data.status === 'available') {
-              emailInput.classList.add('is-valid');
-              emailInput.classList.remove('is-invalid');
-              feedback.className = 'small mt-1 text-success';
-              feedback.textContent = data.message || 'Email tersedia.';
-            }
-            checkFormValidity();
-          })
-          .catch(error => {
-            console.error('Email check error:', error);
-            feedback.className = 'small mt-1 text-warning';
-            feedback.textContent = 'Tidak dapat memverifikasi email.';
-          })
-          .finally(() => {
-            isChecking = false;
-            if (btnCheckEmail) {
-              btnCheckEmail.disabled = false;
-              btnCheckEmail.innerHTML = '<i class="bi bi-search"></i> Cek Email';
-            }
-          });
-      }
-
-      const debouncedCheck = debounce(performEmailCheck, 600);
-      emailInput.addEventListener('input', debouncedCheck);
-
-      if (btnCheckEmail) {
-        btnCheckEmail.addEventListener('click', performEmailCheck);
-      }
-    }
-
-    // PASSWORD STRENGTH METER
-    function setupPasswordStrength() {
-      const passwordInput = document.getElementById('reg_password');
-      const strengthBar = document.getElementById('password-strength-bar');
-
-      if (!passwordInput || !strengthBar) return;
-
-      passwordInput.addEventListener('input', function() {
-        const val = this.value;
-        let strength = 0;
-
-        if (val.length === 0) {
-          strengthBar.style.width = '0%';
-          strengthBar.className = 'progress-bar';
-        } else {
-          if (val.length >= 8) strength += 25;
-          if (/[a-z]+/.test(val)) strength += 25;
-          if (/[A-Z]+/.test(val)) strength += 25;
-          if (/[0-9]+/.test(val)) strength += 25;
-
-          strengthBar.style.width = strength + '%';
-          strengthBar.className = strength <= 40 ?
-            'progress-bar bg-danger' :
-            strength <= 80 ?
-            'progress-bar bg-warning' :
-            'progress-bar bg-success';
-
-          // Update requirements
-          const reqLength = document.getElementById('req-length');
-          const reqUpper = document.getElementById('req-upper');
-          const reqNumber = document.getElementById('req-number');
-
-          const setReqStatus = (el, isValid, text) => {
-            if (el) {
-              el.className = isValid ? 'text-success' : 'text-danger';
-              el.innerHTML = (isValid ? '<i class="bi bi-check"></i> ' : '<i class="bi bi-x"></i> ') + text;
-            }
-          };
-
-          setReqStatus(reqLength, val.length >= 8, 'Minimal 8 karakter');
-          setReqStatus(reqUpper, /[A-Z]/.test(val), 'Huruf Besar (A-Z)');
-          setReqStatus(reqNumber, /[0-9]/.test(val), 'Angka (0-9)');
-        }
-
-        checkFormValidity();
-      });
-    }
-
-    // PASSWORD CONFIRMATION
-    function setupPasswordConfirmation() {
-      const passInput = document.getElementById('reg_password');
-      const verifyInput = document.getElementById('reg_password_verify');
-      const feedback = document.getElementById('password_match_feedback');
-
-      if (!passInput || !verifyInput || !feedback) return;
-
-      function validateMatch() {
-        const pass = passInput.value;
-        const verify = verifyInput.value;
-
-        if (!verify) {
-          verifyInput.classList.remove('is-invalid', 'is-valid');
-          feedback.textContent = '';
-          return;
-        }
-
-        if (pass === verify) {
-          verifyInput.classList.remove('is-invalid');
-          verifyInput.classList.add('is-valid');
-          feedback.className = 'small mt-1 text-success';
-          feedback.textContent = 'Password cocok.';
-        } else {
-          verifyInput.classList.remove('is-valid');
-          verifyInput.classList.add('is-invalid');
-          feedback.className = 'small mt-1 text-danger';
-          feedback.textContent = 'Password tidak cocok.';
-        }
-        checkFormValidity();
-      }
-
-      passInput.addEventListener('input', validateMatch);
-      verifyInput.addEventListener('input', validateMatch);
-    }
-
-    // NAME VALIDATION
-    function setupNameValidation() {
-      const nameInput = document.getElementById('reg_nama');
-      if (!nameInput) return;
-
-      nameInput.addEventListener('input', function() {
-        const feedback = document.getElementById('name_feedback');
-        if (!feedback) return;
-
-        if (/^[a-zA-Z\s]*$/.test(this.value)) {
-          this.classList.remove('is-invalid');
-          this.classList.add('is-valid');
-          feedback.textContent = '';
-        } else {
-          this.classList.remove('is-valid');
-          this.classList.add('is-invalid');
-          feedback.className = 'small mt-1 text-danger';
-          feedback.textContent = 'Hanya huruf dan spasi yang diperbolehkan.';
-        }
-        checkFormValidity();
-      });
-    }
-
-    // INITIALIZE ALL ON PAGE LOAD
     document.addEventListener('DOMContentLoaded', function() {
-      // Password toggles
-      setupPasswordToggle('reg_password', 'toggleRegPassword');
-      setupPasswordToggle('reg_password_verify', 'toggleRegPasswordVerify');
-
-      // Validation handlers
-      setupEmailValidation();
-      setupPasswordStrength();
-      setupPasswordConfirmation();
-      setupNameValidation();
-
-      // Initial form check
-      checkFormValidity();
-
-      // Update active nav link on scroll
       const observerOptions = {
         threshold: 0.3,
         rootMargin: '-100px 0px -66%'
       };
-
       const observer = new IntersectionObserver(function(entries) {
         entries.forEach(entry => {
           if (entry.isIntersecting) {
             const id = entry.target.getAttribute('id');
-            const navLinks = document.querySelectorAll('nav.navmenu .nav-link');
-            navLinks.forEach(link => link.classList.remove('active'));
-
-            const activeLink = document.querySelector(`nav.navmenu a[href="#${id}"]`);
-            if (activeLink) {
-              activeLink.classList.add('active');
-            }
+            document.querySelectorAll('nav.navmenu .nav-link').forEach(l => l.classList.remove('active'));
+            const active = document.querySelector(`nav.navmenu a[href="#${id}"]`);
+            if (active) active.classList.add('active');
           }
         });
       }, observerOptions);
+      document.querySelectorAll('#home, #about, #jurusan, #cara-mendaftar, #pengumuman').forEach(s => observer.observe(s));
 
-      // Observe all main sections
-      document.querySelectorAll('#home, #about, #jurusan, #daftar').forEach(section => {
-        observer.observe(section);
+      // Animasi entrance + AOS refresh saat pindah tab jurusan
+      document.querySelectorAll('a[data-bs-toggle="tab"]').forEach(tab => {
+        tab.addEventListener('shown.bs.tab', (e) => {
+          const pane = document.querySelector(e.target.dataset.bsTarget);
+          if (pane) {
+            pane.classList.remove('tab-pane-animate');
+            void pane.offsetWidth; // force reflow agar animasi restart
+            pane.classList.add('tab-pane-animate');
+          }
+          if (typeof AOS !== 'undefined') AOS.refresh();
+        });
       });
     });
+
+    // Filter jurusan + search di tabel pengumuman hasil
+    function applyPengumumanFilter(glmId) {
+      const group = document.getElementById('filter-' + glmId);
+      const tbl = document.getElementById('tbl-' + glmId);
+      const search = document.getElementById('cari-' + glmId);
+      if (!group || !tbl) return;
+      const activeBtn = group.querySelector('.filter-btn.active');
+      const filter = activeBtn ? activeBtn.dataset.filter : 'all';
+      const q = search ? search.value.toLowerCase().trim() : '';
+      tbl.querySelectorAll('tbody tr').forEach(row => {
+        const matchJ = filter === 'all' || row.dataset.jurusan === filter;
+        const matchQ = !q || row.dataset.nama.includes(q) || row.dataset.nisn.includes(q);
+        row.style.display = (matchJ && matchQ) ? '' : 'none';
+      });
+    }
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const group = this.closest('[id^="filter-"]');
+        group.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active', 'btn-dark', 'btn-primary'));
+        this.classList.add('active');
+        if (this.dataset.filter === 'all') this.classList.add('btn-dark');
+        else this.classList.add('btn-primary');
+        const glmId = group.id.replace('filter-', '');
+        applyPengumumanFilter(glmId);
+      });
+    });
+    document.querySelectorAll('[id^="cari-"]').forEach(input => {
+      input.addEventListener('input', function() {
+        const glmId = this.id.replace('cari-', '');
+        applyPengumumanFilter(glmId);
+      });
+    });
+
+    // Pastikan AOS aktif dengan duration lebih panjang agar animasi scroll terlihat jelas
+    window.addEventListener('load', function() {
+      if (typeof AOS !== 'undefined') {
+        AOS.init({
+          duration: 900,
+          easing: 'ease-in-out',
+          once: true,
+          mirror: false,
+          offset: 80
+        });
+      }
+    });
+
+    // Tidak perlu JS tambahan — frosted glass dihandle lewat .scrolled .header di CSS
   </script>
 
 </body>

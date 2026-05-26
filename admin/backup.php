@@ -47,12 +47,7 @@ if (isset($_GET['export'])) {
 $total      = $conn->query("SELECT COUNT(*) FROM pendaftar")->fetchColumn();
 $diterima   = $conn->query("SELECT COUNT(*) FROM pendaftar WHERE status='diterima'")->fetchColumn();
 $gel_rows   = $conn->query("SELECT * FROM gelombang ORDER BY gelombang")->fetchAll();
-$jurusan_list = [
-    'Rekayasa Perangkat Lunak (RPL)',
-    'Teknik Komputer dan Jaringan (TKJ)',
-    'Asisten Keperawatan (AP)',
-    'Tata Kecantikan Kulit dan Rambut (TKKR)',
-];
+$jurusan_list = JURUSAN_LIST;
 ?>
 
 <div class="alert alert-info small">
@@ -118,7 +113,7 @@ $jurusan_list = [
                         <option value="">Semua Status</option>
                         <option value="diterima">Diterima</option>
                         <option value="ditolak">Ditolak</option>
-                        <option value="pending">Pending</option>
+                        <option value="diproses">Diproses</option>
                     </select>
                 </div>
                 <div class="col-md-3">
