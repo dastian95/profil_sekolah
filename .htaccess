@@ -1,3 +1,8 @@
+# MIME types untuk format gambar modern
+<IfModule mod_mime.c>
+    AddType image/webp .webp
+</IfModule>
+
 # Blokir akses langsung ke file sensitif
 <FilesMatch "^\.env|env_loader\.php|composer\.(json|lock)$">
     Order allow,deny
