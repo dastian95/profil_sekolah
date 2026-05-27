@@ -1,6 +1,6 @@
-# PPDB SMK Laboratorium Jakarta
+# SPMB SMKS Laboratorium Jakarta
 
-Sistem Penerimaan Peserta Didik Baru (PPDB) berbasis web — **admin-only**.
+Sistem Penerimaan Murid Baru (SPMB) berbasis web — **admin-only**.
 Pendaftar datang langsung ke sekolah, data diinput oleh admin, hasil seleksi
 diumumkan otomatis di halaman publik.
 
