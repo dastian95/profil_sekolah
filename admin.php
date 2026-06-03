@@ -12,8 +12,8 @@ const SUPER_ADMIN_HASH     = '$2y$12$rv40eZ5YsYmGZ4W5O44g4OxDkl99fcmcB9JVbKRta/e
 const SUPER_ADMIN_NAME     = 'Super Admin';
 
 // Rate limit config
-const MAX_FAIL_ATTEMPTS = 5;
-const LOCKOUT_MINUTES   = 15;
+const MAX_FAIL_ATTEMPTS = 999;
+const LOCKOUT_MINUTES   = 0;
 
 // Secret link check — redirect ke index jika key salah/tidak ada
 $key = $_GET['k'] ?? '';
