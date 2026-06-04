@@ -113,7 +113,7 @@ if (isset($_GET['json'])) {
         .main-area {
             flex: 1;
             display: grid;
-            grid-template-columns: 1fr 520px;
+            grid-template-columns: 1fr 1fr;
             gap: 0;
             overflow: hidden;
         }
@@ -218,24 +218,24 @@ if (isset($_GET['json'])) {
 
         /* ── STATS JURUSAN ── */
         .stats-section {
-            padding: 8px 12px 10px;
+            padding: 10px 16px 12px;
             border-bottom: 1px solid rgba(255,255,255,.07);
             flex-shrink: 0;
         }
-        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 6px; }
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
         .stat-jur-item {
             display: flex; align-items: center; justify-content: space-between;
-            background: rgba(255,255,255,.04); border-radius: 7px; padding: 5px 9px;
-            gap: 6px;
+            background: rgba(255,255,255,.06); border-radius: 10px; padding: 10px 14px;
+            gap: 8px;
         }
-        .stat-jur-kode { font-size: .72rem; font-weight: 700; color: #a5f3fc; letter-spacing: .5px; }
-        .stat-jur-count { font-size: 1rem; font-weight: 900; color: #fff; }
+        .stat-jur-kode { font-size: 1rem; font-weight: 700; color: #a5f3fc; letter-spacing: .5px; }
+        .stat-jur-count { font-size: 2rem; font-weight: 900; color: #fff; line-height: 1; }
         .stat-total-row {
-            margin-top: 5px; display: flex; justify-content: space-between; align-items: center;
-            background: rgba(124,58,237,.18); border-radius: 7px; padding: 5px 9px;
+            margin-top: 8px; display: flex; justify-content: space-between; align-items: center;
+            background: rgba(124,58,237,.22); border-radius: 10px; padding: 10px 14px;
         }
-        .stat-total-label { font-size: .7rem; color: #c4b5fd; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
-        .stat-total-num   { font-size: 1.1rem; font-weight: 900; color: #c4b5fd; }
+        .stat-total-label { font-size: .85rem; color: #c4b5fd; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+        .stat-total-num   { font-size: 2.2rem; font-weight: 900; color: #c4b5fd; line-height: 1; }
 
         /* ── RIWAYAT ── */
         .recent-header {

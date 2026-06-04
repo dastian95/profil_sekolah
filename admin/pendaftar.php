@@ -87,6 +87,14 @@ $formRaport = [];
 $formAction = 'add';
 $formId     = '';
 $showModalOnLoad = false;
+$printAfterSave = null; // ID pendaftar baru yang perlu langsung dicetak
+
+// Cek kolom tgl_kk ada atau belum, auto-migrate jika perlu
+try {
+    $conn->query("SELECT tgl_kk FROM pendaftar LIMIT 1");
+} catch (PDOException $e) {
+    $conn->exec("ALTER TABLE pendaftar ADD COLUMN tgl_kk DATE NULL AFTER no_telp");
+}
 
 // ─── POST: Tambah / Edit / Hapus ────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -96,11 +104,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sistem = in_array($_POST['sistem_pendidikan'] ?? '', ['reguler','pkbm','khusus'])
             ? $_POST['sistem_pendidikan'] : 'reguler';
         // Daftar Khusus tidak memerlukan TKA
-        $required = ['nama','nisn','tanggal_lahir','jenis_kelamin','asal_sekolah','jurusan'];
+        $required = ['nama','nisn','tanggal_lahir','jenis_kelamin','asal_sekolah','jurusan','tgl_kk'];
         if ($sistem !== 'khusus') $required[] = 'nilai_tka';
         $missing  = array_filter($required, fn($f) => empty($_POST[$f]) && $_POST[$f] !== '0');
         if ($missing) {
             $err = 'Field wajib belum diisi: ' . implode(', ', $missing);
+        } elseif (($_POST['tgl_kk'] ?? '') > '2025-06-15') {
+            $err = 'Kartu Keluarga (KK) tidak memenuhi syarat — tanggal penerbitan KK harus sebelum atau pada 15 Juni 2025. Pendaftar tidak dapat diproses.';
         } else {
             if ($sistem === 'pkbm') {
                 $matrix       = $_POST['pkbm_raport'] ?? [];
@@ -131,6 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 if (!$err) {
+                $tgl_kk = $_POST['tgl_kk'] ?? '';
                 $d = hitungPendaftar([
                     'nama'          => trim($_POST['nama']),
                     'nisn'          => trim($_POST['nisn']),
@@ -138,6 +149,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'jenis_kelamin' => $_POST['jenis_kelamin'],
                     'asal_sekolah'  => trim($_POST['asal_sekolah']),
                     'no_telp'       => trim($_POST['no_telp'] ?? ''),
+                    'tgl_kk'        => $tgl_kk,
                     'alamat'        => trim($_POST['alamat'] ?? ''),
                     'jurusan'       => $_POST['jurusan'],
                     'gelombang'     => $gel,
@@ -147,24 +159,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($action === 'add') {
                     $no = generateNoPendaftaran($conn, $d['gelombang']);
                     $stmt = $conn->prepare("INSERT INTO pendaftar
-                        (no_pendaftaran,gelombang,nama,nisn,tanggal_lahir,usia,jenis_kelamin,asal_sekolah,no_telp,alamat,jurusan,sistem_pendidikan,nilai_raport,nilai_tka,nilai_akhir,lolos_usia,status)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'diproses')");
+                        (no_pendaftaran,gelombang,nama,nisn,tanggal_lahir,usia,jenis_kelamin,asal_sekolah,no_telp,tgl_kk,alamat,jurusan,sistem_pendidikan,nilai_raport,nilai_tka,nilai_akhir,lolos_usia,status)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'diproses')");
                     $stmt->execute([$no,$d['gelombang'],$d['nama'],$d['nisn'],$d['tanggal_lahir'],$d['usia'],
-                        $d['jenis_kelamin'],$d['asal_sekolah'],$d['no_telp'],$d['alamat'],$d['jurusan'],
+                        $d['jenis_kelamin'],$d['asal_sekolah'],$d['no_telp'],$tgl_kk,$d['alamat'],$d['jurusan'],
                         $sistem,$d['nilai_raport'],$d['nilai_tka'],$d['nilai_akhir'],$d['lolos_usia']]);
                     $id = (int)$conn->lastInsertId();
                     saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
 
                     log_admin_action($conn, 'TAMBAH_PENDAFTAR', "Tambah pendaftar: {$d['nama']} ({$no})");
                     $msg = "Pendaftar <strong>{$d['nama']}</strong> berhasil ditambahkan dengan nomor <strong>{$no}</strong>.";
+                    if (!empty($_POST['print_after_save'])) {
+                        $printAfterSave = $id;
+                    }
                 } else {
                     $id = (int)$_POST['id'];
                     $stmt = $conn->prepare("UPDATE pendaftar SET
                         gelombang=?,nama=?,nisn=?,tanggal_lahir=?,usia=?,jenis_kelamin=?,asal_sekolah=?,
-                        no_telp=?,alamat=?,jurusan=?,sistem_pendidikan=?,nilai_raport=?,nilai_tka=?,nilai_akhir=?,lolos_usia=?
+                        no_telp=?,tgl_kk=?,alamat=?,jurusan=?,sistem_pendidikan=?,nilai_raport=?,nilai_tka=?,nilai_akhir=?,lolos_usia=?
                         WHERE id=?");
                     $stmt->execute([$d['gelombang'],$d['nama'],$d['nisn'],$d['tanggal_lahir'],$d['usia'],
-                        $d['jenis_kelamin'],$d['asal_sekolah'],$d['no_telp'],$d['alamat'],$d['jurusan'],
+                        $d['jenis_kelamin'],$d['asal_sekolah'],$d['no_telp'],$tgl_kk,$d['alamat'],$d['jurusan'],
                         $sistem,$d['nilai_raport'],$d['nilai_tka'],$d['nilai_akhir'],$d['lolos_usia'],$id]);
                     saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
 
@@ -425,6 +440,15 @@ if ($edit_id_get > 0) {
               <div class="col-md-3">
                 <label class="form-label fw-semibold">Umur</label>
                 <input type="text" id="previewUsia" class="form-control bg-light" readonly placeholder="auto" style="font-size:.82rem;">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">
+                  Tanggal KK <span class="text-danger">*</span>
+                  <i class="bi bi-info-circle text-muted ms-1" title="Tanggal penerbitan Kartu Keluarga (KK) DKI Jakarta. Harus ≤ 15 Juni 2025." style="cursor:help;font-style:normal;"></i>
+                </label>
+                <input type="date" name="tgl_kk" id="fTglKk" class="form-control" value="<?= htmlspecialchars($formData['tgl_kk'] ?? '') ?>" max="2025-06-15" required onchange="cekCutoffKk(this.value)">
+                <div id="kkWarning" class="text-danger small mt-1 d-none"><i class="bi bi-x-circle me-1"></i>KK melebihi cut-off 15 Juni 2025 — pendaftar tidak memenuhi syarat.</div>
+                <small class="text-muted">Cut-off: 15 Juni 2025</small>
               </div>
               <div class="col-12">
                 <label class="form-label fw-semibold">Alamat</label>
@@ -726,9 +750,13 @@ if ($edit_id_get > 0) {
         </div>
 
         <div class="modal-footer">
+          <input type="hidden" name="print_after_save" id="printAfterSave" value="">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
           <button type="button" class="btn btn-outline-secondary btn-sm" onclick="saveTemplate()" title="Simpan jurusan & asal sekolah sebagai template">
             <i class="bi bi-bookmark-plus"></i>
+          </button>
+          <button type="button" class="btn btn-outline-info" id="btnSubmitPrint" onclick="submitWithPrint()" title="Simpan lalu langsung cetak bukti pendaftaran">
+            <i class="bi bi-printer me-1"></i>Simpan & Cetak
           </button>
           <button type="submit" class="btn btn-success" id="btnSubmit">
             <i class="bi bi-arrow-right-circle me-1" id="btnSubmitIcon"></i>
@@ -742,6 +770,15 @@ if ($edit_id_get > 0) {
 
 
 <script>
+<?php if ($printAfterSave): ?>
+// Auto-print setelah simpan berhasil
+(function() {
+    const pendaftarId = <?= $printAfterSave ?>;
+    const rows = <?= json_encode(array_values(array_filter($rows, fn($r) => $r['id'] == $printAfterSave))) ?>;
+    if (rows.length) printBukti(rows[0]);
+})();
+<?php endif; ?>
+
 const MAPEL_LIST    = <?= json_encode($mapel_list) ?>;
 const SEMESTER_LIST = <?= json_encode($semester_list) ?>;
 const ROW_COUNT  = MAPEL_LIST.length;
@@ -1235,9 +1272,29 @@ function resetForm() {
     // Reset sistem ke Reguler
     const rReg = document.getElementById('sistemReguler');
     if (rReg) { rReg.checked = true; switchSistem('reguler'); }
+    // Reset field KK
+    const fTglKk = document.getElementById('fTglKk');
+    if (fTglKk) fTglKk.value = '';
+    document.getElementById('kkWarning')?.classList.add('d-none');
+    document.getElementById('printAfterSave').value = '';
     resetHistory();
     new bootstrap.Tab(document.querySelector('[data-bs-target="#tabDiri"]')).show();
     updateSubmitBtn();
+}
+
+function cekCutoffKk(val) {
+    const warn = document.getElementById('kkWarning');
+    if (!warn) return;
+    if (val && val > '2025-06-15') {
+        warn.classList.remove('d-none');
+    } else {
+        warn.classList.add('d-none');
+    }
+}
+
+function submitWithPrint() {
+    document.getElementById('printAfterSave').value = '1';
+    document.getElementById('formPendaftar').requestSubmit();
 }
 
 <?php if ($editFromRanking): ?>
@@ -1278,6 +1335,8 @@ function editForm(d) {
     document.getElementById('fAlamat').value  = d.alamat || '';
     document.getElementById('fJurusan').value = d.jurusan;
     document.getElementById('fTka').value     = d.nilai_tka;
+    const fTglKk = document.getElementById('fTglKk');
+    if (fTglKk) { fTglKk.value = d.tgl_kk || ''; cekCutoffKk(d.tgl_kk || ''); }
 
     // Set sistem penilaian
     const sistem = d.sistem_pendidikan || 'reguler';
@@ -1317,53 +1376,78 @@ function editForm(d) {
 function printBukti(r) {
     const jk   = r.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan';
     const tgl  = r.tanggal_lahir ? new Date(r.tanggal_lahir).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}) : '-';
-    const daft = r.tanggal_daftar ? new Date(r.tanggal_daftar).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}) : '-';
+    const tglKk= r.tgl_kk ? new Date(r.tgl_kk).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}) : '-';
+    const daft = r.tanggal_daftar ? new Date(r.tanggal_daftar).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}) : new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
+    const sistemLabel = r.sistem_pendidikan === 'pkbm' ? 'PKBM (Paket B)' : r.sistem_pendidikan === 'khusus' ? 'Daftar Khusus (100% Raport)' : 'Reguler (SMP)';
     const html = `<!DOCTYPE html>
 <html lang="id"><head><meta charset="UTF-8">
 <title>Bukti Pendaftaran - ${r.nama}</title>
 <style>
   body{font-family:Arial,sans-serif;font-size:13px;margin:0;padding:24px;color:#111;}
-  .header{text-align:center;border-bottom:2px solid #333;padding-bottom:12px;margin-bottom:20px;}
-  .header h2{margin:4px 0;font-size:16px;text-transform:uppercase;}
+  .header{text-align:center;border-bottom:3px double #333;padding-bottom:12px;margin-bottom:16px;}
+  .header h2{margin:4px 0;font-size:16px;text-transform:uppercase;letter-spacing:.5px;}
   .header p{margin:2px 0;font-size:12px;}
-  table.info{width:100%;border-collapse:collapse;margin-bottom:24px;}
-  table.info td{padding:5px 8px;vertical-align:top;}
-  table.info td:first-child{width:180px;font-weight:bold;color:#444;}
+  table.info{width:100%;border-collapse:collapse;margin-bottom:16px;}
+  table.info td{padding:4px 8px;vertical-align:top;}
+  table.info td:first-child{width:170px;font-weight:bold;color:#333;}
   .badge{display:inline-block;padding:3px 10px;border-radius:4px;font-weight:bold;font-size:12px;}
   .badge-terima{background:#198754;color:#fff;}
   .badge-gugur{background:#dc3545;color:#fff;}
   .badge-diproses{background:#ffc107;color:#000;}
-  .footer{margin-top:40px;display:flex;justify-content:space-between;}
+  .section-title{font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:.5px;
+    background:#f0f0f0;padding:5px 8px;margin:16px 0 8px;border-left:3px solid #333;}
+  .berkas-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;margin-bottom:16px;}
+  .berkas-item{display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px dotted #ccc;}
+  .berkas-box{width:16px;height:16px;border:1.5px solid #333;flex-shrink:0;margin-top:1px;}
+  .berkas-label{font-size:12px;line-height:1.4;}
+  .berkas-sub{font-size:10px;color:#666;display:block;}
+  .footer{margin-top:24px;display:flex;justify-content:space-between;}
   .ttd{text-align:center;width:200px;}
-  .ttd .line{margin-top:60px;border-top:1px solid #333;}
+  .ttd .name-line{margin-top:56px;border-top:1px solid #333;padding-top:4px;font-size:11px;}
+  .note{font-size:11px;color:#666;margin-bottom:12px;padding:6px 8px;border:1px dashed #bbb;border-radius:4px;}
   @media print{body{padding:0;}}
 </style></head>
 <body>
 <div class="header">
   <h2>SMKS Laboratorium Jakarta</h2>
-  <p>Jl. Laboratorium No. 1, Jakarta</p>
-  <h2 style="margin-top:10px;">BUKTI TANDA DAFTAR SPMB</h2>
+  <p>Jl. Laboratorium No. 1, Jakarta Selatan</p>
+  <h2 style="margin-top:8px;font-size:15px;">BUKTI TANDA DAFTAR SPMB</h2>
+  <p style="font-size:11px;">Tahun Pelajaran ${new Date().getFullYear()}/${new Date().getFullYear()+1}</p>
 </div>
+
 <table class="info">
-  <tr><td>No. Pendaftaran</td><td>: <strong>${r.no_pendaftaran || '-'}</strong></td></tr>
-  <tr><td>Nama Lengkap</td><td>: ${r.nama}</td></tr>
+  <tr><td>No. Pendaftaran</td><td>: <strong style="font-size:14px;">${r.no_pendaftaran || '-'}</strong></td></tr>
+  <tr><td>Nama Lengkap</td><td>: <strong>${r.nama}</strong></td></tr>
   <tr><td>NISN</td><td>: ${r.nisn}</td></tr>
   <tr><td>Tanggal Lahir</td><td>: ${tgl}</td></tr>
   <tr><td>Jenis Kelamin</td><td>: ${jk}</td></tr>
-  <tr><td>Jurusan Pilihan</td><td>: ${r.jurusan}</td></tr>
-  <tr><td>Gelombang</td><td>: ${r.gelombang}</td></tr>
+  <tr><td>Jurusan Pilihan</td><td>: <strong>${r.jurusan}</strong></td></tr>
+  <tr><td>Gelombang</td><td>: Gelombang ${r.gelombang}</td></tr>
   <tr><td>Asal Sekolah</td><td>: ${r.asal_sekolah || '-'}</td></tr>
-  <tr><td>Nilai Akhir</td><td>: ${parseFloat(r.nilai_akhir||0).toFixed(2)}</td></tr>
+  <tr><td>Sistem Penilaian</td><td>: ${sistemLabel}</td></tr>
+  <tr><td>Tanggal KK</td><td>: ${tglKk}</td></tr>
+  <tr><td>Nilai Akhir</td><td>: <strong>${parseFloat(r.nilai_akhir||0).toFixed(2)}</strong></td></tr>
   <tr><td>Tanggal Daftar</td><td>: ${daft}</td></tr>
   <tr><td>Status</td><td>: <span class="badge badge-${r.status}">${r.status.charAt(0).toUpperCase()+r.status.slice(1)}</span></td></tr>
 </table>
-<p style="font-size:12px;color:#555;">Catatan: Bukti ini hanya sah sebagai tanda daftar dan bukan merupakan jaminan penerimaan. Simpan bukti ini untuk keperluan lebih lanjut.</p>
+
+<div class="section-title">&#9745; Kelengkapan Berkas (dicentang oleh petugas Fase 1)</div>
+<div class="berkas-grid">
+  <div class="berkas-item"><div class="berkas-box"></div><div class="berkas-label">Kartu Keluarga (KK) DKI Jakarta<span class="berkas-sub">Asli + fotokopi · Diterbitkan ≤ 15 Juni 2025</span></div></div>
+  <div class="berkas-item"><div class="berkas-box"></div><div class="berkas-label">Ijazah / SKHU<span class="berkas-sub">Asli + fotokopi yang dilegalisir</span></div></div>
+  <div class="berkas-item"><div class="berkas-box"></div><div class="berkas-label">Raport Semester 1 – 6<span class="berkas-sub">Asli + fotokopi halaman nilai</span></div></div>
+  <div class="berkas-item"><div class="berkas-box"></div><div class="berkas-label">Hasil TKA<span class="berkas-sub">Fotokopi (khusus jalur reguler & PKBM)</span></div></div>
+  <div class="berkas-item"><div class="berkas-box"></div><div class="berkas-label">Akta Kelahiran<span class="berkas-sub">Fotokopi</span></div></div>
+  <div class="berkas-item"><div class="berkas-box"></div><div class="berkas-label">Pas Foto 3×4 cm<span class="berkas-sub">2 lembar, latar merah</span></div></div>
+</div>
+
+<p class="note">Catatan: Bukti ini hanya sah sebagai tanda daftar dan bukan merupakan jaminan penerimaan. Simpan bukti ini untuk keperluan lebih lanjut.</p>
 <div class="footer">
-  <div class="ttd"><div class="line">Orang Tua / Wali</div></div>
-  <div class="ttd"><div class="line">Panitia SPMB</div></div>
+  <div class="ttd"><div class="name-line">Orang Tua / Wali</div></div>
+  <div class="ttd"><div class="name-line">Panitia SPMB</div></div>
 </div>
 </body></html>`;
-    const w = window.open('', '_blank', 'width=700,height=900');
+    const w = window.open('', '_blank', 'width=720,height=960');
     w.document.write(html);
     w.document.close();
     w.onload = () => w.print();
