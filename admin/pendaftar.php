@@ -87,7 +87,7 @@ $formRaport = [];
 $formAction = 'add';
 $formId     = '';
 $showModalOnLoad = false;
-$printAfterSave = null; // ID pendaftar baru yang perlu langsung dicetak
+$printAfterSave = null; // row pendaftar baru yang perlu langsung dicetak
 
 // Cek kolom tgl_kk ada atau belum, auto-migrate jika perlu
 try {
@@ -104,13 +104,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sistem = in_array($_POST['sistem_pendidikan'] ?? '', ['reguler','pkbm','khusus'])
             ? $_POST['sistem_pendidikan'] : 'reguler';
         // Daftar Khusus tidak memerlukan TKA
-        $required = ['nama','nisn','tanggal_lahir','jenis_kelamin','asal_sekolah','jurusan','tgl_kk'];
+        $required = ['nama','nisn','tanggal_lahir','jenis_kelamin','asal_sekolah','jurusan'];
         if ($sistem !== 'khusus') $required[] = 'nilai_tka';
         $missing  = array_filter($required, fn($f) => empty($_POST[$f]) && $_POST[$f] !== '0');
         if ($missing) {
             $err = 'Field wajib belum diisi: ' . implode(', ', $missing);
-        } elseif (($_POST['tgl_kk'] ?? '') > '2025-06-15') {
-            $err = 'Kartu Keluarga (KK) tidak memenuhi syarat — tanggal penerbitan KK harus sebelum atau pada 15 Juni 2025. Pendaftar tidak dapat diproses.';
         } else {
             if ($sistem === 'pkbm') {
                 $matrix       = $_POST['pkbm_raport'] ?? [];
@@ -170,7 +168,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     log_admin_action($conn, 'TAMBAH_PENDAFTAR', "Tambah pendaftar: {$d['nama']} ({$no})");
                     $msg = "Pendaftar <strong>{$d['nama']}</strong> berhasil ditambahkan dengan nomor <strong>{$no}</strong>.";
                     if (!empty($_POST['print_after_save'])) {
-                        $printAfterSave = $id;
+                        $ps = $conn->prepare("SELECT * FROM pendaftar WHERE id=?");
+                        $ps->execute([$id]);
+                        $printAfterSave = $ps->fetch(PDO::FETCH_ASSOC);
                     }
                 } else {
                     $id = (int)$_POST['id'];
@@ -446,7 +446,7 @@ if ($edit_id_get > 0) {
                   Tanggal KK <span class="text-danger">*</span>
                   <i class="bi bi-info-circle text-muted ms-1" title="Tanggal penerbitan Kartu Keluarga (KK) DKI Jakarta. Harus ≤ 15 Juni 2025." style="cursor:help;font-style:normal;"></i>
                 </label>
-                <input type="date" name="tgl_kk" id="fTglKk" class="form-control" value="<?= htmlspecialchars($formData['tgl_kk'] ?? '') ?>" max="2025-06-15" required onchange="cekCutoffKk(this.value)">
+                <input type="date" name="tgl_kk" id="fTglKk" class="form-control" value="<?= htmlspecialchars($formData['tgl_kk'] ?? '') ?>" onchange="cekCutoffKk(this.value)">
                 <div id="kkWarning" class="text-danger small mt-1 d-none"><i class="bi bi-x-circle me-1"></i>KK melebihi cut-off 15 Juni 2025 — pendaftar tidak memenuhi syarat.</div>
                 <small class="text-muted">Cut-off: 15 Juni 2025</small>
               </div>
@@ -772,11 +772,7 @@ if ($edit_id_get > 0) {
 <script>
 <?php if ($printAfterSave): ?>
 // Auto-print setelah simpan berhasil
-(function() {
-    const pendaftarId = <?= $printAfterSave ?>;
-    const rows = <?= json_encode(array_values(array_filter($rows, fn($r) => $r['id'] == $printAfterSave))) ?>;
-    if (rows.length) printBukti(rows[0]);
-})();
+window.addEventListener('load', () => printBukti(<?= json_encode($printAfterSave) ?>));
 <?php endif; ?>
 
 const MAPEL_LIST    = <?= json_encode($mapel_list) ?>;
