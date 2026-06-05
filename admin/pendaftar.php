@@ -1392,8 +1392,16 @@ function printBukti(r) {
   .badge-diproses{background:#ffc107;color:#000;}
   .section-title{font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:.5px;
     background:#f0f0f0;padding:5px 8px;margin:16px 0 8px;border-left:3px solid #333;}
-  .berkas-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;margin-bottom:16px;}
-  .berkas-item{display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px dotted #ccc;}
+  .berkas-table{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:12px;}
+  .berkas-table th{background:#f0f0f0;padding:5px 8px;text-align:left;font-size:11px;border:1px solid #ccc;}
+  .berkas-table td{padding:5px 8px;border:1px solid #ddd;vertical-align:middle;}
+  .berkas-table td.centang{text-align:center;width:36px;}
+  .berkas-box{display:inline-block;width:14px;height:14px;border:1.5px solid #555;vertical-align:middle;}
+  .status-ok{color:#198754;font-weight:700;}
+  .status-fail{color:#dc3545;font-weight:700;}
+  .yn-wrap{display:flex;gap:12px;align-items:center;}
+  .yn-item{display:flex;align-items:center;gap:5px;}
+  .daftar-ulang{border:1.5px solid #333;border-radius:4px;padding:7px 10px;font-size:11.5px;margin-bottom:14px;background:#fffbea;}
   .berkas-box{width:16px;height:16px;border:1.5px solid #333;flex-shrink:0;margin-top:1px;}
   .berkas-label{font-size:12px;line-height:1.4;}
   .berkas-sub{font-size:10px;color:#666;display:block;}
@@ -1427,17 +1435,66 @@ function printBukti(r) {
   <tr><td>Status</td><td>: <span class="badge badge-${r.status}">${r.status.charAt(0).toUpperCase()+r.status.slice(1)}</span></td></tr>
 </table>
 
-<div class="section-title">&#9745; Kelengkapan Berkas (dicentang oleh petugas Fase 1)</div>
-<div class="berkas-grid">
-  <div class="berkas-item"><div class="berkas-box"></div><div class="berkas-label">Kartu Keluarga (KK) DKI Jakarta<span class="berkas-sub">Asli + fotokopi · Diterbitkan ≤ 15 Juni 2025</span></div></div>
-  <div class="berkas-item"><div class="berkas-box"></div><div class="berkas-label">Ijazah / SKHU<span class="berkas-sub">Asli + fotokopi yang dilegalisir</span></div></div>
-  <div class="berkas-item"><div class="berkas-box"></div><div class="berkas-label">Raport Semester 1 – 6<span class="berkas-sub">Asli + fotokopi halaman nilai</span></div></div>
-  <div class="berkas-item"><div class="berkas-box"></div><div class="berkas-label">Hasil TKA<span class="berkas-sub">Fotokopi (khusus jalur reguler & PKBM)</span></div></div>
-  <div class="berkas-item"><div class="berkas-box"></div><div class="berkas-label">Akta Kelahiran<span class="berkas-sub">Fotokopi</span></div></div>
-  <div class="berkas-item"><div class="berkas-box"></div><div class="berkas-label">Pas Foto 3×4 cm<span class="berkas-sub">2 lembar, latar merah</span></div></div>
+<div class="section-title">&#9745; Kelengkapan Berkas — Diisi Petugas Fase 1</div>
+<table class="berkas-table">
+  <thead>
+    <tr><th style="width:36px;text-align:center;">&#10003;</th><th>Berkas</th><th>Keterangan</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="centang"><div class="berkas-box"></div></td>
+      <td><strong>Kartu Keluarga (KK) DKI Jakarta</strong><br><small>Asli + fotokopi</small></td>
+      <td>
+        ${r.tgl_kk
+          ? (r.tgl_kk <= '2025-06-15'
+              ? '<span class="status-ok">&#10003; Memenuhi syarat</span><br><small>Tgl KK: ' + tglKk + '</small>'
+              : '<span class="status-fail">&#10007; Melebihi cut-off 15 Juni 2025</span><br><small>Tgl KK: ' + tglKk + '</small>')
+          : '<small style="color:#888;">Tgl KK belum diisi</small>'}
+      </td>
+    </tr>
+    <tr>
+      <td class="centang"><div class="berkas-box"></div></td>
+      <td><strong>Ijazah / SKHU</strong><br><small>Asli + fotokopi dilegalisir</small></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td class="centang"><div class="berkas-box"></div></td>
+      <td><strong>Raport Semester 1 – 6</strong><br><small>Asli + fotokopi halaman nilai</small></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td class="centang"><div class="berkas-box"></div></td>
+      <td><strong>Hasil TKA</strong><br><small>Fotokopi (reguler &amp; PKBM)</small></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td class="centang"><div class="berkas-box"></div></td>
+      <td><strong>Akta Kelahiran</strong><br><small>Fotokopi</small></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td class="centang"><div class="berkas-box"></div></td>
+      <td><strong>Pas Foto 3×4 cm</strong><br><small>2 lembar, latar merah</small></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td class="centang">—</td>
+      <td><strong>Buta Warna</strong></td>
+      <td>
+        <div class="yn-wrap">
+          <div class="yn-item"><div class="berkas-box"></div> <span>Ya</span></div>
+          <div class="yn-item"><div class="berkas-box"></div> <span>Tidak</span></div>
+        </div>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="daftar-ulang">
+  <strong>&#9888; Penting:</strong> Jika siswa/siswi <strong>lulus seleksi</strong>, formulir ini wajib dibawa kembali saat <strong>daftar ulang</strong>. Formulir tanpa tanda tangan panitia tidak berlaku.
 </div>
 
-<p class="note">Catatan: Bukti ini hanya sah sebagai tanda daftar dan bukan merupakan jaminan penerimaan. Simpan bukti ini untuk keperluan lebih lanjut.</p>
+<p class="note">Bukti ini hanya sah sebagai tanda daftar dan bukan merupakan jaminan penerimaan.</p>
 <div class="footer">
   <div class="ttd"><div class="name-line">Orang Tua / Wali</div></div>
   <div class="ttd"><div class="name-line">Panitia SPMB</div></div>
