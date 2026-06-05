@@ -198,7 +198,7 @@ $sr = fn($k, $d = '') => $_ss[$k] ?? $d; // raw (unescaped), untuk URL/src
 
     /* JURUSAN LOGO DISPLAY BOX */
     .jurusan-logo-box {
-      background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+      background: #ffffff;
       border-radius: 10px;
       display: flex;
       align-items: center;
@@ -210,6 +210,13 @@ $sr = fn($k, $d = '') => $_ss[$k] ?? $d; // raw (unescaped), untuk URL/src
       max-height: 200px;
       max-width: 90%;
       object-fit: contain;
+      animation: logoFloat 3s ease-in-out infinite;
+      filter: drop-shadow(0 8px 16px rgba(0,0,0,.12));
+    }
+
+    @keyframes logoFloat {
+      0%, 100% { transform: translateY(0px);    filter: drop-shadow(0 8px 16px rgba(0,0,0,.12)); }
+      50%       { transform: translateY(-10px);  filter: drop-shadow(0 18px 24px rgba(0,0,0,.18)); }
     }
 
     /* Hero — gambar sekolah sebagai background full-width */
