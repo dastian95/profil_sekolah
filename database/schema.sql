@@ -121,7 +121,7 @@ CREATE TABLE `pendaftar` (
   `nilai_akhir` decimal(8,4) NOT NULL DEFAULT 0.0000 COMMENT '(raport*70%) + (tka*30%), dihitung saat input',
   `lolos_usia` tinyint(1) NOT NULL DEFAULT 1 COMMENT '1=lolos, 0=gugur karena usia>21',
   `is_pinned` tinyint(1) NOT NULL DEFAULT 0 COMMENT '1=dijamin diterima oleh admin (tidak tampil di publik)',
-  `status` enum('diproses','diterima','ditolak') NOT NULL DEFAULT 'diproses',
+  `status` enum('diproses','lengkap','gugur','terima') NOT NULL DEFAULT 'diproses',
   `catatan` text DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

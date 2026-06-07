@@ -18,12 +18,14 @@ const JURUSAN_SHORT = [
 
 const STATUS_BADGE = [
     'terima'   => 'bg-success',
+    'lengkap'  => 'bg-info text-dark',
     'gugur'    => 'bg-danger',
     'diproses' => 'bg-warning text-dark',
 ];
 
 const STATUS_LABEL = [
     'terima'   => 'Terima',
+    'lengkap'  => 'Lengkap',
     'gugur'    => 'Gugur',
     'diproses' => 'Diproses',
 ];
@@ -45,7 +47,6 @@ function getActiveGelombang(PDO $conn): ?array {
 
 // Mata pelajaran SMP — dipakai di matrix detail raport
 const MATA_PELAJARAN = [
-    'Pendidikan Agama dan Budi Pekerti',
     'Pendidikan Pancasila dan Kewarganegaraan (PPKn)',
     'Bahasa Indonesia',
     'Matematika',
@@ -61,7 +62,6 @@ const KHUSUS_MIN_USIA = 17;
 
 // Kurikulum PKBM Paket B Setara SMP
 const PKBM_MAPEL_UMUM = [
-    'Pendidikan Agama dan Budi Pekerti',
     'Pendidikan Pancasila dan Kewarganegaraan (PPKn)',
     'Bahasa Indonesia',
     'Bahasa Inggris',
@@ -71,7 +71,6 @@ const PKBM_MAPEL_UMUM = [
 ];
 const PKBM_MAPEL_KHUSUS = ['Pemberdayaan', 'Keterampilan'];
 const PKBM_MAPEL = [
-    'Pendidikan Agama dan Budi Pekerti',
     'Pendidikan Pancasila dan Kewarganegaraan (PPKn)',
     'Bahasa Indonesia',
     'Bahasa Inggris',

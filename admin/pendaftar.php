@@ -89,27 +89,33 @@ $formId     = '';
 $showModalOnLoad = false;
 $printAfterSave = null; // row pendaftar baru yang perlu langsung dicetak
 
-// Cek kolom tgl_kk ada atau belum, auto-migrate jika perlu
+// Auto-migrate: tambah kolom tgl_kk jika belum ada
 try {
     $conn->query("SELECT tgl_kk FROM pendaftar LIMIT 1");
 } catch (PDOException $e) {
     $conn->exec("ALTER TABLE pendaftar ADD COLUMN tgl_kk DATE NULL AFTER no_telp");
 }
+// Auto-migrate: tambah status 'lengkap' ke enum
+try {
+    $conn->exec("ALTER TABLE pendaftar MODIFY COLUMN status ENUM('diproses','lengkap','gugur','terima') NOT NULL DEFAULT 'diproses'");
+} catch (PDOException $e) {}
 
 // ─── POST: Tambah / Edit / Hapus ────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'add' || $action === 'edit') {
-        $sistem = in_array($_POST['sistem_pendidikan'] ?? '', ['reguler','pkbm','khusus'])
-            ? $_POST['sistem_pendidikan'] : 'reguler';
-        // Daftar Khusus tidak memerlukan TKA
+        // Tab 1 fields selalu wajib
         $required = ['nama','nisn','tanggal_lahir','jenis_kelamin','asal_sekolah','jurusan'];
-        if ($sistem !== 'khusus') $required[] = 'nilai_tka';
         $missing  = array_filter($required, fn($f) => empty($_POST[$f]) && $_POST[$f] !== '0');
         if ($missing) {
             $err = 'Field wajib belum diisi: ' . implode(', ', $missing);
         } else {
+            $tgl_kk = $_POST['tgl_kk'] ?? '';
+            $sistem = in_array($_POST['sistem_pendidikan'] ?? '', ['reguler','pkbm','khusus'])
+                ? $_POST['sistem_pendidikan'] : 'reguler';
+
+            // Cek apakah raport diisi
             if ($sistem === 'pkbm') {
                 $matrix       = $_POST['pkbm_raport'] ?? [];
                 $mapel_active = PKBM_MAPEL;
@@ -119,13 +125,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $mapel_active = $mapel_list;
                 $sem_active   = $semester_list;
             }
-            $rata = rataRaportFromMatrix($matrix);
+            $rata       = rataRaportFromMatrix($matrix);
+            $has_raport = $rata > 0;
 
-            if ($rata <= 0) {
-                $err = 'Detail nilai raport belum diisi. Minimal isi 1 nilai.';
-            } else {
-                // Saat tambah: pakai gelombang aktif otomatis; saat edit: pertahankan gelombang lama
+            // Jika raport diisi, TKA wajib (kecuali Khusus)
+            if ($has_raport && $sistem !== 'khusus' && empty($_POST['nilai_tka']) && ($_POST['nilai_tka'] ?? '') !== '0') {
+                $err = 'Nilai TKA wajib diisi jika raport sudah dilengkapi.';
+            }
+
+            if (!$err) {
+                // Tentukan gelombang
                 $gel = 0;
+                $existing_status = 'diproses';
                 if ($action === 'add') {
                     if (!$gelombang_aktif) {
                         $err = 'Tidak ada gelombang aktif. Atur tanggal gelombang di menu Pengaturan Gelombang.';
@@ -133,39 +144,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $gel = (int)$gelombang_aktif['gelombang'];
                     }
                 } else {
-                    $cur = $conn->prepare("SELECT gelombang FROM pendaftar WHERE id=?");
+                    $cur = $conn->prepare("SELECT gelombang, status FROM pendaftar WHERE id=?");
                     $cur->execute([(int)$_POST['id']]);
-                    $gel = (int)$cur->fetchColumn();
+                    $existing = $cur->fetch();
+                    $gel = (int)$existing['gelombang'];
+                    $existing_status = $existing['status'] ?? 'diproses';
                 }
+            }
 
-                if (!$err) {
-                $tgl_kk = $_POST['tgl_kk'] ?? '';
-                $d = hitungPendaftar([
-                    'nama'          => trim($_POST['nama']),
-                    'nisn'          => trim($_POST['nisn']),
-                    'tanggal_lahir' => $_POST['tanggal_lahir'],
-                    'jenis_kelamin' => $_POST['jenis_kelamin'],
-                    'asal_sekolah'  => trim($_POST['asal_sekolah']),
-                    'no_telp'       => trim($_POST['no_telp'] ?? ''),
-                    'tgl_kk'        => $tgl_kk,
-                    'alamat'        => trim($_POST['alamat'] ?? ''),
-                    'jurusan'       => $_POST['jurusan'],
-                    'gelombang'     => $gel,
-                    'nilai_tka'     => $sistem === 'khusus' ? 0 : (float)$_POST['nilai_tka'],
-                ], $rata, $sistem);
+            if (!$err) {
+                // Hitung data pendaftar
+                if ($has_raport) {
+                    $d = hitungPendaftar([
+                        'nama'          => trim($_POST['nama']),
+                        'nisn'          => trim($_POST['nisn']),
+                        'tanggal_lahir' => $_POST['tanggal_lahir'],
+                        'jenis_kelamin' => $_POST['jenis_kelamin'],
+                        'asal_sekolah'  => trim($_POST['asal_sekolah']),
+                        'no_telp'       => trim($_POST['no_telp'] ?? ''),
+                        'tgl_kk'        => $tgl_kk,
+                        'alamat'        => trim($_POST['alamat'] ?? ''),
+                        'jurusan'       => $_POST['jurusan'],
+                        'gelombang'     => $gel,
+                        'nilai_tka'     => $sistem === 'khusus' ? 0 : (float)$_POST['nilai_tka'],
+                    ], $rata, $sistem);
+                    $new_status = 'lengkap';
+                } else {
+                    // Tab 1 only — hitung usia & lolos_usia saja
+                    $lahir      = new DateTime($_POST['tanggal_lahir']);
+                    $usia       = (int)$lahir->diff(new DateTime())->y;
+                    $sistem     = 'reguler';
+                    $d = [
+                        'nama'          => trim($_POST['nama']),
+                        'nisn'          => trim($_POST['nisn']),
+                        'tanggal_lahir' => $_POST['tanggal_lahir'],
+                        'usia'          => $usia,
+                        'jenis_kelamin' => $_POST['jenis_kelamin'],
+                        'asal_sekolah'  => trim($_POST['asal_sekolah']),
+                        'no_telp'       => trim($_POST['no_telp'] ?? ''),
+                        'tgl_kk'        => $tgl_kk,
+                        'alamat'        => trim($_POST['alamat'] ?? ''),
+                        'jurusan'       => $_POST['jurusan'],
+                        'gelombang'     => $gel,
+                        'nilai_raport'  => 0,
+                        'nilai_tka'     => 0,
+                        'nilai_akhir'   => 0,
+                        'lolos_usia'    => $usia <= 21 ? 1 : 0,
+                    ];
+                    // Saat edit: hanya upgrade ke 'lengkap', jangan downgrade dari 'terima'/'gugur'
+                    $new_status = ($action === 'add') ? 'diproses' : $existing_status;
+                }
 
                 if ($action === 'add') {
                     $no = generateNoPendaftaran($conn, $d['gelombang']);
                     $stmt = $conn->prepare("INSERT INTO pendaftar
                         (no_pendaftaran,gelombang,nama,nisn,tanggal_lahir,usia,jenis_kelamin,asal_sekolah,no_telp,tgl_kk,alamat,jurusan,sistem_pendidikan,nilai_raport,nilai_tka,nilai_akhir,lolos_usia,status)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'diproses')");
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
                     $stmt->execute([$no,$d['gelombang'],$d['nama'],$d['nisn'],$d['tanggal_lahir'],$d['usia'],
                         $d['jenis_kelamin'],$d['asal_sekolah'],$d['no_telp'],$tgl_kk,$d['alamat'],$d['jurusan'],
-                        $sistem,$d['nilai_raport'],$d['nilai_tka'],$d['nilai_akhir'],$d['lolos_usia']]);
+                        $sistem,$d['nilai_raport'],$d['nilai_tka'],$d['nilai_akhir'],$d['lolos_usia'],$new_status]);
                     $id = (int)$conn->lastInsertId();
-                    saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
+                    if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
 
-                    log_admin_action($conn, 'TAMBAH_PENDAFTAR', "Tambah pendaftar: {$d['nama']} ({$no})");
+                    log_admin_action($conn, 'TAMBAH_PENDAFTAR', "Tambah pendaftar: {$d['nama']} ({$no}) [{$new_status}]");
                     $msg = "Pendaftar <strong>{$d['nama']}</strong> berhasil ditambahkan dengan nomor <strong>{$no}</strong>.";
                     if (!empty($_POST['print_after_save'])) {
                         $ps = $conn->prepare("SELECT * FROM pendaftar WHERE id=?");
@@ -176,17 +217,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $id = (int)$_POST['id'];
                     $stmt = $conn->prepare("UPDATE pendaftar SET
                         gelombang=?,nama=?,nisn=?,tanggal_lahir=?,usia=?,jenis_kelamin=?,asal_sekolah=?,
-                        no_telp=?,tgl_kk=?,alamat=?,jurusan=?,sistem_pendidikan=?,nilai_raport=?,nilai_tka=?,nilai_akhir=?,lolos_usia=?
+                        no_telp=?,tgl_kk=?,alamat=?,jurusan=?,sistem_pendidikan=?,nilai_raport=?,nilai_tka=?,nilai_akhir=?,lolos_usia=?,status=?
                         WHERE id=?");
                     $stmt->execute([$d['gelombang'],$d['nama'],$d['nisn'],$d['tanggal_lahir'],$d['usia'],
                         $d['jenis_kelamin'],$d['asal_sekolah'],$d['no_telp'],$tgl_kk,$d['alamat'],$d['jurusan'],
-                        $sistem,$d['nilai_raport'],$d['nilai_tka'],$d['nilai_akhir'],$d['lolos_usia'],$id]);
-                    saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
+                        $sistem,$d['nilai_raport'],$d['nilai_tka'],$d['nilai_akhir'],$d['lolos_usia'],$new_status,$id]);
+                    if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
 
-                    log_admin_action($conn, 'EDIT_PENDAFTAR', "Edit pendaftar ID:{$id} — {$d['nama']}");
+                    log_admin_action($conn, 'EDIT_PENDAFTAR', "Edit pendaftar ID:{$id} — {$d['nama']} [{$new_status}]");
                     $msg = "Data <strong>{$d['nama']}</strong> berhasil diperbarui.";
                 }
-                } // end if (!$err)
             }
         }
     } elseif ($action === 'delete') {
@@ -290,6 +330,7 @@ if ($edit_id_get > 0) {
         <select name="status" class="form-select form-select-sm" style="width:auto">
             <option value="">Semua Status</option>
             <option value="diproses" <?= $fStatus==='diproses'?'selected':'' ?>>Diproses</option>
+            <option value="lengkap"  <?= $fStatus==='lengkap' ?'selected':'' ?>>Lengkap</option>
             <option value="terima"   <?= $fStatus==='terima'  ?'selected':'' ?>>Terima</option>
             <option value="gugur"    <?= $fStatus==='gugur'   ?'selected':'' ?>>Gugur</option>
         </select>
@@ -433,21 +474,29 @@ if ($edit_id_get > 0) {
                   <?php endforeach; ?>
                 </select>
               </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Tanggal Lahir <span class="text-danger">*</span></label>
+                <input type="date" name="tanggal_lahir" id="fTgl" class="form-control" value="<?= htmlspecialchars($formData['tanggal_lahir'] ?? '') ?>" required onchange="hitungUsia()">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label fw-semibold">Umur</label>
+                <input type="text" id="previewUsia" class="form-control bg-light" readonly placeholder="auto" style="font-size:.82rem;">
+              </div>
+              <div class="col-md-5">
+                <label class="form-label fw-semibold">Asal Sekolah <span class="text-danger">*</span></label>
+                <input type="text" name="asal_sekolah" id="fAsal" class="form-control" value="<?= htmlspecialchars($formData['asal_sekolah'] ?? '') ?>" placeholder="contoh: SMPN 1 Jakarta" required>
+              </div>
               <div class="col-md-2">
                 <label class="form-label fw-semibold">No. Telepon</label>
                 <input type="text" name="no_telp" id="fTelp" class="form-control" value="<?= htmlspecialchars($formData['no_telp'] ?? '') ?>" placeholder="08...">
               </div>
-              <div class="col-md-3">
-                <label class="form-label fw-semibold">Umur</label>
-                <input type="text" id="previewUsia" class="form-control bg-light" readonly placeholder="auto" style="font-size:.82rem;">
-              </div>
               <div class="col-md-4">
                 <label class="form-label fw-semibold">
-                  Tanggal KK <span class="text-danger">*</span>
+                  Tanggal KK
                   <i class="bi bi-info-circle text-muted ms-1" title="Tanggal penerbitan Kartu Keluarga (KK) DKI Jakarta. Harus ≤ 15 Juni 2025." style="cursor:help;font-style:normal;"></i>
                 </label>
                 <input type="date" name="tgl_kk" id="fTglKk" class="form-control" value="<?= htmlspecialchars($formData['tgl_kk'] ?? '') ?>" onchange="cekCutoffKk(this.value)">
-                <div id="kkWarning" class="text-danger small mt-1 d-none"><i class="bi bi-x-circle me-1"></i>KK melebihi cut-off 15 Juni 2025 — pendaftar tidak memenuhi syarat.</div>
+                <div id="kkWarning" class="text-danger small mt-1 d-none"><i class="bi bi-x-circle me-1"></i>KK melebihi cut-off 15 Juni 2025.</div>
                 <small class="text-muted">Cut-off: 15 Juni 2025</small>
               </div>
               <div class="col-12">
@@ -540,17 +589,8 @@ if ($edit_id_get > 0) {
               <strong>Daftar Khusus diaktifkan otomatis</strong> — Pendaftar berusia ≥ <?= KHUSUS_MIN_USIA ?> tahun. Nilai akhir dihitung 100% dari rata-rata raport. TKA tidak diperlukan.
             </div>
 
-            <!-- Field lain (Tgl Lahir, Asal Sekolah, TKA) -->
+            <!-- Nilai TKA -->
             <div class="row g-3 mb-3">
-              <div class="col-md-3">
-                <label class="form-label fw-semibold">Tanggal Lahir <span class="text-danger">*</span></label>
-                <input type="date" name="tanggal_lahir" id="fTgl" class="form-control" value="<?= htmlspecialchars($formData['tanggal_lahir'] ?? '') ?>" required onchange="hitungUsia()">
-                <small class="text-muted">Mengisi Umur di tab Data Diri</small>
-              </div>
-              <div class="col-md-5">
-                <label class="form-label fw-semibold">Asal Sekolah <span class="text-danger">*</span></label>
-                <input type="text" name="asal_sekolah" id="fAsal" class="form-control" value="<?= htmlspecialchars($formData['asal_sekolah'] ?? '') ?>" placeholder="contoh: SMPN 1 Jakarta" required>
-              </div>
               <div class="col-md-4" id="wrapTka">
                 <label class="form-label fw-semibold">Nilai TKA <span class="text-danger" id="tkaStar">*</span></label>
                 <input type="number" name="nilai_tka" id="fTka" class="form-control" value="<?= htmlspecialchars($formData['nilai_tka'] ?? '') ?>" min="0" max="100" step="0.01" placeholder="0-100" onchange="updatePreviewNilai()" oninput="updatePreviewNilai()">
@@ -755,12 +795,13 @@ if ($edit_id_get > 0) {
           <button type="button" class="btn btn-outline-secondary btn-sm" onclick="saveTemplate()" title="Simpan jurusan & asal sekolah sebagai template">
             <i class="bi bi-bookmark-plus"></i>
           </button>
-          <button type="button" class="btn btn-outline-info" id="btnSubmitPrint" onclick="submitWithPrint()" title="Simpan lalu langsung cetak bukti pendaftaran">
+          <!-- Tombol Tab 1 -->
+          <button type="button" class="btn btn-outline-info" id="btnTab1Print" onclick="submitWithPrint()" title="Simpan Tab 1 lalu cetak bukti">
             <i class="bi bi-printer me-1"></i>Simpan & Cetak
           </button>
           <button type="submit" class="btn btn-success" id="btnSubmit">
-            <i class="bi bi-arrow-right-circle me-1" id="btnSubmitIcon"></i>
-            <span id="btnSubmitText">Lanjut ke Data Raport</span>
+            <i class="bi bi-floppy me-1" id="btnSubmitIcon"></i>
+            <span id="btnSubmitText">Simpan Tab 1</span>
           </button>
         </div>
       </form>
@@ -1198,44 +1239,44 @@ function updatePreviewNilai() {
 
 // ── Tab-aware submit button ──────────────────────────────────────────────
 function updateSubmitBtn() {
-    const onTab1 = document.getElementById('tabDiri').classList.contains('active');
-    const icon = document.getElementById('btnSubmitIcon');
-    const text = document.getElementById('btnSubmitText');
+    const onTab1  = document.getElementById('tabDiri').classList.contains('active');
+    const icon    = document.getElementById('btnSubmitIcon');
+    const text    = document.getElementById('btnSubmitText');
+    const btnPrint = document.getElementById('btnTab1Print');
     if (onTab1) {
-        icon.className = 'bi bi-arrow-right-circle me-1';
-        text.textContent = 'Lanjut ke Data Raport';
+        icon.className = 'bi bi-floppy me-1';
+        text.textContent = 'Simpan Tab 1';
+        if (btnPrint) btnPrint.style.display = '';
     } else {
-        icon.className = 'bi bi-save me-1';
-        text.textContent = 'Simpan Pendaftar';
+        icon.className = 'bi bi-check-circle me-1';
+        text.textContent = 'Simpan Lengkap';
+        if (btnPrint) btnPrint.style.display = 'none';
     }
 }
 
-// Intercept form submit: jika masih di Tab 1, validasi lalu pindah ke Tab 2
+// Form submit: Tab 1 langsung submit (tidak perlu pindah ke Tab 2 dulu)
+// Tab 2: submit juga langsung
 document.getElementById('formPendaftar').addEventListener('submit', function(e) {
-    const onTab1 = document.getElementById('tabDiri').classList.contains('active');
-    if (!onTab1) return; // Tab 2: biarkan submit normal
-
-    e.preventDefault();
-
-    // Validasi field wajib Tab 1
+    // Validasi field wajib
     const fields = [
         { el: document.getElementById('fNama'),    label: 'Nama Lengkap' },
         { el: document.getElementById('fNisn'),    label: 'NISN' },
         { el: document.getElementById('fJurusan'), label: 'Jurusan' },
+        { el: document.getElementById('fTgl'),     label: 'Tanggal Lahir' },
+        { el: document.getElementById('fAsal'),    label: 'Asal Sekolah' },
     ];
     const kosong = fields.filter(f => !f.el.value.trim());
     if (kosong.length > 0) {
+        e.preventDefault();
         kosong.forEach(f => {
             f.el.classList.add('is-invalid');
             f.el.addEventListener('input', () => f.el.classList.remove('is-invalid'), { once: true });
         });
-        const namaField = kosong[0].el;
-        namaField.focus();
-        return;
+        // Kalau ada yang kosong di Tab 1, pindah ke Tab 1
+        const isTab1Field = ['fNama','fNisn','fJurusan','fTgl','fAsal'].includes(kosong[0].el.id);
+        if (isTab1Field) new bootstrap.Tab(document.querySelector('[data-bs-target="#tabDiri"]')).show();
+        kosong[0].el.focus();
     }
-
-    // Semua wajib Tab 1 terisi → pindah ke Tab 2
-    new bootstrap.Tab(document.querySelector('[data-bs-target="#tabRaport"]')).show();
 });
 
 // Update label tombol saat tab berubah
@@ -1430,9 +1471,7 @@ function printBukti(r) {
   <tr><td>Asal Sekolah</td><td>: ${r.asal_sekolah || '-'}</td></tr>
   <tr><td>Sistem Penilaian</td><td>: ${sistemLabel}</td></tr>
   <tr><td>Tanggal KK</td><td>: ${tglKk}</td></tr>
-  <tr><td>Nilai Akhir</td><td>: <strong>${parseFloat(r.nilai_akhir||0).toFixed(2)}</strong></td></tr>
   <tr><td>Tanggal Daftar</td><td>: ${daft}</td></tr>
-  <tr><td>Status</td><td>: <span class="badge badge-${r.status}">${r.status.charAt(0).toUpperCase()+r.status.slice(1)}</span></td></tr>
 </table>
 
 <div class="section-title">&#9745; Kelengkapan Berkas — Diisi Petugas Fase 1</div>
@@ -1454,27 +1493,12 @@ function printBukti(r) {
     </tr>
     <tr>
       <td class="centang"><div class="berkas-box"></div></td>
-      <td><strong>Ijazah / SKHU</strong><br><small>Asli + fotokopi dilegalisir</small></td>
-      <td></td>
-    </tr>
-    <tr>
-      <td class="centang"><div class="berkas-box"></div></td>
-      <td><strong>Raport Semester 1 – 6</strong><br><small>Asli + fotokopi halaman nilai</small></td>
-      <td></td>
-    </tr>
-    <tr>
-      <td class="centang"><div class="berkas-box"></div></td>
       <td><strong>Hasil TKA</strong><br><small>Fotokopi (reguler &amp; PKBM)</small></td>
       <td></td>
     </tr>
     <tr>
       <td class="centang"><div class="berkas-box"></div></td>
       <td><strong>Akta Kelahiran</strong><br><small>Fotokopi</small></td>
-      <td></td>
-    </tr>
-    <tr>
-      <td class="centang"><div class="berkas-box"></div></td>
-      <td><strong>Pas Foto 3×4 cm</strong><br><small>2 lembar, latar merah</small></td>
       <td></td>
     </tr>
     <tr>
