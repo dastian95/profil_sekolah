@@ -90,7 +90,8 @@ $rows = []; $columns = []; $pk_col = 'id';
 $total_rows = 0;
 $cur_page = max(1, (int)($_GET['p'] ?? 1));
 $search   = trim($_GET['q'] ?? '');
-$per_page = in_array((int)($_GET['limit'] ?? 25), [25, 50, 75, 100, 200]) ? (int)$_GET['limit'] : 25;
+$_limit   = (int)($_GET['limit'] ?? 25);
+$per_page = in_array($_limit, [25, 50, 75, 100, 200]) ? $_limit : 25;
 
 if ($active_table) {
     $columns = $conn->query("DESCRIBE `$active_table`")->fetchAll(PDO::FETCH_ASSOC);
