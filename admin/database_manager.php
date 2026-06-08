@@ -87,9 +87,10 @@ foreach ($all_tables as $t) {
 }
 
 $rows = []; $columns = []; $pk_col = 'id';
-$total_rows = 0; $per_page = 25;
+$total_rows = 0;
 $cur_page = max(1, (int)($_GET['p'] ?? 1));
 $search   = trim($_GET['q'] ?? '');
+$per_page = in_array((int)($_GET['limit'] ?? 25), [25, 50, 75, 100, 200]) ? (int)$_GET['limit'] : 25;
 
 if ($active_table) {
     $columns = $conn->query("DESCRIBE `$active_table`")->fetchAll(PDO::FETCH_ASSOC);
@@ -201,11 +202,16 @@ $total_pages = $total_rows ? (int)ceil($total_rows / $per_page) : 1;
                 <?php if ($isProtected): ?><span class="protected-badge"><i class="bi bi-lock-fill me-1"></i>Protected</span><?php endif; ?>
             </div>
             <div class="d-flex gap-2 flex-wrap align-items-center">
-                <!-- Search -->
-                <form method="GET" class="d-flex gap-1">
+                <!-- Search + Limit -->
+                <form method="GET" class="d-flex gap-1 align-items-center">
                     <input type="hidden" name="page" value="database_manager">
                     <input type="hidden" name="tbl" value="<?= htmlspecialchars($active_table) ?>">
-                    <input type="text" name="q" class="form-control form-control-sm" placeholder="Cari..." value="<?= htmlspecialchars($search) ?>" style="width:150px;">
+                    <input type="text" name="q" class="form-control form-control-sm" placeholder="Cari..." value="<?= htmlspecialchars($search) ?>" style="width:140px;">
+                    <select name="limit" class="form-select form-select-sm" style="width:75px;" onchange="this.form.submit()">
+                        <?php foreach ([25, 50, 75, 100, 200] as $opt): ?>
+                        <option value="<?= $opt ?>" <?= $per_page === $opt ? 'selected' : '' ?>><?= $opt ?></option>
+                        <?php endforeach; ?>
+                    </select>
                     <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button>
                 </form>
                 <?php if (!$isProtected): ?>
@@ -291,7 +297,7 @@ $total_pages = $total_rows ? (int)ceil($total_rows / $per_page) : 1;
                 <ul class="pagination pagination-sm mb-0">
                     <?php for ($pg = max(1, $cur_page - 3); $pg <= min($total_pages, $cur_page + 3); $pg++): ?>
                     <li class="page-item <?= $pg === $cur_page ? 'active' : '' ?>">
-                        <a class="page-link" href="?page=database_manager&tbl=<?= urlencode($active_table) ?>&p=<?= $pg ?>&q=<?= urlencode($search) ?>"><?= $pg ?></a>
+                        <a class="page-link" href="?page=database_manager&tbl=<?= urlencode($active_table) ?>&p=<?= $pg ?>&q=<?= urlencode($search) ?>&limit=<?= $per_page ?>"><?= $pg ?></a>
                     </li>
                     <?php endfor; ?>
                 </ul>
