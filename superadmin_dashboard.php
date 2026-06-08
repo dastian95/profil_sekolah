@@ -23,9 +23,10 @@ $pages = [
     'ranking'         => ['label' => 'Ranking & Hasil',        'icon' => 'bi-trophy-fill',          'group' => 'Manajemen'],
     'announcements'   => ['label' => 'Pengumuman',             'icon' => 'bi-megaphone-fill',       'group' => 'Manajemen'],
     'site_content'    => ['label' => 'Konten Website',         'icon' => 'bi-layout-text-window-reverse', 'group' => 'Konten'],
-    'audit_log'       => ['label' => 'Audit Log',              'icon' => 'bi-journal-text',         'group' => 'Sistem'],
-    'system_info'     => ['label' => 'System Info',            'icon' => 'bi-info-square',          'group' => 'Sistem'],
-    'backup'          => ['label' => 'Backup / Export',        'icon' => 'bi-cloud-download',       'group' => 'Sistem'],
+    'audit_log'        => ['label' => 'Audit Log',              'icon' => 'bi-journal-text',         'group' => 'Sistem'],
+    'system_info'      => ['label' => 'System Info',            'icon' => 'bi-info-square',          'group' => 'Sistem'],
+    'backup'           => ['label' => 'Backup / Export',        'icon' => 'bi-cloud-download',       'group' => 'Sistem'],
+    'database_manager' => ['label' => 'Database Manager',       'icon' => 'bi-database-fill',        'group' => 'Sistem'],
 ];
 
 if (!array_key_exists($page, $pages)) $page = 'super_home';
@@ -267,7 +268,8 @@ foreach ($pages as $key => $info) {
         'site_content'    => 'admin/site_content.php',
         'audit_log'       => 'admin/audit_log.php',
         'system_info'     => 'admin/system_info.php',
-        'backup'          => 'admin/backup.php',
+        'backup'           => 'admin/backup.php',
+        'database_manager' => 'admin/database_manager.php',
     ];
     $file = $include_map[$page] ?? 'admin/super_home.php';
     if (file_exists(__DIR__ . '/' . $file)) {
