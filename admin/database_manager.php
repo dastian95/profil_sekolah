@@ -2,23 +2,24 @@
 // Hanya bisa diakses via superadmin_dashboard.php (session sudah dicek di sana)
 
 // Tabel yang TIDAK boleh di-truncate (data kritis)
-const DB_PROTECTED = ['admins', 'site_settings', 'gelombang', 'tahapan', 'meja'];
+$DB_PROTECTED = ['admins', 'site_settings', 'gelombang', 'tahapan', 'meja'];
 
 // Tabel yang bisa dipilih (whitelist dari SHOW TABLES)
-$all_tables_stmt = $conn->query("SHOW TABLES");
-$all_tables = $all_tables_stmt->fetchAll(PDO::FETCH_COLUMN);
+$all_tables = $conn->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
 
 // ── POST handler ───────────────────────────────────────────────────────────────
+// Tidak bisa pakai header() karena HTML sudah dikirim oleh superadmin_dashboard.php
+// Solusi: simpan flash di session, redirect via JS
 $flash = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action    = $_POST['action']    ?? '';
-    $tbl       = $_POST['table']     ?? '';
-    $confirm   = $_POST['confirm']   ?? '';
+    $action  = $_POST['action'] ?? '';
+    $tbl     = $_POST['table']  ?? '';
+    $confirm = $_POST['confirm'] ?? '';
 
     if (!in_array($tbl, $all_tables, true)) {
         $flash = ['type' => 'danger', 'msg' => 'Tabel tidak valid.'];
     } elseif ($action === 'truncate') {
-        if (in_array($tbl, DB_PROTECTED)) {
+        if (in_array($tbl, $DB_PROTECTED)) {
             $flash = ['type' => 'danger', 'msg' => "Tabel <strong>$tbl</strong> dilindungi dan tidak bisa di-truncate."];
         } elseif ($confirm !== $tbl) {
             $flash = ['type' => 'warning', 'msg' => 'Konfirmasi nama tabel tidak cocok. Tidak jadi di-truncate.'];
@@ -35,30 +36,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } elseif ($action === 'delete_row') {
         $row_id = (int)($_POST['row_id'] ?? 0);
-        $pk     = $_POST['pk'] ?? 'id';
+        // Deteksi PK dari struktur tabel (tidak percaya input user)
+        $pk_col_det = 'id';
+        foreach ($conn->query("DESCRIBE `$tbl`")->fetchAll(PDO::FETCH_ASSOC) as $c) {
+            if ($c['Key'] === 'PRI') { $pk_col_det = $c['Field']; break; }
+        }
         if ($row_id <= 0) {
             $flash = ['type' => 'danger', 'msg' => 'ID tidak valid.'];
         } else {
             try {
-                $stmt = $conn->prepare("DELETE FROM `$tbl` WHERE `$pk` = ?");
+                $stmt = $conn->prepare("DELETE FROM `$tbl` WHERE `$pk_col_det` = ?");
                 $stmt->execute([$row_id]);
-                log_admin_action($conn, 'DB_DELETE_ROW', "Tabel: $tbl, $pk=$row_id");
-                $flash = ['type' => 'success', 'msg' => "Baris dengan $pk=$row_id dihapus dari <strong>$tbl</strong>."];
+                log_admin_action($conn, 'DB_DELETE_ROW', "Tabel: $tbl, $pk_col_det=$row_id");
+                $flash = ['type' => 'success', 'msg' => "Baris $pk_col_det=$row_id dihapus dari <strong>$tbl</strong>."];
             } catch (PDOException $e) {
                 $flash = ['type' => 'danger', 'msg' => 'Gagal: ' . htmlspecialchars($e->getMessage())];
             }
         }
     }
-    // Redirect to same table to avoid repost
-    $redir_tbl = $tbl ?: ($active_table ?? '');
-    header("Location: ?page=database_manager" . ($redir_tbl ? "&tbl=$redir_tbl" : '') . "&flash=" . urlencode($flash['type'] . ':' . strip_tags($flash['msg'])));
-    exit;
+
+    // Simpan flash ke session, redirect via JS (header() tidak bisa — HTML sudah terkirim)
+    $_SESSION['dbm_flash'] = $flash;
+    $redir_tbl = $tbl ?: '';
+    $redir_url = '?page=database_manager' . ($redir_tbl ? '&tbl=' . urlencode($redir_tbl) : '');
+    echo '<script>window.location.replace(' . json_encode($redir_url) . ');</script>';
+    return; // kembali ke superadmin_dashboard.php, tidak render sisa halaman
 }
 
-// Flash dari redirect
-if (isset($_GET['flash']) && !$flash) {
-    $parts = explode(':', $_GET['flash'], 2);
-    if (count($parts) === 2) $flash = ['type' => $parts[0], 'msg' => htmlspecialchars($parts[1])];
+// Ambil flash dari session
+if (isset($_SESSION['dbm_flash'])) {
+    $flash = $_SESSION['dbm_flash'];
+    unset($_SESSION['dbm_flash']);
 }
 
 // Tabel aktif yang dipilih
@@ -67,8 +75,7 @@ $active_table = isset($_GET['tbl']) && in_array($_GET['tbl'], $all_tables, true)
 // Stats semua tabel
 $table_stats = [];
 foreach ($all_tables as $t) {
-    $cnt = $conn->query("SELECT COUNT(*) FROM `$t`")->fetchColumn();
-    $table_stats[$t] = (int)$cnt;
+    $table_stats[$t] = (int)$conn->query("SELECT COUNT(*) FROM `$t`")->fetchColumn();
 }
 
 // Data tabel aktif
@@ -81,14 +88,11 @@ $cur_page = max(1, (int)($_GET['p'] ?? 1));
 $search = trim($_GET['q'] ?? '');
 
 if ($active_table) {
-    // Kolom
-    $col_stmt = $conn->query("DESCRIBE `$active_table`");
-    $columns = $col_stmt->fetchAll(PDO::FETCH_ASSOC);
+    $columns = $conn->query("DESCRIBE `$active_table`")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($columns as $c) {
         if ($c['Key'] === 'PRI') { $pk_col = $c['Field']; break; }
     }
 
-    // Search sederhana (hanya kolom text/varchar)
     $text_cols = array_filter($columns, fn($c) => preg_match('/char|text|enum/i', $c['Type']));
     $where = '';
     $params = [];
@@ -101,11 +105,6 @@ if ($active_table) {
         $where = 'WHERE ' . implode(' OR ', $parts);
     }
 
-    $total_rows = (int)$conn->prepare("SELECT COUNT(*) FROM `$active_table` $where")->execute($params) ?
-        $conn->prepare("SELECT COUNT(*) FROM `$active_table` $where")->execute($params) &&
-        $conn->query("SELECT COUNT(*) FROM `$active_table` $where" . ($params ? '' : ''))->fetchColumn() : 0;
-
-    // Lebih simpel:
     $count_stmt = $conn->prepare("SELECT COUNT(*) FROM `$active_table` $where");
     $count_stmt->execute($params);
     $total_rows = (int)$count_stmt->fetchColumn();
@@ -122,8 +121,7 @@ $total_pages = $total_rows ? (int)ceil($total_rows / $per_page) : 1;
 <style>
 .db-table-card {
     cursor: pointer; transition: all .15s ease;
-    border: 2px solid transparent;
-    border-radius: 10px;
+    border: 2px solid transparent; border-radius: 10px;
 }
 .db-table-card:hover { border-color: #7c3aed; box-shadow: 0 4px 12px rgba(124,58,237,.12); }
 .db-table-card.active-tbl { border-color: #7c3aed; background: #faf5ff; }
@@ -138,7 +136,7 @@ $total_pages = $total_rows ? (int)ceil($total_rows / $per_page) : 1;
 .truncate-zone { background: #fff5f5; border: 1px solid #fed7d7; border-radius: 10px; padding: 16px 18px; }
 .col-badge { font-size: .7rem; padding: 2px 6px; border-radius: 4px; background: #f1f5f9; color: #475569; }
 .col-pk { background: #fef9c3; color: #854d0e; }
-.col-null { background: #f0fdf4; color: #166534; }
+.text-purple { color: #7c3aed; }
 </style>
 
 <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
@@ -160,11 +158,11 @@ $total_pages = $total_rows ? (int)ceil($total_rows / $per_page) : 1;
 <!-- Tabel Overview Grid -->
 <div class="row g-3 mb-4">
 <?php foreach ($table_stats as $tbl => $cnt):
-    $isProtected = in_array($tbl, DB_PROTECTED);
+    $isProtected = in_array($tbl, $DB_PROTECTED);
     $isActive = $active_table === $tbl;
 ?>
 <div class="col-6 col-md-4 col-lg-3">
-    <a href="?page=database_manager&tbl=<?= $tbl ?>" class="text-decoration-none">
+    <a href="?page=database_manager&tbl=<?= urlencode($tbl) ?>" class="text-decoration-none">
     <div class="card db-table-card p-3 h-100 <?= $isActive ? 'active-tbl' : '' ?>">
         <div class="d-flex align-items-start justify-content-between mb-1">
             <i class="bi bi-table text-muted" style="font-size:1rem;"></i>
@@ -182,7 +180,7 @@ $total_pages = $total_rows ? (int)ceil($total_rows / $per_page) : 1;
 </div>
 
 <?php if ($active_table):
-    $isProtected = in_array($active_table, DB_PROTECTED);
+    $isProtected = in_array($active_table, $DB_PROTECTED);
 ?>
 <!-- Detail Tabel Aktif -->
 <div class="card mb-4">
@@ -194,7 +192,6 @@ $total_pages = $total_rows ? (int)ceil($total_rows / $per_page) : 1;
             <?php if ($isProtected): ?><span class="protected-badge"><i class="bi bi-lock-fill me-1"></i>Protected</span><?php endif; ?>
         </div>
         <div class="d-flex gap-2 flex-wrap">
-            <!-- Search -->
             <form method="GET" class="d-flex gap-1">
                 <input type="hidden" name="page" value="database_manager">
                 <input type="hidden" name="tbl" value="<?= htmlspecialchars($active_table) ?>">
@@ -213,7 +210,7 @@ $total_pages = $total_rows ? (int)ceil($total_rows / $per_page) : 1;
     <div class="px-3 pt-3 pb-1">
         <div class="d-flex flex-wrap gap-1 mb-2">
         <?php foreach ($columns as $col): ?>
-            <span class="col-badge <?= $col['Key'] === 'PRI' ? 'col-pk' : '' ?> <?= $col['Null'] === 'YES' ? 'col-null' : '' ?>">
+            <span class="col-badge <?= $col['Key'] === 'PRI' ? 'col-pk' : '' ?>">
                 <?php if ($col['Key'] === 'PRI'): ?><i class="bi bi-key-fill me-1" style="font-size:.6rem;"></i><?php endif; ?>
                 <?= htmlspecialchars($col['Field']) ?>
                 <span class="opacity-60 ms-1" style="font-size:.65rem;"><?= htmlspecialchars(explode('(', $col['Type'])[0]) ?></span>
@@ -245,7 +242,9 @@ $total_pages = $total_rows ? (int)ceil($total_rows / $per_page) : 1;
                     <td class="text-muted"><?= ($cur_page - 1) * $per_page + $i + 1 ?></td>
                     <?php foreach ($columns as $col):
                         $val = $row[$col['Field']] ?? null;
-                        $display = $val === null ? '<span class="text-muted fst-italic">NULL</span>' : htmlspecialchars((string)$val);
+                        $display = $val === null
+                            ? '<span class="text-muted fst-italic" style="font-size:.75rem;">NULL</span>'
+                            : htmlspecialchars((string)$val);
                     ?>
                     <td title="<?= htmlspecialchars((string)($val ?? '')) ?>"><?= $display ?></td>
                     <?php endforeach; ?>
@@ -255,7 +254,6 @@ $total_pages = $total_rows ? (int)ceil($total_rows / $per_page) : 1;
                         <form method="POST" onsubmit="return confirm('Hapus baris ini?\n<?= htmlspecialchars($pk_col) ?> = <?= htmlspecialchars((string)$row_pk_val) ?>')">
                             <input type="hidden" name="action" value="delete_row">
                             <input type="hidden" name="table" value="<?= htmlspecialchars($active_table) ?>">
-                            <input type="hidden" name="pk" value="<?= htmlspecialchars($pk_col) ?>">
                             <input type="hidden" name="row_id" value="<?= htmlspecialchars((string)$row_pk_val) ?>">
                             <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-1">
                                 <i class="bi bi-trash"></i>
@@ -280,7 +278,7 @@ $total_pages = $total_rows ? (int)ceil($total_rows / $per_page) : 1;
             <ul class="pagination pagination-sm mb-0">
                 <?php for ($pg = max(1, $cur_page - 3); $pg <= min($total_pages, $cur_page + 3); $pg++): ?>
                 <li class="page-item <?= $pg === $cur_page ? 'active' : '' ?>">
-                    <a class="page-link" href="?page=database_manager&tbl=<?= $active_table ?>&p=<?= $pg ?>&q=<?= urlencode($search) ?>"><?= $pg ?></a>
+                    <a class="page-link" href="?page=database_manager&tbl=<?= urlencode($active_table) ?>&p=<?= $pg ?>&q=<?= urlencode($search) ?>"><?= $pg ?></a>
                 </li>
                 <?php endfor; ?>
             </ul>
@@ -321,7 +319,6 @@ $total_pages = $total_rows ? (int)ceil($total_rows / $per_page) : 1;
 <?php endif; ?>
 
 <?php else: ?>
-<!-- State kosong — belum pilih tabel -->
 <div class="card">
     <div class="card-body text-center py-5 text-muted">
         <i class="bi bi-hand-index-thumb fs-1 d-block mb-2"></i>
@@ -329,7 +326,3 @@ $total_pages = $total_rows ? (int)ceil($total_rows / $per_page) : 1;
     </div>
 </div>
 <?php endif; ?>
-
-<style>
-.text-purple { color: #7c3aed; }
-</style>
