@@ -178,135 +178,140 @@ $total_pages = $total_rows ? (int)ceil($total_rows / $per_page) : 1;
     $isProtected = in_array($active_table, $DB_PROTECTED);
 ?>
 
-<!-- Bulk-delete form membungkus tabel + action bar -->
+<!-- bulkForm: hanya bungkus checkbox dalam tabel, TIDAK bungkus card header -->
 <form method="POST" id="bulkForm">
     <input type="hidden" name="action" value="delete_selected">
     <input type="hidden" name="table" value="<?= htmlspecialchars($active_table) ?>">
+</form>
 
-    <!-- Bulk Action Bar (muncul saat ada yang dicentang) -->
-    <div class="bulk-bar" id="bulkBar">
-        <i class="bi bi-check2-square fs-5"></i>
-        <span id="bulkCount" class="fw-semibold">0 dipilih</span>
-        <button type="button" class="btn btn-sm btn-outline-light ms-auto" onclick="clearSelection()">Batal Pilih</button>
-        <button type="submit" class="btn btn-sm btn-danger"
-            onclick="return confirm('Hapus ' + document.getElementById('bulkCount').textContent + '?\nAksi ini tidak bisa dibatalkan.')">
-            <i class="bi bi-trash3-fill me-1"></i>Hapus yang Dipilih
-        </button>
+<!-- Bulk Action Bar — tombol pakai form="bulkForm" agar submit ke form di atas -->
+<div class="bulk-bar" id="bulkBar">
+    <i class="bi bi-check2-square fs-5"></i>
+    <span id="bulkCount" class="fw-semibold">0 dipilih</span>
+    <button type="button" class="btn btn-sm btn-outline-light ms-auto" onclick="clearSelection()">Batal Pilih</button>
+    <button type="submit" form="bulkForm" class="btn btn-sm btn-danger"
+        onclick="return confirm('Hapus ' + document.getElementById('bulkCount').textContent + '?\nAksi ini tidak bisa dibatalkan.')">
+        <i class="bi bi-trash3-fill me-1"></i>Hapus yang Dipilih
+    </button>
+</div>
+
+<div class="card mb-4">
+    <!-- Card Header: search + limit (form GET tersendiri, TIDAK di dalam bulkForm) -->
+    <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-table text-purple"></i>
+            <span class="fw-bold"><?= htmlspecialchars($active_table) ?></span>
+            <span class="badge bg-secondary"><?= number_format($total_rows) ?> baris</span>
+            <?php if ($isProtected): ?><span class="protected-badge"><i class="bi bi-lock-fill me-1"></i>Protected</span><?php endif; ?>
+        </div>
+        <div class="d-flex gap-2 flex-wrap align-items-center">
+            <!-- Form GET mandiri — tidak ada hubungannya dengan bulkForm -->
+            <form method="GET" id="filterForm" class="d-flex gap-1 align-items-center">
+                <input type="hidden" name="page" value="database_manager">
+                <input type="hidden" name="tbl" value="<?= htmlspecialchars($active_table) ?>">
+                <input type="text" name="q" class="form-control form-control-sm" placeholder="Cari..."
+                    value="<?= htmlspecialchars($search) ?>" style="width:140px;">
+                <select name="limit" class="form-select form-select-sm" style="width:75px;"
+                    onchange="document.getElementById('filterForm').submit()">
+                    <?php foreach ([25, 50, 75, 100, 200] as $opt): ?>
+                    <option value="<?= $opt ?>" <?= $per_page === $opt ? 'selected' : '' ?>><?= $opt ?> baris</option>
+                    <?php endforeach; ?>
+                </select>
+                <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button>
+            </form>
+            <?php if (!$isProtected): ?>
+            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#truncateModal">
+                <i class="bi bi-trash3-fill me-1"></i>Kosongkan Tabel
+            </button>
+            <?php endif; ?>
+        </div>
     </div>
 
-    <div class="card mb-4">
-        <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
-            <div class="d-flex align-items-center gap-2">
-                <i class="bi bi-table text-purple"></i>
-                <span class="fw-bold"><?= htmlspecialchars($active_table) ?></span>
-                <span class="badge bg-secondary"><?= number_format($total_rows) ?> baris</span>
-                <?php if ($isProtected): ?><span class="protected-badge"><i class="bi bi-lock-fill me-1"></i>Protected</span><?php endif; ?>
-            </div>
-            <div class="d-flex gap-2 flex-wrap align-items-center">
-                <!-- Search + Limit -->
-                <form method="GET" class="d-flex gap-1 align-items-center">
-                    <input type="hidden" name="page" value="database_manager">
-                    <input type="hidden" name="tbl" value="<?= htmlspecialchars($active_table) ?>">
-                    <input type="text" name="q" class="form-control form-control-sm" placeholder="Cari..." value="<?= htmlspecialchars($search) ?>" style="width:140px;">
-                    <select name="limit" class="form-select form-select-sm" style="width:75px;" onchange="this.form.submit()">
-                        <?php foreach ([25, 50, 75, 100, 200] as $opt): ?>
-                        <option value="<?= $opt ?>" <?= $per_page === $opt ? 'selected' : '' ?>><?= $opt ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-search"></i></button>
-                </form>
-                <?php if (!$isProtected): ?>
-                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#truncateModal">
-                    <i class="bi bi-trash3-fill me-1"></i>Kosongkan Tabel
-                </button>
-                <?php endif; ?>
-            </div>
+    <!-- Struktur Kolom -->
+    <div class="px-3 pt-3 pb-1">
+        <div class="d-flex flex-wrap gap-1 mb-2">
+        <?php foreach ($columns as $col): ?>
+            <span class="col-badge <?= $col['Key'] === 'PRI' ? 'col-pk' : '' ?>">
+                <?php if ($col['Key'] === 'PRI'): ?><i class="bi bi-key-fill me-1" style="font-size:.6rem;"></i><?php endif; ?>
+                <?= htmlspecialchars($col['Field']) ?>
+                <span class="opacity-60 ms-1" style="font-size:.65rem;"><?= htmlspecialchars(explode('(', $col['Type'])[0]) ?></span>
+            </span>
+        <?php endforeach; ?>
         </div>
+    </div>
 
-        <!-- Struktur Kolom -->
-        <div class="px-3 pt-3 pb-1">
-            <div class="d-flex flex-wrap gap-1 mb-2">
-            <?php foreach ($columns as $col): ?>
-                <span class="col-badge <?= $col['Key'] === 'PRI' ? 'col-pk' : '' ?>">
-                    <?php if ($col['Key'] === 'PRI'): ?><i class="bi bi-key-fill me-1" style="font-size:.6rem;"></i><?php endif; ?>
-                    <?= htmlspecialchars($col['Field']) ?>
-                    <span class="opacity-60 ms-1" style="font-size:.65rem;"><?= htmlspecialchars(explode('(', $col['Type'])[0]) ?></span>
-                </span>
-            <?php endforeach; ?>
-            </div>
-        </div>
-
-        <!-- Data Rows -->
-        <div class="card-body p-0">
-            <div class="table-responsive" style="max-height:480px; overflow-y:auto;">
-                <table class="table table-hover data-table mb-0" id="dataTable">
-                    <thead>
-                        <tr>
-                            <th style="width:36px;">
-                                <input type="checkbox" class="row-cb" id="checkAll" title="Pilih semua">
-                            </th>
-                            <?php foreach ($columns as $col): ?>
-                            <th><?= htmlspecialchars($col['Field']) ?></th>
-                            <?php endforeach; ?>
-                            <th style="width:60px;">Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    <?php if (empty($rows)): ?>
-                    <tr><td colspan="<?= count($columns) + 3 ?>" class="text-center text-muted py-4">
-                        <i class="bi bi-inbox fs-4 d-block mb-1"></i>Tidak ada data
-                    </td></tr>
-                    <?php else: foreach ($rows as $i => $row):
-                        $row_pk_val = $row[$pk_col] ?? null;
-                    ?>
+    <!-- Data Rows — checkbox pakai form="bulkForm" agar terhubung ke bulkForm di luar card -->
+    <div class="card-body p-0">
+        <div class="table-responsive" style="max-height:480px; overflow-y:auto;">
+            <table class="table table-hover data-table mb-0" id="dataTable">
+                <thead>
                     <tr>
-                        <td>
-                            <?php if ($row_pk_val !== null): ?>
-                            <input type="checkbox" class="row-cb row-check" name="selected_ids[]" value="<?= htmlspecialchars((string)$row_pk_val) ?>">
-                            <?php endif; ?>
-                        </td>
-                        <?php foreach ($columns as $col):
-                            $val = $row[$col['Field']] ?? null;
-                            $display = $val === null
-                                ? '<span class="text-muted fst-italic" style="font-size:.75rem;">NULL</span>'
-                                : htmlspecialchars((string)$val);
-                        ?>
-                        <td title="<?= htmlspecialchars((string)($val ?? '')) ?>"><?= $display ?></td>
+                        <th style="width:36px;">
+                            <input type="checkbox" class="row-cb" id="checkAll" title="Pilih semua">
+                        </th>
+                        <?php foreach ($columns as $col): ?>
+                        <th><?= htmlspecialchars($col['Field']) ?></th>
                         <?php endforeach; ?>
-                        <td>
-                            <?php if ($row_pk_val !== null): ?>
-                            <button type="button" class="btn btn-outline-danger btn-sm py-0 px-1"
-                                onclick="deleteSingle(<?= (int)$row_pk_val ?>, '<?= htmlspecialchars($pk_col) ?>')">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                            <?php endif; ?>
-                        </td>
+                        <th style="width:60px;">Aksi</th>
                     </tr>
-                    <?php endforeach; endif; ?>
-                    </tbody>
-                </table>
-            </div>
+                </thead>
+                <tbody>
+                <?php if (empty($rows)): ?>
+                <tr><td colspan="<?= count($columns) + 3 ?>" class="text-center text-muted py-4">
+                    <i class="bi bi-inbox fs-4 d-block mb-1"></i>Tidak ada data
+                </td></tr>
+                <?php else: foreach ($rows as $i => $row):
+                    $row_pk_val = $row[$pk_col] ?? null;
+                ?>
+                <tr>
+                    <td>
+                        <?php if ($row_pk_val !== null): ?>
+                        <!-- form="bulkForm" menghubungkan checkbox ini ke bulkForm di luar -->
+                        <input type="checkbox" class="row-cb row-check" name="selected_ids[]"
+                            value="<?= htmlspecialchars((string)$row_pk_val) ?>" form="bulkForm">
+                        <?php endif; ?>
+                    </td>
+                    <?php foreach ($columns as $col):
+                        $val = $row[$col['Field']] ?? null;
+                        $display = $val === null
+                            ? '<span class="text-muted fst-italic" style="font-size:.75rem;">NULL</span>'
+                            : htmlspecialchars((string)$val);
+                    ?>
+                    <td title="<?= htmlspecialchars((string)($val ?? '')) ?>"><?= $display ?></td>
+                    <?php endforeach; ?>
+                    <td>
+                        <?php if ($row_pk_val !== null): ?>
+                        <button type="button" class="btn btn-outline-danger btn-sm py-0 px-1"
+                            onclick="deleteSingle(<?= (int)$row_pk_val ?>, '<?= htmlspecialchars($pk_col) ?>')">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <?php endforeach; endif; ?>
+                </tbody>
+            </table>
         </div>
+    </div>
 
-        <!-- Pagination -->
-        <?php if ($total_pages > 1): ?>
-        <div class="card-footer d-flex align-items-center justify-content-between flex-wrap gap-2">
-            <small class="text-muted">
-                <?= ($cur_page - 1) * $per_page + 1 ?>–<?= min($cur_page * $per_page, $total_rows) ?> dari <?= number_format($total_rows) ?> baris
-            </small>
-            <nav>
-                <ul class="pagination pagination-sm mb-0">
-                    <?php for ($pg = max(1, $cur_page - 3); $pg <= min($total_pages, $cur_page + 3); $pg++): ?>
-                    <li class="page-item <?= $pg === $cur_page ? 'active' : '' ?>">
-                        <a class="page-link" href="?page=database_manager&tbl=<?= urlencode($active_table) ?>&p=<?= $pg ?>&q=<?= urlencode($search) ?>&limit=<?= $per_page ?>"><?= $pg ?></a>
-                    </li>
-                    <?php endfor; ?>
-                </ul>
-            </nav>
-        </div>
-        <?php endif; ?>
-    </div><!-- /card -->
-</form><!-- /bulkForm -->
+    <!-- Pagination -->
+    <?php if ($total_pages > 1): ?>
+    <div class="card-footer d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <small class="text-muted">
+            <?= ($cur_page - 1) * $per_page + 1 ?>–<?= min($cur_page * $per_page, $total_rows) ?> dari <?= number_format($total_rows) ?> baris
+        </small>
+        <nav>
+            <ul class="pagination pagination-sm mb-0">
+                <?php for ($pg = max(1, $cur_page - 3); $pg <= min($total_pages, $cur_page + 3); $pg++): ?>
+                <li class="page-item <?= $pg === $cur_page ? 'active' : '' ?>">
+                    <a class="page-link" href="?page=database_manager&tbl=<?= urlencode($active_table) ?>&p=<?= $pg ?>&q=<?= urlencode($search) ?>&limit=<?= $per_page ?>"><?= $pg ?></a>
+                </li>
+                <?php endfor; ?>
+            </ul>
+        </nav>
+    </div>
+    <?php endif; ?>
+</div><!-- /card -->
 
 <!-- Hidden form untuk delete single row -->
 <form method="POST" id="singleDeleteForm" style="display:none;">
