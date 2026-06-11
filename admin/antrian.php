@@ -42,6 +42,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Helper: ambil nomor berikutnya dari fase tertentu untuk meja ini
     $ambilBerikutnya = function(int $fase) use ($conn, $meja_id, $today) {
+        // Meja yang di-pause tidak memanggil nomor baru
+        try {
+            $pchk = $conn->prepare("SELECT is_paused FROM meja WHERE id=?");
+            $pchk->execute([$meja_id]);
+            if ((int)$pchk->fetchColumn() === 1) return null;
+        } catch (Throwable) {} // kolom is_paused belum ada → anggap tidak pause
         $stmt = $conn->prepare("SELECT id FROM antrian
             WHERE tanggal=? AND fase=? AND status='menunggu'
             ORDER BY nomor ASC LIMIT 1 FOR UPDATE");

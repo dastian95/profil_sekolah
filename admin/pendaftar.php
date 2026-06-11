@@ -73,10 +73,11 @@ function loadRaportMatrix(PDO $conn, int $pendaftar_id, array $mapel_list, array
 function generateNoPendaftaran(PDO $conn, int $gelombang): string {
     $tahun  = date('Y');
     $prefix = "SPMB-{$tahun}-G{$gelombang}-";
-    $last   = $conn->prepare("SELECT no_pendaftaran FROM pendaftar WHERE gelombang=? ORDER BY id DESC LIMIT 1");
-    $last->execute([$gelombang]);
-    $row    = $last->fetchColumn();
-    $seq    = $row ? ((int)substr($row, -4) + 1) : 1;
+    // MAX dari suffix numerik — nomor tidak terpakai ulang setelah data terakhir dihapus
+    $last = $conn->prepare("SELECT MAX(CAST(RIGHT(no_pendaftaran, 4) AS UNSIGNED))
+        FROM pendaftar WHERE gelombang=? AND no_pendaftaran LIKE ?");
+    $last->execute([$gelombang, $prefix . '%']);
+    $seq = (int)$last->fetchColumn() + 1;
     return $prefix . str_pad($seq, 4, '0', STR_PAD_LEFT);
 }
 
@@ -146,7 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'add' || $action === 'edit') {
         // Tab 1 fields selalu wajib
         $required = ['nama','nisn','tanggal_lahir','jenis_kelamin','asal_sekolah','jurusan'];
-        $missing  = array_filter($required, fn($f) => empty($_POST[$f]) && $_POST[$f] !== '0');
+        $missing  = array_filter($required, fn($f) => empty($_POST[$f]) && ($_POST[$f] ?? '') !== '0');
         if ($missing) {
             $err = 'Field wajib belum diisi: ' . implode(', ', $missing);
         } else {
@@ -172,8 +173,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $has_raport = $rata > 0;
 
-            // Jika raport diisi, TKA wajib (kecuali Khusus)
-            if ($has_raport && $sistem !== 'khusus' && empty($_POST['nilai_tka']) && ($_POST['nilai_tka'] ?? '') !== '0') {
+            // Jika raport diisi, TKA wajib — hanya untuk Reguler (Khusus & PKBM tanpa TKA)
+            if ($has_raport && $sistem === 'reguler' && empty($_POST['nilai_tka']) && ($_POST['nilai_tka'] ?? '') !== '0') {
                 $err = 'Nilai TKA wajib diisi jika raport sudah dilengkapi.';
             }
 
@@ -210,14 +211,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'alamat'        => trim($_POST['alamat'] ?? ''),
                         'jurusan'       => $_POST['jurusan'],
                         'gelombang'     => $gel,
-                        'nilai_tka'     => $sistem === 'khusus' ? 0 : (float)$_POST['nilai_tka'],
+                        'nilai_tka'     => $sistem === 'reguler' ? (float)($_POST['nilai_tka'] ?? 0) : 0,
                     ], $rata, $sistem);
-                    $new_status = 'lengkap';
+                    // Jangan downgrade hasil seleksi: terima/gugur dipertahankan saat edit
+                    $new_status = ($action === 'edit' && in_array($existing_status, ['terima','gugur'], true))
+                        ? $existing_status : 'lengkap';
                 } else {
                     // Tab 1 only — hitung usia & lolos_usia saja
+                    // ($sistem dari POST dipertahankan — jangan paksa 'reguler' agar
+                    //  edit Tab 1 tidak menimpa sistem pendidikan yang sudah tersimpan)
                     $lahir      = new DateTime($_POST['tanggal_lahir']);
                     $usia       = (int)$lahir->diff(new DateTime())->y;
-                    $sistem     = 'reguler';
                     $d = [
                         'nama'          => trim($_POST['nama']),
                         'nisn'          => trim($_POST['nisn']),
@@ -1467,6 +1471,11 @@ function resetForm() {
     // Reset sistem ke Reguler
     const rReg = document.getElementById('sistemReguler');
     if (rReg) { rReg.checked = true; switchSistem('reguler'); }
+    // Reset mode input ke Matrix & kosongkan rata-rata manual
+    const _mr = document.getElementById('fManualRata');
+    if (_mr) _mr.value = '';
+    const _mx = document.getElementById('modeMatrix');
+    if (_mx) { _mx.checked = true; switchInputMode('matrix'); }
     // Reset field KK
     const fTglKk = document.getElementById('fTglKk');
     if (fTglKk) fTglKk.value = '';
@@ -1561,6 +1570,21 @@ function editForm(d) {
             });
         });
         updateRataRata();
+    }
+
+    // Mode rata-rata langsung: nilai tersimpan tapi matrix kosong → isi field manual
+    // agar nilai tidak ter-reset 0 saat disimpan ulang
+    const manualEl = document.getElementById('fManualRata');
+    const matrixHasData = Object.values(matrix).some(row =>
+        Object.values(row).some(v => v !== '' && v !== null));
+    if (manualEl) manualEl.value = '';
+    if (!matrixHasData && parseFloat(d.nilai_raport) > 0 && sistem !== 'pkbm') {
+        const mm = document.getElementById('modeManual');
+        if (mm) { mm.checked = true; switchInputMode('manual'); }
+        if (manualEl) { manualEl.value = d.nilai_raport; updateRataRataManual(); }
+    } else {
+        const mx = document.getElementById('modeMatrix');
+        if (mx) { mx.checked = true; switchInputMode('matrix'); }
     }
     hitungUsia();
     resetHistory();

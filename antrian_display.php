@@ -39,9 +39,10 @@ foreach ($meja_list as $i => $m) {
 }
 
 // Nomor menunggu berikutnya — sertakan info meja
+// LEFT JOIN: entri Fase 2 dibuat tanpa meja_id (NULL) sampai dipanggil meja
 $next_stmt = $conn->prepare("
     SELECT a.nomor, a.fase, a.meja_id, m.nomor_meja, m.nama AS nama_meja
-    FROM antrian a JOIN meja m ON m.id=a.meja_id
+    FROM antrian a LEFT JOIN meja m ON m.id=a.meja_id
     WHERE a.tanggal=? AND a.fase=1 AND a.status='menunggu'
     ORDER BY a.nomor ASC LIMIT 5");
 $next_stmt->execute([$today]);
@@ -49,7 +50,7 @@ $next_f1 = $next_stmt->fetchAll();
 
 $next_stmt2 = $conn->prepare("
     SELECT a.nomor, a.fase, a.meja_id, m.nomor_meja, m.nama AS nama_meja
-    FROM antrian a JOIN meja m ON m.id=a.meja_id
+    FROM antrian a LEFT JOIN meja m ON m.id=a.meja_id
     WHERE a.tanggal=? AND a.fase=2 AND a.status='menunggu'
     ORDER BY a.nomor ASC LIMIT 3");
 $next_stmt2->execute([$today]);
@@ -473,7 +474,7 @@ if (isset($_GET['json'])) {
             $all_next = [...$next_f1, ...$next_f2];
             if (!empty($all_next)):
                 foreach ($next_f1 as $n):
-                    $ml = htmlspecialchars($n['nama_meja'] ?: 'Loket '.$n['nomor_meja']);
+                    $ml = htmlspecialchars($n['nama_meja'] ?: ($n['nomor_meja'] ? 'Loket '.$n['nomor_meja'] : 'Menunggu Loket'));
             ?>
                 <div class="next-card f1">
                     <div class="next-card-num">SSG<?= str_pad($n['nomor'],3,'0',STR_PAD_LEFT) ?></div>
@@ -483,7 +484,7 @@ if (isset($_GET['json'])) {
                     </div>
                 </div>
             <?php endforeach; foreach ($next_f2 as $n):
-                    $ml = htmlspecialchars($n['nama_meja'] ?: 'Loket '.$n['nomor_meja']); ?>
+                    $ml = htmlspecialchars($n['nama_meja'] ?: ($n['nomor_meja'] ? 'Loket '.$n['nomor_meja'] : 'Menunggu Loket')); ?>
                 <div class="next-card f2">
                     <div class="next-card-num">SSG<?= str_pad($n['nomor'],3,'0',STR_PAD_LEFT) ?></div>
                     <div class="next-card-info">
@@ -777,7 +778,7 @@ function renderNextCards(f1, f2) {
     }
     let html = '';
     f1.forEach(n => {
-        const meja = n.nama_meja || ('Loket ' + n.nomor_meja);
+        const meja = n.nama_meja || (n.nomor_meja ? 'Loket ' + n.nomor_meja : 'Menunggu Loket');
         html += `<div class="next-card f1">
             <div class="next-card-num">${fmtNum(n.nomor)}</div>
             <div class="next-card-info">
@@ -787,7 +788,7 @@ function renderNextCards(f1, f2) {
         </div>`;
     });
     f2.forEach(n => {
-        const meja = n.nama_meja || ('Loket ' + n.nomor_meja);
+        const meja = n.nama_meja || (n.nomor_meja ? 'Loket ' + n.nomor_meja : 'Menunggu Loket');
         html += `<div class="next-card f2">
             <div class="next-card-num">${fmtNum(n.nomor)}</div>
             <div class="next-card-info">

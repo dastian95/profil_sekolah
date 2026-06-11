@@ -56,7 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($nama_baru) {
             try {
                 $conn->prepare("UPDATE superadmin_accounts SET nama=? WHERE id=?")->execute([$nama_baru, $acc_id]);
-                $conn->prepare("UPDATE superadmin_config SET nama=? WHERE id=1")->execute([$nama_baru]);
+                // Sinkron ke tabel lama hanya untuk akun utama
+                if ($acc_id === 1) $conn->prepare("UPDATE superadmin_config SET nama=? WHERE id=1")->execute([$nama_baru]);
             } catch (Throwable) {}
             $_SESSION['admin_name'] = $nama_baru;
             $msg = '<div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>Nama berhasil diupdate.</div>';

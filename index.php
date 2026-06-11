@@ -280,7 +280,16 @@ $sr = fn($k, $d = '') => $_ss[$k] ?? $d; // raw (unescaped), untuk URL/src
 
     <!-- Announcements Banner (from DB) -->
     <?php
-    $banners = $conn->query("SELECT * FROM announcements WHERE is_active=1 ORDER BY created_at DESC")->fetchAll();
+    // Hormati jadwal tayang (publish_at) & kadaluarsa (expire_at) + urutan custom
+    try {
+        $banners = $conn->query("SELECT * FROM announcements WHERE is_active=1
+            AND (publish_at IS NULL OR publish_at <= NOW())
+            AND (expire_at  IS NULL OR expire_at  >  NOW())
+            ORDER BY urutan ASC, created_at DESC")->fetchAll();
+    } catch (Throwable) {
+        // Kolom jadwal belum ada (migrasi belum jalan) — fallback query lama
+        $banners = $conn->query("SELECT * FROM announcements WHERE is_active=1 ORDER BY created_at DESC")->fetchAll();
+    }
     if (!empty($banners)):
     ?>
       <div id="site-announcements">

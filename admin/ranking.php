@@ -45,6 +45,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'prose
         $conn->prepare("UPDATE pendaftar SET status='gugur', catatan='Gugur: usia melebihi 21 tahun'
                         WHERE gelombang=? AND lolos_usia=0")->execute([$gelombang]);
 
+        // Gugur TKA di bawah minimum (hanya Reguler — Khusus & PKBM tanpa TKA; pin = override admin)
+        $min_tka = (int)($g['min_tka'] ?? 0);
+        if ($min_tka > 0) {
+            $conn->prepare("UPDATE pendaftar SET status='gugur', catatan=?
+                WHERE gelombang=? AND sistem_pendidikan='reguler' AND nilai_tka < ?
+                AND is_pinned=0 AND status='diproses'")
+                ->execute(["Gugur: nilai TKA di bawah minimum ({$min_tka})", $gelombang, $min_tka]);
+        }
+
         $total_diterima = 0;
         foreach ($jurusan_list as $jurusan) {
             // Ambil pinned dulu (pasti diterima)
@@ -55,9 +64,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'prose
 
             $sisa_kuota = max(0, $kuota_glm - count($pinned_ids));
 
-            // Sisanya (tidak pinned), urut nilai_akhir DESC
+            // Sisanya (tidak pinned & belum gugur), urut nilai_akhir DESC
             $stmtNorm = $conn->prepare("SELECT id FROM pendaftar
-                WHERE gelombang=? AND jurusan=? AND lolos_usia=1 AND is_pinned=0
+                WHERE gelombang=? AND jurusan=? AND lolos_usia=1 AND is_pinned=0 AND status='diproses'
                 ORDER BY nilai_akhir DESC, usia DESC");
             $stmtNorm->execute([$gelombang, $jurusan]);
             $normal_ids = $stmtNorm->fetchAll(PDO::FETCH_COLUMN);

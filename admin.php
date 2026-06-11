@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$locked) {
                     $conn->prepare("INSERT INTO admin_logs (admin_id, action, details, ip_address) VALUES (NULL, 'LOGIN_SUPER', ?, ?)")
                          ->execute(['Login: ' . $super_row['username'], $ip]);
                 } catch (Throwable) {}
-                header('Location: admin_dashboard.php');
+                header('Location: superadmin_dashboard.php');
                 exit;
             }
         } catch (Throwable) {}
@@ -85,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$locked) {
                     $conn->prepare("INSERT INTO admin_logs (admin_id, action, details, ip_address) VALUES (NULL, 'LOGIN_SUPER', 'Superadmin login berhasil', ?)")
                          ->execute([$ip]);
                 } catch (Throwable) {}
-                header('Location: admin_dashboard.php');
+                header('Location: superadmin_dashboard.php');
                 exit;
             }
         }
