@@ -529,7 +529,7 @@ function openViewModal(d) {
             <table class="table table-sm table-borderless mb-0">
                 <tr><th class="text-muted fw-normal" style="width:45%">Gelombang</th><td>${d.gelombang}</td></tr>
                 <tr><th class="text-muted fw-normal">Jurusan</th><td>${esc(d.jurusan)}</td></tr>
-                <tr><th class="text-muted fw-normal">Sistem Pend.</th><td>${d.sistem_pendidikan === 'pkbm' ? 'PKBM (Paket B)' : d.sistem_pendidikan === 'khusus' ? 'Daftar Khusus (100% Raport)' : 'Reguler (SMP)'}</td></tr>
+                <tr><th class="text-muted fw-normal">Sistem Pend.</th><td>${d.sistem_pendidikan === 'pkbm' ? 'PKBM (85% Raport)' : d.sistem_pendidikan === 'khusus' ? 'Daftar Khusus (85% Raport)' : 'Reguler (SMP)'}</td></tr>
                 <tr><th class="text-muted fw-normal">No. Telp</th><td>${esc(d.no_telp) || '-'}</td></tr>
                 <tr><th class="text-muted fw-normal">Alamat</th><td>${esc(d.alamat) || '-'}</td></tr>
                 <tr><th class="text-muted fw-normal">Status</th><td><span class="badge ${badge}">${d.status}</span></td></tr>

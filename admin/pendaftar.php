@@ -11,16 +11,18 @@ function hitungPendaftar(array $data, float $rata_raport, string $sistem = 'regu
     $lahir       = new DateTime($data['tanggal_lahir']);
     $sekarang    = new DateTime();
     $usia        = (int)$lahir->diff($sekarang)->y;
-    // Daftar Khusus: hanya berdasarkan pilihan sistem, bukan paksa dari usia
     $is_khusus   = ($sistem === 'khusus');
-    $nilai_akhir = $is_khusus
-        ? round($rata_raport, 4)
+    $is_pkbm     = ($sistem === 'pkbm');
+    // Khusus & PKBM: 85% raport, tanpa TKA
+    $no_tka      = $is_khusus || $is_pkbm;
+    $nilai_akhir = $no_tka
+        ? round($rata_raport * 0.85, 4)
         : round(($rata_raport * 0.70) + ($data['nilai_tka'] * 0.30), 4);
     $lolos_usia  = ($usia <= 21) ? 1 : 0;
     return array_merge($data, [
         'usia'         => $usia,
         'nilai_raport' => round($rata_raport, 4),
-        'nilai_tka'    => $is_khusus ? 0 : $data['nilai_tka'],
+        'nilai_tka'    => $no_tka ? 0 : $data['nilai_tka'],
         'nilai_akhir'  => $nilai_akhir,
         'lolos_usia'   => $lolos_usia,
     ]);
@@ -466,7 +468,7 @@ if ($edit_id_get > 0) {
                     <?= htmlspecialchars($r['nama']) ?>
                     <?php if ($gugur): ?><i class="bi bi-exclamation-circle text-danger" title="Gugur: usia > 21"></i><?php endif; ?>
                     <?php if (($r['sistem_pendidikan'] ?? '') === 'khusus'): ?>
-                      <span class="badge bg-warning text-dark ms-1" title="Daftar Khusus — 100% Raport">Khusus</span>
+                      <span class="badge bg-warning text-dark ms-1" title="Daftar Khusus — 85% Raport">Khusus</span>
                     <?php elseif (($r['sistem_pendidikan'] ?? '') === 'pkbm'): ?>
                       <span class="badge bg-info text-dark ms-1">PKBM</span>
                     <?php endif; ?>
@@ -666,7 +668,7 @@ if ($edit_id_get > 0) {
                        <?= ($formData['sistem_pendidikan'] ?? '') === 'pkbm' ? 'checked' : '' ?>
                        onchange="switchSistem('pkbm')">
                 <label class="form-check-label" for="sistemPKBM">
-                  <strong>PKBM</strong> <small class="text-muted">— Paket B Setara SMP</small>
+                  <strong>PKBM</strong> <small class="text-muted">— 85% Raport, tanpa TKA</small>
                 </label>
               </div>
               <div class="form-check mb-0">
@@ -675,14 +677,14 @@ if ($edit_id_get > 0) {
                        onchange="switchSistem('khusus')">
                 <label class="form-check-label" for="sistemKhusus">
                   <strong class="text-warning">Daftar Khusus</strong>
-                  <small class="text-muted">— 100% Raport, tanpa TKA (usia ≥ <?= KHUSUS_MIN_USIA ?> thn)</small>
+                  <small class="text-muted">— 85% Raport, tanpa TKA (usia ≥ <?= KHUSUS_MIN_USIA ?> thn)</small>
                 </label>
               </div>
             </div>
             <!-- notifKhusus: aktif = sedang pilih Khusus; notifKhususWarn: usia ≥17 tapi belum pilih Khusus -->
             <div id="notifKhusus" class="alert alert-success py-2 small mb-3 d-none">
               <i class="bi bi-check-circle-fill me-1"></i>
-              <strong>Daftar Khusus aktif</strong> — Nilai akhir dihitung 100% dari rata-rata raport. TKA tidak diperlukan.
+              <strong>Daftar Khusus aktif</strong> — Nilai akhir dihitung 85% dari rata-rata raport. TKA tidak diperlukan.
             </div>
             <div id="notifKhususWarn" class="alert alert-warning py-2 small mb-3 d-none">
               <i class="bi bi-exclamation-triangle-fill me-1"></i>
@@ -948,12 +950,13 @@ function switchSistem(sistem) {
         document.getElementById('matrixPKBM').style.display    = isPKBM ? '' : 'none';
     }
 
-    // TKA field: sembunyikan untuk Daftar Khusus
+    // TKA field: sembunyikan untuk Daftar Khusus & PKBM (keduanya 85% raport)
+    const noTka   = isKhusus || isPKBM;
     const wrapTka = document.getElementById('wrapTka');
     if (wrapTka) {
-        wrapTka.style.display = isKhusus ? 'none' : '';
-        document.getElementById('fTka').required = !isKhusus;
-        if (isKhusus) document.getElementById('fTka').value = '';
+        wrapTka.style.display = noTka ? 'none' : '';
+        document.getElementById('fTka').required = !noTka;
+        if (noTka) document.getElementById('fTka').value = '';
     }
 
     // Notif: aktif jika Khusus; warn jika bukan Khusus tapi usia >= batas
@@ -966,7 +969,7 @@ function switchSistem(sistem) {
 
     // Label formula
     const lbl = document.getElementById('formulaLabel');
-    if (lbl) lbl.textContent = isKhusus ? '100% Raport' : 'R×70% + T×30%';
+    if (lbl) lbl.textContent = noTka ? '85% Raport' : 'R×70% + T×30%';
 
     if (isManualMode) updateRataRataManual();
     else if (isReg || isKhusus) updateRataRata();
@@ -1360,16 +1363,17 @@ function updateRataRata() {
 
 function updatePreviewNilai() {
     const rataText = document.getElementById('displayRata').textContent;
-    const rata  = parseFloat(rataText) || 0;
-    const tka   = parseFloat(document.getElementById('fTka').value) || 0;
-    const isKhusus = getSistem() === 'khusus';
+    const rata     = parseFloat(rataText) || 0;
+    const tka      = parseFloat(document.getElementById('fTka').value) || 0;
+    const sistem   = getSistem();
+    const noTka    = (sistem === 'khusus') || (sistem === 'pkbm');
 
-    document.getElementById('displayTka').textContent = isKhusus ? 'N/A' : (tka > 0 ? tka.toFixed(2) : '—');
+    document.getElementById('displayTka').textContent = noTka ? 'N/A' : (tka > 0 ? tka.toFixed(2) : '—');
     const lbl = document.getElementById('formulaLabel');
-    if (lbl) lbl.textContent = isKhusus ? '100% Raport' : 'R×70% + T×30%';
+    if (lbl) lbl.textContent = noTka ? '85% Raport' : 'R×70% + T×30%';
 
     if (rata > 0) {
-        const nilai = isKhusus ? rata : (rata * 0.70) + (tka * 0.30);
+        const nilai = noTka ? (rata * 0.85) : (rata * 0.70) + (tka * 0.30);
         document.getElementById('displayAkhir').textContent = nilai.toFixed(2);
     } else {
         document.getElementById('displayAkhir').textContent = '—';
@@ -1566,7 +1570,7 @@ function printBukti(r) {
     const tgl  = r.tanggal_lahir ? new Date(r.tanggal_lahir).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}) : '-';
     const tglKk= r.tgl_kk ? new Date(r.tgl_kk).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}) : '-';
     const daft = r.tanggal_daftar ? new Date(r.tanggal_daftar).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}) : new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
-    const sistemLabel = r.sistem_pendidikan === 'pkbm' ? 'PKBM (Paket B)' : r.sistem_pendidikan === 'khusus' ? 'Daftar Khusus (100% Raport)' : 'Reguler (SMP)';
+    const sistemLabel = r.sistem_pendidikan === 'pkbm' ? 'PKBM (85% Raport)' : r.sistem_pendidikan === 'khusus' ? 'Daftar Khusus (85% Raport)' : 'Reguler (SMP)';
     const html = `<!DOCTYPE html>
 <html lang="id"><head><meta charset="UTF-8">
 <title>Bukti Pendaftaran - ${r.nama}</title>
