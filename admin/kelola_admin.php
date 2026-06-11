@@ -238,7 +238,7 @@ try {
                         <span class="text-muted small fst-italic">Diubah sendiri</span>
                     <?php endif; ?>
                 </td>
-                <td>
+                <td style="max-width:220px;">
                     <?php if (!empty($assigned_ids)):
                         foreach ($all_tahapan as $t):
                             if (in_array($t['id'], $assigned_ids)): ?>
@@ -251,7 +251,7 @@ try {
                         <span class="text-muted small fst-italic">Belum di-assign</span>
                     <?php endif; ?>
                 </td>
-                <td class="small text-muted">
+                <td class="small text-muted text-nowrap">
                     <?= $a['last_login'] ? date('d M Y, H:i', strtotime($a['last_login'])) : '<em>Belum pernah</em>' ?>
                 </td>
                 <td class="text-center"><span class="badge bg-info-subtle text-info border"><?= $a['total_actions'] ?> aksi</span></td>
@@ -274,180 +274,184 @@ try {
                     </form>
                 </td>
             </tr>
-
-            <!-- Modal Riwayat Log -->
-            <div class="modal fade" id="modalLog<?= $a['id'] ?>" tabindex="-1">
-              <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                  <div class="modal-header">
-                    <h6 class="modal-title"><i class="bi bi-clock-history me-2"></i>Riwayat Aksi — <?= htmlspecialchars($a['username']) ?></h6>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                  </div>
-                  <div class="modal-body p-0">
-                    <?php $admin_logs = $logs_by_admin[$a['id']] ?? []; ?>
-                    <?php if (empty($admin_logs)): ?>
-                    <div class="p-4 text-center text-muted">
-                        <i class="bi bi-clock-history fs-2 d-block mb-2 opacity-50"></i>Belum ada riwayat aksi.
-                    </div>
-                    <?php else: ?>
-                    <div class="table-responsive">
-                    <table class="table table-sm mb-0">
-                        <thead class="table-light">
-                            <tr><th>Waktu</th><th>Aksi</th><th>Detail</th><th>IP</th></tr>
-                        </thead>
-                        <tbody>
-                        <?php foreach ($admin_logs as $lg): ?>
-                            <tr>
-                                <td class="text-muted small text-nowrap"><?= date('d/m/y H:i', strtotime($lg['created_at'])) ?></td>
-                                <td>
-                                    <?php $bc = match($lg['action']) {
-                                        'LOGIN'        => 'bg-success-subtle text-success',
-                                        'LOGOUT'       => 'bg-secondary-subtle text-secondary',
-                                        'LOGIN_FAILED' => 'bg-danger-subtle text-danger',
-                                        default        => 'bg-primary-subtle text-primary',
-                                    }; ?>
-                                    <span class="badge <?= $bc ?>" style="font-size:.7rem;"><?= htmlspecialchars($lg['action']) ?></span>
-                                </td>
-                                <td class="small"><?= htmlspecialchars($lg['details'] ?? '') ?></td>
-                                <td class="text-muted small"><?= htmlspecialchars($lg['ip_address'] ?? '') ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                    </div>
-                    <?php if (count($admin_logs) >= 30): ?>
-                    <div class="p-2 text-center text-muted small bg-light border-top">Menampilkan 30 log terakhir</div>
-                    <?php endif; ?>
-                    <?php endif; ?>
-                  </div>
-                  <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Tutup</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Modal Edit -->
-            <div class="modal fade" id="modalEdit<?= $a['id'] ?>" tabindex="-1">
-              <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                  <form method="POST">
-                    <div class="modal-header">
-                      <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Admin — <?= htmlspecialchars($a['username']) ?></h5>
-                      <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                      <input type="hidden" name="action" value="edit">
-                      <input type="hidden" name="id" value="<?= $a['id'] ?>">
-                      <div class="row g-3 mb-3">
-                        <div class="col-md-4">
-                          <label class="form-label">Nama Lengkap</label>
-                          <input type="text" name="name" class="form-control" value="<?= htmlspecialchars($a['name']) ?>" required>
-                        </div>
-                        <div class="col-md-4">
-                          <label class="form-label">Username</label>
-                          <input type="text" name="username" class="form-control" value="<?= htmlspecialchars($a['username']) ?>" pattern="[a-zA-Z0-9_]{3,30}" required>
-                        </div>
-                        <div class="col-md-4">
-                          <label class="form-label">Email</label>
-                          <input type="email" name="email" class="form-control" value="<?= htmlspecialchars($a['email']) ?>" required>
-                        </div>
-                        <div class="col-md-4">
-                          <label class="form-label">No. HP <small class="text-muted">(opsional)</small></label>
-                          <input type="text" name="no_hp" class="form-control" value="<?= htmlspecialchars($a['no_hp'] ?? '') ?>" placeholder="08xx...">
-                        </div>
-                        <div class="col-md-4">
-                          <label class="form-label">Jabatan <small class="text-muted">(opsional)</small></label>
-                          <input type="text" name="jabatan" class="form-control" value="<?= htmlspecialchars($a['jabatan'] ?? '') ?>" placeholder="Contoh: Staf TU">
-                        </div>
-                        <div class="col-md-4">
-                          <label class="form-label">Catatan <small class="text-muted">(opsional)</small></label>
-                          <input type="text" name="catatan" class="form-control" value="<?= htmlspecialchars($a['catatan'] ?? '') ?>">
-                        </div>
-                      </div>
-                      <?php if (!empty($all_tahapan)): ?>
-                      <hr>
-                      <label class="form-label fw-semibold">
-                          <i class="bi bi-tools me-1" style="color:#7c3aed;"></i>Tools / Akses
-                          <small class="text-muted fw-normal ms-1">— pilih tahapan yang bisa diakses admin ini</small>
-                      </label>
-                      <div class="row g-2">
-                        <?php foreach ($all_tahapan as $t): ?>
-                        <div class="col-md-6">
-                          <label class="d-flex align-items-start gap-2 p-3 rounded-3 border <?= in_array($t['id'], $assigned_ids) ? 'border-primary-subtle bg-primary-subtle' : 'bg-light' ?>"
-                                 style="cursor:pointer;"
-                                 onclick="this.classList.toggle('border-primary-subtle'); this.classList.toggle('bg-primary-subtle'); this.classList.toggle('bg-light');">
-                            <input type="checkbox" name="tahapan[]" value="<?= $t['id'] ?>"
-                                   class="form-check-input mt-0 flex-shrink-0"
-                                   <?= in_array($t['id'], $assigned_ids) ? 'checked' : '' ?>>
-                            <div>
-                              <div class="fw-semibold small">
-                                <i class="bi <?= htmlspecialchars($t['icon']) ?> me-1" style="color:#7c3aed;"></i><?= htmlspecialchars($t['nama']) ?>
-                              </div>
-                              <?php if ($t['deskripsi']): ?>
-                                <div class="text-muted" style="font-size:.75rem;"><?= htmlspecialchars($t['deskripsi']) ?></div>
-                              <?php endif; ?>
-                              <div class="mt-1" style="font-size:.72rem;">
-                                <?php $halaman_list = $tahap_pages_map[$t['kode']] ?? [$t['halaman_key']];
-                                foreach ($halaman_list as $hl): ?>
-                                <span class="badge me-1" style="background:#ede9fe;color:#7c3aed;"><?= htmlspecialchars($hl) ?></span>
-                                <?php endforeach; ?>
-                              </div>
-                            </div>
-                          </label>
-                        </div>
-                        <?php endforeach; ?>
-                      </div>
-                      <?php else: ?>
-                      <div class="alert alert-info small mt-2">
-                          <i class="bi bi-info-circle me-1"></i>Belum ada tahapan. Buat dulu di menu <strong>Alur Pendaftaran</strong>.
-                      </div>
-                      <?php endif; ?>
-                    </div>
-                    <div class="modal-footer">
-                      <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
-                      <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Simpan</button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            </div>
-
-            <!-- Modal Reset Password -->
-            <div class="modal fade" id="modalReset<?= $a['id'] ?>" tabindex="-1">
-              <div class="modal-dialog">
-                <div class="modal-content">
-                  <form method="POST">
-                    <div class="modal-header">
-                      <h5 class="modal-title"><i class="bi bi-key me-2"></i>Reset Password — <?= htmlspecialchars($a['username']) ?></h5>
-                      <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                      <input type="hidden" name="action" value="reset_password">
-                      <input type="hidden" name="id" value="<?= $a['id'] ?>">
-                      <div class="alert alert-info small">
-                        <i class="bi bi-info-circle me-1"></i>Sebagai superadmin, Anda bisa reset password admin lain tanpa perlu tahu password lama.
-                      </div>
-                      <div class="mb-3">
-                        <label class="form-label">Password Baru</label>
-                        <input type="text" name="new_password" class="form-control" minlength="6" placeholder="Minimal 6 karakter" required>
-                        <small class="text-muted">Password baru akan tersimpan & bisa dilihat di tabel.</small>
-                      </div>
-                    </div>
-                    <div class="modal-footer">
-                      <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
-                      <button type="submit" class="btn btn-warning"><i class="bi bi-arrow-clockwise me-1"></i>Reset Password</button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            </div>
         <?php endforeach; ?>
         </tbody>
     </table>
     </div>
     </div>
 </div>
+
+<?php foreach ($admins as $a):
+    $assigned_ids = $admin_tahapan_map[$a['id']] ?? [];
+?>
+<!-- Modal Riwayat Log -->
+<div class="modal fade" id="modalLog<?= $a['id'] ?>" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title"><i class="bi bi-clock-history me-2"></i>Riwayat Aksi — <?= htmlspecialchars($a['username']) ?></h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <?php $admin_logs = $logs_by_admin[$a['id']] ?? []; ?>
+        <?php if (empty($admin_logs)): ?>
+        <div class="p-4 text-center text-muted">
+            <i class="bi bi-clock-history fs-2 d-block mb-2 opacity-50"></i>Belum ada riwayat aksi.
+        </div>
+        <?php else: ?>
+        <div class="table-responsive">
+        <table class="table table-sm mb-0">
+            <thead class="table-light">
+                <tr><th>Waktu</th><th>Aksi</th><th>Detail</th><th>IP</th></tr>
+            </thead>
+            <tbody>
+            <?php foreach ($admin_logs as $lg): ?>
+                <tr>
+                    <td class="text-muted small text-nowrap"><?= date('d/m/y H:i', strtotime($lg['created_at'])) ?></td>
+                    <td>
+                        <?php $bc = match($lg['action']) {
+                            'LOGIN'        => 'bg-success-subtle text-success',
+                            'LOGOUT'       => 'bg-secondary-subtle text-secondary',
+                            'LOGIN_FAILED' => 'bg-danger-subtle text-danger',
+                            default        => 'bg-primary-subtle text-primary',
+                        }; ?>
+                        <span class="badge <?= $bc ?>" style="font-size:.7rem;"><?= htmlspecialchars($lg['action']) ?></span>
+                    </td>
+                    <td class="small"><?= htmlspecialchars($lg['details'] ?? '') ?></td>
+                    <td class="text-muted small"><?= htmlspecialchars($lg['ip_address'] ?? '') ?></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        </div>
+        <?php if (count($admin_logs) >= 30): ?>
+        <div class="p-2 text-center text-muted small bg-light border-top">Menampilkan 30 log terakhir</div>
+        <?php endif; ?>
+        <?php endif; ?>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Tutup</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Edit -->
+<div class="modal fade" id="modalEdit<?= $a['id'] ?>" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="POST">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Admin — <?= htmlspecialchars($a['username']) ?></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="action" value="edit">
+          <input type="hidden" name="id" value="<?= $a['id'] ?>">
+          <div class="row g-3 mb-3">
+            <div class="col-md-4">
+              <label class="form-label">Nama Lengkap</label>
+              <input type="text" name="name" class="form-control" value="<?= htmlspecialchars($a['name']) ?>" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Username</label>
+              <input type="text" name="username" class="form-control" value="<?= htmlspecialchars($a['username']) ?>" pattern="[a-zA-Z0-9_]{3,30}" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Email</label>
+              <input type="email" name="email" class="form-control" value="<?= htmlspecialchars($a['email']) ?>" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">No. HP <small class="text-muted">(opsional)</small></label>
+              <input type="text" name="no_hp" class="form-control" value="<?= htmlspecialchars($a['no_hp'] ?? '') ?>" placeholder="08xx...">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Jabatan <small class="text-muted">(opsional)</small></label>
+              <input type="text" name="jabatan" class="form-control" value="<?= htmlspecialchars($a['jabatan'] ?? '') ?>" placeholder="Contoh: Staf TU">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Catatan <small class="text-muted">(opsional)</small></label>
+              <input type="text" name="catatan" class="form-control" value="<?= htmlspecialchars($a['catatan'] ?? '') ?>">
+            </div>
+          </div>
+          <?php if (!empty($all_tahapan)): ?>
+          <hr>
+          <label class="form-label fw-semibold">
+              <i class="bi bi-tools me-1" style="color:#7c3aed;"></i>Tools / Akses
+              <small class="text-muted fw-normal ms-1">— pilih tahapan yang bisa diakses admin ini</small>
+          </label>
+          <div class="row g-2">
+            <?php foreach ($all_tahapan as $t): ?>
+            <div class="col-md-6">
+              <label class="d-flex align-items-start gap-2 p-3 rounded-3 border <?= in_array($t['id'], $assigned_ids) ? 'border-primary-subtle bg-primary-subtle' : 'bg-light' ?>"
+                     style="cursor:pointer;"
+                     onclick="this.classList.toggle('border-primary-subtle'); this.classList.toggle('bg-primary-subtle'); this.classList.toggle('bg-light');">
+                <input type="checkbox" name="tahapan[]" value="<?= $t['id'] ?>"
+                       class="form-check-input mt-0 flex-shrink-0"
+                       <?= in_array($t['id'], $assigned_ids) ? 'checked' : '' ?>>
+                <div>
+                  <div class="fw-semibold small">
+                    <i class="bi <?= htmlspecialchars($t['icon']) ?> me-1" style="color:#7c3aed;"></i><?= htmlspecialchars($t['nama']) ?>
+                  </div>
+                  <?php if ($t['deskripsi']): ?>
+                    <div class="text-muted" style="font-size:.75rem;"><?= htmlspecialchars($t['deskripsi']) ?></div>
+                  <?php endif; ?>
+                  <div class="mt-1" style="font-size:.72rem;">
+                    <?php $halaman_list = $tahap_pages_map[$t['kode']] ?? [$t['halaman_key']];
+                    foreach ($halaman_list as $hl): ?>
+                    <span class="badge me-1" style="background:#ede9fe;color:#7c3aed;"><?= htmlspecialchars($hl) ?></span>
+                    <?php endforeach; ?>
+                  </div>
+                </div>
+              </label>
+            </div>
+            <?php endforeach; ?>
+          </div>
+          <?php else: ?>
+          <div class="alert alert-info small mt-2">
+              <i class="bi bi-info-circle me-1"></i>Belum ada tahapan. Buat dulu di menu <strong>Alur Pendaftaran</strong>.
+          </div>
+          <?php endif; ?>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Reset Password -->
+<div class="modal fade" id="modalReset<?= $a['id'] ?>" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-key me-2"></i>Reset Password — <?= htmlspecialchars($a['username']) ?></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="action" value="reset_password">
+          <input type="hidden" name="id" value="<?= $a['id'] ?>">
+          <div class="alert alert-info small">
+            <i class="bi bi-info-circle me-1"></i>Sebagai superadmin, Anda bisa reset password admin lain tanpa perlu tahu password lama.
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Password Baru</label>
+            <input type="text" name="new_password" class="form-control" minlength="6" placeholder="Minimal 6 karakter" required>
+            <small class="text-muted">Password baru akan tersimpan & bisa dilihat di tabel.</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-warning"><i class="bi bi-arrow-clockwise me-1"></i>Reset Password</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endforeach; ?>
 
 <!-- Modal Add Admin -->
 <div class="modal fade" id="modalAdd" tabindex="-1">
