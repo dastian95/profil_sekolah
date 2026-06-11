@@ -7,6 +7,9 @@ $today = date('Y-m-d');
 
 $mejas_aktif = $conn->query("SELECT * FROM meja WHERE is_active=1 ORDER BY fase, nomor_meja")->fetchAll();
 
+// Auto-migrate: pendaftar_id di antrian
+try { $conn->exec("ALTER TABLE antrian ADD COLUMN pendaftar_id INT NULL AFTER nomor"); } catch (PDOException) {}
+
 // ── POST Handler ──────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -14,7 +17,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'pilih_meja') {
         $mid = (int)$_POST['meja_id'];
         $_SESSION['antrian_meja_id']   = $mid;
-        // Simpan fase meja di session
         foreach ($mejas_aktif as $m) {
             if ($m['id'] === $mid) { $_SESSION['antrian_meja_fase'] = (int)$m['fase']; break; }
         }
@@ -53,7 +55,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $conn->prepare("UPDATE antrian SET status='selesai', hasil='lulus', selesai_at=NOW()
                             WHERE id=? AND meja_id=? AND status='dipanggil'")
                  ->execute([$cur_id, $meja_id]);
-            // Buat entri fase 2 (belum di-assign meja, akan diambil meja fase 2 nanti)
             $conn->prepare("INSERT IGNORE INTO antrian (tanggal, nomor, fase) VALUES (?,?,2)")
                  ->execute([$today, $nomor]);
             $ambilBerikutnya(1);
@@ -76,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo '<script>window.location.href="?page=antrian";</script>'; return;
     }
 
-    // ── FASE 2: Selesai → redirect dengan parameter surat ────────────────────
+    // ── FASE 2: Selesai ───────────────────────────────────────────────────────
     if ($action === 'selesai') {
         $cur_id    = (int)$_POST['antrian_id'];
         $nomor     = (int)$_POST['nomor'];
@@ -89,7 +90,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ambilBerikutnya(2);
             $conn->commit();
         } catch(Throwable $e) { $conn->rollBack(); }
-        // Selalu ke antrian untuk print surat, lalu ada tombol kembali ke pendaftar di sana
         echo '<script>window.location.href="?page=antrian&surat='.$nomor.'&back='.$back_page.'";</script>'; return;
     }
 
@@ -120,6 +120,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch(Throwable $e) { $conn->rollBack(); }
         echo '<script>window.location.href="?page='.$back_page.'";</script>'; return;
     }
+
+    // ── Hubungkan / lepas pendaftar dari antrian Fase 2 ───────────────────────
+    if ($action === 'link_pendaftar') {
+        $cur_id  = (int)$_POST['antrian_id'];
+        $pend_id = (int)$_POST['pendaftar_id'];
+        $conn->prepare("UPDATE antrian SET pendaftar_id=? WHERE id=?")
+             ->execute([$pend_id ?: null, $cur_id]);
+        echo '<script>window.location.href="?page=antrian";</script>'; return;
+    }
 }
 
 // ── State saat ini ────────────────────────────────────────────────────────────
@@ -127,6 +136,7 @@ $my_meja_id   = (int)($_SESSION['antrian_meja_id'] ?? 0);
 $my_meja_fase = (int)($_SESSION['antrian_meja_fase'] ?? 1);
 $my_meja      = null;
 $current      = null;
+$current_pendaftar = null;
 $sisa_fase1 = 0; $sisa_fase2 = 0;
 $selesai_fase1 = 0; $selesai_fase2 = 0;
 $total_hari = 0;
@@ -155,6 +165,13 @@ try {
         $current = $cStmt->fetch();
     }
 
+    // Jika ada antrian aktif di Fase 2, muat data pendaftar yang terhubung
+    if ($current && !empty($current['pendaftar_id'])) {
+        $ps = $conn->prepare("SELECT * FROM pendaftar WHERE id=?");
+        $ps->execute([$current['pendaftar_id']]);
+        $current_pendaftar = $ps->fetch() ?: null;
+    }
+
     $s1 = $conn->prepare("SELECT COUNT(*) FROM antrian WHERE tanggal=? AND fase=1 AND status='menunggu'");   $s1->execute([$today]); $sisa_fase1    = (int)$s1->fetchColumn();
     $s2 = $conn->prepare("SELECT COUNT(*) FROM antrian WHERE tanggal=? AND fase=2 AND status='menunggu'");   $s2->execute([$today]); $sisa_fase2    = (int)$s2->fetchColumn();
     $s3 = $conn->prepare("SELECT COUNT(*) FROM antrian WHERE tanggal=? AND fase=1 AND status='selesai'");    $s3->execute([$today]); $selesai_fase1 = (int)$s3->fetchColumn();
@@ -162,6 +179,21 @@ try {
     $s5 = $conn->prepare("SELECT COUNT(*) FROM antrian WHERE tanggal=? AND fase=1 AND hasil='lulus'");       $s5->execute([$today]); $lulus_fase1   = (int)$s5->fetchColumn();
     $s6 = $conn->prepare("SELECT COUNT(*) FROM antrian WHERE tanggal=? AND fase=1 AND hasil='gagal'");       $s6->execute([$today]); $gagal_fase1   = (int)$s6->fetchColumn();
 } catch(Throwable) {}
+
+// Pencarian pendaftar untuk panel Fase 2
+$pend_search_q = '';
+$pend_search_results = [];
+if ($my_meja_fase == 2 && $current && !$current_pendaftar) {
+    $pend_search_q = trim($_GET['sp'] ?? '');
+    if ($pend_search_q) {
+        try {
+            $sps = $conn->prepare("SELECT id, nama, nisn, jurusan, status FROM pendaftar
+                WHERE nama LIKE ? OR nisn LIKE ? ORDER BY nama LIMIT 10");
+            $sps->execute(["%$pend_search_q%", "%$pend_search_q%"]);
+            $pend_search_results = $sps->fetchAll();
+        } catch(Throwable) {}
+    }
+}
 
 // Stat per meja untuk board
 $meja_stat = [];
@@ -221,23 +253,45 @@ $fase_color = [1 => '#2563eb', 2 => '#7c3aed'];
 
 /* ── Fase 2 Checklist ─────────────────────────────────── */
 .fase2-checklist { display: flex; flex-direction: column; gap: 12px; }
-
 .fase2-step {
     display: flex; align-items: center; gap: 14px;
     background: #fff; border: 1.5px solid #e5e7eb;
     border-radius: 14px; padding: 14px 16px;
     transition: border-color .2s, background .2s;
 }
-.fase2-step:has(.fase2-cb:checked) {
-    border-color: #a855f7; background: #faf5ff;
-}
+.fase2-step:has(.fase2-cb:checked) { border-color: #a855f7; background: #faf5ff; }
 .fase2-step-icon {
     width: 42px; height: 42px; border-radius: 10px; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1.2rem;
+    display: flex; align-items: center; justify-content: center; font-size: 1.2rem;
 }
 .fase2-step-body { flex: 1; text-align: left; }
 .fase2-step-check { flex-shrink: 0; }
+
+/* ── Fase 2 Right Panel ───────────────────────────────── */
+.fase2-layout {
+    display: grid;
+    grid-template-columns: 58% 42%;
+    gap: 1.5rem;
+    align-items: start;
+}
+@media (max-width: 900px) { .fase2-layout { grid-template-columns: 1fr; } }
+.panel-pendaftar {
+    background: #faf5ff; border: 1.5px solid #c4b5fd;
+    border-radius: 20px; padding: 20px;
+    position: sticky; top: 80px;
+}
+.panel-pendaftar-header {
+    font-size: .72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .5px; color: #7c3aed; margin-bottom: 14px;
+    display: flex; align-items: center; gap: 6px;
+}
+.berkas-row {
+    display: flex; align-items: center; gap: 10px;
+    background: #fff; border: 1.5px solid #e5e7eb;
+    border-radius: 10px; padding: 10px 12px; cursor: pointer;
+    transition: border-color .15s, background .15s;
+}
+.berkas-row.checked { border-color: #a855f7 !important; background: #f5f0ff !important; }
 
 @media print {
     .no-print { display: none !important; }
@@ -410,7 +464,9 @@ $mejas_fase2 = array_filter($mejas_aktif, fn($m) => (int)$m['fase'] === 2);
 
 <?php elseif ($current): ?>
 <!-- ══ ADA NOMOR AKTIF ══════════════════════════════════════════════════════ -->
-<div class="text-center mb-4 no-print">
+<?php if ($my_meja_fase == 2): ?><div class="fase2-layout no-print"><?php endif; ?>
+
+<div class="text-center mb-4 <?= $my_meja_fase == 1 ? 'no-print' : '' ?>">
     <div class="text-muted small fw-semibold mb-2 text-uppercase letter-spacing-1">Sedang Dilayani</div>
     <div class="nomor-box fase-<?= $my_meja_fase ?> mb-3">
         <div class="nomor-display fase-<?= $my_meja_fase ?>">SSG<?= str_pad($current['nomor'], 3, '0', STR_PAD_LEFT) ?></div>
@@ -456,61 +512,51 @@ $mejas_fase2 = array_filter($mejas_aktif, fn($m) => (int)$m['fase'] === 2);
     </div>
 
     <?php else: ?>
-    <!-- FASE 2: Checklist Input & Surat -->
+    <!-- FASE 2: Checklist Langkah + Tombol Selesai -->
     <div class="fw-semibold text-muted small mb-3 text-uppercase" style="letter-spacing:.5px;">
         Langkah Fase 2 — Input Data &amp; Surat Tanda Daftar:
     </div>
 
-    <div class="fase2-checklist mx-auto mb-4" style="max-width:480px;">
-        <!-- Step 1 -->
+    <div class="fase2-checklist mx-auto mb-4" style="max-width:440px;">
         <div class="fase2-step">
-            <div class="fase2-step-icon" style="background:#ede9fe;color:#7c3aed;">
-                <i class="bi bi-keyboard"></i>
-            </div>
+            <div class="fase2-step-icon" style="background:#ede9fe;color:#7c3aed;"><i class="bi bi-person-lines-fill"></i></div>
             <div class="fase2-step-body">
-                <div class="fw-bold">Input Data Pendaftar</div>
-                <div class="text-muted small">Buka halaman <strong>Data Pendaftar</strong> dan isi data lengkap pendaftar (nama, NISN, jurusan, nilai raport, TKA).</div>
+                <div class="fw-bold">Hubungkan Data Pendaftar</div>
+                <div class="text-muted small">Cari & hubungkan data di panel kanan →</div>
             </div>
             <div class="fase2-step-check">
-                <input type="checkbox" class="fase2-cb form-check-input" id="cb1" style="width:1.3rem;height:1.3rem;">
+                <i class="bi <?= $current_pendaftar ? 'bi-check-circle-fill text-success' : 'bi-circle text-muted' ?> fs-5"></i>
             </div>
         </div>
-        <!-- Step 2 -->
         <div class="fase2-step">
-            <div class="fase2-step-icon" style="background:#d1fae5;color:#065f46;">
-                <i class="bi bi-file-earmark-text"></i>
-            </div>
+            <div class="fase2-step-icon" style="background:#d1fae5;color:#065f46;"><i class="bi bi-file-earmark-text"></i></div>
             <div class="fase2-step-body">
-                <div class="fw-bold">Verifikasi Data</div>
-                <div class="text-muted small">Pastikan NISN, tanggal lahir, dan pilihan jurusan sudah benar sebelum dicetak.</div>
+                <div class="fw-bold">Verifikasi & Input Data</div>
+                <div class="text-muted small">Buka Data Pendaftar, isi NISN, jurusan, nilai raport & TKA.</div>
             </div>
             <div class="fase2-step-check">
-                <input type="checkbox" class="fase2-cb form-check-input" id="cb2" style="width:1.3rem;height:1.3rem;">
+                <input type="checkbox" class="fase2-cb form-check-input" id="cbStep2" style="width:1.3rem;height:1.3rem;">
             </div>
         </div>
-        <!-- Step 3 -->
         <div class="fase2-step">
-            <div class="fase2-step-icon" style="background:#fef3c7;color:#92400e;">
-                <i class="bi bi-printer"></i>
-            </div>
+            <div class="fase2-step-icon" style="background:#fef3c7;color:#92400e;"><i class="bi bi-printer"></i></div>
             <div class="fase2-step-body">
-                <div class="fw-bold">Cetak Surat Tanda Daftar</div>
-                <div class="text-muted small">Klik <strong>Selesai & Terbitkan Surat</strong> di bawah — surat akan muncul otomatis untuk dicetak.</div>
+                <div class="fw-bold">Selesai &amp; Terbitkan Surat</div>
+                <div class="text-muted small">Klik tombol Selesai — surat otomatis muncul untuk dicetak.</div>
             </div>
             <div class="fase2-step-check">
-                <input type="checkbox" class="fase2-cb form-check-input" id="cb3" style="width:1.3rem;height:1.3rem;">
+                <input type="checkbox" class="fase2-cb form-check-input" id="cbStep3" style="width:1.3rem;height:1.3rem;">
             </div>
         </div>
     </div>
 
-    <!-- Tombol di BAWAH -->
     <div class="d-flex gap-3 justify-content-center flex-wrap mb-2">
         <form method="POST">
             <input type="hidden" name="action" value="selesai">
             <input type="hidden" name="antrian_id" value="<?= $current['id'] ?>">
             <input type="hidden" name="nomor" value="<?= $current['nomor'] ?>">
             <button type="submit" class="btn-aksi-main btn-selesai" id="btnSelesai"
-                    onclick="return confirm('Selesai input data? Surat Tanda Daftar akan diterbitkan.')">
+                    onclick="clearBerkas(<?= $current['id'] ?>); return confirm('Selesai input data? Surat Tanda Daftar akan diterbitkan.')">
                 <i class="bi bi-file-earmark-check me-2"></i>Selesai &amp; Terbitkan Surat
             </button>
         </form>
@@ -527,6 +573,100 @@ $mejas_fase2 = array_filter($mejas_aktif, fn($m) => (int)$m['fase'] === 2);
     </div>
     <?php endif; ?>
 </div>
+
+<?php if ($my_meja_fase == 2): ?>
+<!-- ─── PANEL KANAN: DATA PENDAFTAR ──────────────────────────────────────── -->
+<aside class="panel-pendaftar">
+    <div class="panel-pendaftar-header">
+        <i class="bi bi-person-vcard"></i>Data Pendaftar
+    </div>
+
+    <?php if ($current_pendaftar): ?>
+    <!-- Sudah terhubung — tampilkan data -->
+    <div class="mb-3 pb-3 border-bottom border-purple" style="border-color:#e9d5ff !important;">
+        <div class="fw-bold" style="font-size:1.05rem;"><?= htmlspecialchars($current_pendaftar['nama']) ?></div>
+        <?php if ($current_pendaftar['nisn']): ?>
+        <div class="text-muted small"><i class="bi bi-hash me-1"></i>NISN: <?= htmlspecialchars($current_pendaftar['nisn']) ?></div>
+        <?php endif; ?>
+        <div class="text-muted small"><i class="bi bi-mortarboard me-1"></i><?= htmlspecialchars($current_pendaftar['jurusan']) ?></div>
+        <?php
+        $sb = ['diproses'=>'bg-warning text-dark','lengkap'=>'bg-info text-dark','gugur'=>'bg-danger','terima'=>'bg-success'];
+        $sl = ['diproses'=>'Diproses','lengkap'=>'Lengkap','gugur'=>'Gugur','terima'=>'Terima'];
+        ?>
+        <div class="mt-1">
+            <span class="badge <?= $sb[$current_pendaftar['status']] ?? 'bg-secondary' ?>"><?= $sl[$current_pendaftar['status']] ?? $current_pendaftar['status'] ?></span>
+        </div>
+    </div>
+
+    <!-- Berkas Checklist (localStorage) -->
+    <div class="small fw-semibold text-uppercase mb-2" style="color:#7c3aed;letter-spacing:.3px;">Cek Berkas</div>
+    <div id="berkasChecklist" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+        <?php foreach ([
+            'kk'         => ['Kartu Keluarga (KK)',    'bi-house-fill',         '#dbeafe','#1d4ed8'],
+            'tka'        => ['Hasil Tes TKA',           'bi-file-earmark-text', '#d1fae5','#065f46'],
+            'akta'       => ['Akta Kelahiran',          'bi-calendar-event',    '#fef3c7','#92400e'],
+            'buta_warna' => ['Tes Buta Warna',          'bi-eye',               '#fce7f3','#9d174d'],
+        ] as $key => [$label, $icon, $bg, $color]): ?>
+        <label class="berkas-row" id="berkasRow_<?= $key ?>"
+               onclick="toggleBerkas(<?= json_encode((int)$current['id']) ?>, '<?= $key ?>', this)">
+            <div style="width:32px;height:32px;border-radius:8px;background:<?= $bg ?>;color:<?= $color ?>;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i class="bi <?= $icon ?>"></i>
+            </div>
+            <span class="small flex-grow-1"><?= $label ?></span>
+            <i class="bi bi-circle berkas-ico" id="berkasIco_<?= $key ?>" style="color:#d1d5db;"></i>
+        </label>
+        <?php endforeach; ?>
+    </div>
+
+    <div class="d-grid gap-2">
+        <a href="?page=pendaftar" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-pencil me-1"></i>Edit Data Pendaftar
+        </a>
+        <button type="button" class="btn btn-outline-secondary btn-sm"
+                onclick="unlinkPendaftar(<?= $current['id'] ?>)">
+            <i class="bi bi-arrow-left-right me-1"></i>Ganti Pendaftar
+        </button>
+    </div>
+
+    <?php else: ?>
+    <!-- Belum terhubung — tampilkan form pencarian -->
+    <div class="text-muted small mb-3">Cari pendaftar yang sedang dilayani dan hubungkan ke nomor ini.</div>
+
+    <form method="GET" class="mb-2">
+        <input type="hidden" name="page" value="antrian">
+        <div class="input-group input-group-sm">
+            <input type="text" name="sp" class="form-control"
+                   value="<?= htmlspecialchars($pend_search_q) ?>"
+                   placeholder="Nama atau NISN..." autofocus>
+            <button class="btn btn-primary" type="submit"><i class="bi bi-search"></i></button>
+        </div>
+    </form>
+
+    <?php if (!empty($pend_search_results)): ?>
+    <div style="max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;">
+        <?php foreach ($pend_search_results as $pr): ?>
+        <form method="POST">
+            <input type="hidden" name="action" value="link_pendaftar">
+            <input type="hidden" name="antrian_id" value="<?= $current['id'] ?>">
+            <input type="hidden" name="pendaftar_id" value="<?= $pr['id'] ?>">
+            <button type="submit" class="btn btn-sm w-100 text-start py-2 px-3"
+                    style="background:#fff;border:1.5px solid #c4b5fd;border-radius:10px;">
+                <div class="fw-semibold small"><?= htmlspecialchars($pr['nama']) ?></div>
+                <div class="text-muted" style="font-size:.72rem;"><?= htmlspecialchars($pr['jurusan']) ?> · NISN: <?= $pr['nisn'] ?: '—' ?></div>
+            </button>
+        </form>
+        <?php endforeach; ?>
+    </div>
+    <?php elseif ($pend_search_q): ?>
+    <div class="text-center text-muted small py-3">
+        <i class="bi bi-search d-block mb-1 fs-5 opacity-50"></i>
+        Tidak ada hasil untuk "<?= htmlspecialchars($pend_search_q) ?>"
+    </div>
+    <?php endif; ?>
+    <?php endif; ?>
+</aside>
+</div><!-- end fase2-layout -->
+<?php endif; ?>
 
 <?php else: ?>
 <!-- ══ BELUM ADA NOMOR AKTIF ════════════════════════════════════════════════ -->
@@ -623,7 +763,6 @@ $mejas_fase2 = array_filter($mejas_aktif, fn($m) => (int)$m['fase'] === 2);
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body p-0">
-        <!-- Konten surat yang bisa di-print -->
         <div id="suratContent" style="padding:40px;font-family:Georgia,serif;">
             <div class="text-center border-bottom pb-3 mb-3">
                 <div style="font-size:.8rem;text-transform:uppercase;letter-spacing:1px;color:#666;">SMK Laboratorium Jakarta</div>
@@ -679,7 +818,6 @@ $mejas_fase2 = array_filter($mejas_aktif, fn($m) => (int)$m['fase'] === 2);
   </div>
 </div>
 <script>
-// Auto-buka modal surat
 document.addEventListener('DOMContentLoaded', () => {
     new bootstrap.Modal(document.getElementById('modalSurat')).show();
 });
@@ -690,7 +828,7 @@ function printSurat() {
     w.document.write(content);
     w.document.write('</body></html>');
     w.document.close();
-    w.print();
+    w.onload = () => w.print();
 }
 </script>
 <?php endif; ?>
@@ -706,4 +844,42 @@ if (timerEl) {
 }
 // Auto-refresh 30 detik
 setTimeout(() => location.reload(), 30000);
+
+// ── Berkas Checklist (localStorage) ─────────────────────────────────────────
+function berkasKey(id) { return 'berkas_antrian_' + id; }
+function loadBerkas(id) {
+    try { return JSON.parse(localStorage.getItem(berkasKey(id)) || '{}'); } catch { return {}; }
+}
+function toggleBerkas(antrianId, key, rowEl) {
+    const data = loadBerkas(antrianId);
+    data[key] = !data[key];
+    localStorage.setItem(berkasKey(antrianId), JSON.stringify(data));
+    applyBerkasRow(key, data[key]);
+}
+function applyBerkasRow(key, checked) {
+    const row = document.getElementById('berkasRow_' + key);
+    const ico = document.getElementById('berkasIco_' + key);
+    if (row) row.classList.toggle('checked', !!checked);
+    if (ico) { ico.className = checked ? 'bi bi-check-circle-fill text-success' : 'bi bi-circle'; ico.style.color = checked ? '' : '#d1d5db'; }
+}
+function initBerkas(antrianId) {
+    const data = loadBerkas(antrianId);
+    ['kk','tka','akta','buta_warna'].forEach(k => applyBerkasRow(k, !!data[k]));
+}
+function clearBerkas(antrianId) {
+    localStorage.removeItem(berkasKey(antrianId));
+}
+function unlinkPendaftar(antrianId) {
+    if (!confirm('Ganti pendaftar yang terhubung ke nomor ini?')) return;
+    const f = document.createElement('form');
+    f.method = 'POST';
+    f.innerHTML = '<input name="action" value="link_pendaftar">'
+                + '<input name="antrian_id" value="' + antrianId + '">'
+                + '<input name="pendaftar_id" value="0">';
+    document.body.appendChild(f);
+    f.submit();
+}
+<?php if ($current && $current_pendaftar): ?>
+document.addEventListener('DOMContentLoaded', () => initBerkas(<?= $current['id'] ?>));
+<?php endif; ?>
 </script>
