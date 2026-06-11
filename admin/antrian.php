@@ -505,7 +505,7 @@ $mejas_fase2 = array_filter($mejas_aktif, fn($m) => (int)$m['fase'] === 2);
 
     <div class="fase2-checklist mx-auto mb-4" style="max-width:440px;">
         <div class="fase2-step" role="button" tabindex="0"
-             data-bs-toggle="offcanvas" data-bs-target="#panelPendaftar"
+             data-bs-toggle="offcanvas" data-bs-target="#f2Sidebar"
              style="cursor:pointer;" title="Buka panel data pendaftar">
             <div class="fase2-step-icon" style="background:#ede9fe;color:#7c3aed;"><i class="bi bi-person-lines-fill"></i></div>
             <div class="fase2-step-body">

@@ -1,4 +1,5 @@
 <?php
+ob_start();
 require_once __DIR__ . '/conn.php';
 require_once __DIR__ . '/admin/_constants.php';
 
@@ -9,6 +10,47 @@ if (empty($_SESSION['is_super'])) {
 }
 
 $page = $_GET['page'] ?? 'super_home';
+
+// ── POST global: link/unlink pendaftar Fase 2 ────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'f2_link') {
+    $ant_id  = (int)($_POST['antrian_id'] ?? 0);
+    $pend_id = (int)($_POST['pendaftar_id'] ?? 0);
+    if ($ant_id) {
+        try { $conn->prepare("UPDATE antrian SET pendaftar_id=? WHERE id=?")->execute([$pend_id ?: null, $ant_id]); } catch(Throwable) {}
+    }
+    header('Location: superadmin_dashboard.php?page=' . urlencode($page));
+    exit;
+}
+
+// ── Sidebar Fase 2 global: muncul saat meja Fase 2 aktif ─────────────────────
+$float_widget = null;
+$fw_meja_id   = (int)($_SESSION['antrian_meja_id'] ?? 0);
+$fw_meja_fase = (int)($_SESSION['antrian_meja_fase'] ?? 0);
+if ($fw_meja_id && $fw_meja_fase === 2) {
+    $today = date('Y-m-d');
+    try {
+        $fwm = $conn->prepare("SELECT * FROM meja WHERE id=?");
+        $fwm->execute([$fw_meja_id]);
+        $fw_meja = $fwm->fetch();
+        if (!$fw_meja) {
+            unset($_SESSION['antrian_meja_id'], $_SESSION['antrian_meja_fase']);
+            throw new RuntimeException('meja_not_found');
+        }
+        $fwc = $conn->prepare("SELECT * FROM antrian WHERE tanggal=? AND meja_id=? AND fase=2 AND status='dipanggil' ORDER BY dipanggil_at DESC LIMIT 1");
+        $fwc->execute([$today, $fw_meja_id]);
+        $fw_current = $fwc->fetch() ?: null;
+        $fw_pendaftar = null;
+        if ($fw_current && !empty($fw_current['pendaftar_id'])) {
+            $fwp = $conn->prepare("SELECT * FROM pendaftar WHERE id=?");
+            $fwp->execute([$fw_current['pendaftar_id']]);
+            $fw_pendaftar = $fwp->fetch() ?: null;
+        }
+        $fws = $conn->prepare("SELECT COUNT(*) FROM antrian WHERE tanggal=? AND meja_id=? AND fase=2 AND status='menunggu'");
+        $fws->execute([$today, $fw_meja_id]);
+        $fw_sisa = (int)$fws->fetchColumn();
+        $float_widget = ['meja' => $fw_meja, 'current' => $fw_current, 'pendaftar' => $fw_pendaftar, 'sisa' => $fw_sisa];
+    } catch(Throwable) {}
+}
 $admin_name = 'Super Admin';
 
 $pages = [
@@ -285,6 +327,242 @@ foreach ($pages as $key => $info) {
     </footer>
     </main>
 </div>
+
+<?php if ($float_widget): ?>
+<!-- ══ SIDEBAR FASE 2 GLOBAL ══════════════════════════════════════════════════ -->
+<style>
+.f2-fab {
+    position: fixed; bottom: 24px; right: 24px; z-index: 1045;
+    background: linear-gradient(135deg,#7c3aed,#a855f7);
+    color: #fff; border: 0; border-radius: 50px;
+    padding: 12px 20px; font-weight: 700; font-size: .9rem;
+    box-shadow: 0 4px 18px rgba(124,58,237,.4);
+    display: flex; align-items: center; gap: 10px; cursor: pointer;
+    transition: transform .2s, box-shadow .2s;
+}
+.f2-fab:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(124,58,237,.5); color: #fff; }
+.f2-fab.linked { background: linear-gradient(135deg,#059669,#10b981); box-shadow: 0 4px 18px rgba(5,150,105,.35); }
+.f2-fab.linked:hover { box-shadow: 0 8px 28px rgba(5,150,105,.45); }
+.f2-fab .fab-nomor { background: rgba(255,255,255,.25); border-radius: 20px; padding: 2px 10px; font-size: .75rem; }
+.f2-offcanvas { width: 400px !important; }
+@media (max-width:480px) { .f2-offcanvas { width: 100vw !important; } }
+.f2-nomor-big { font-size: 4rem; font-weight: 900; color: #7c3aed; line-height: 1; letter-spacing: -2px; }
+.f2-berkas-row {
+    display: flex; align-items: center; gap: 10px;
+    background: #fff; border: 1.5px solid #e5e7eb;
+    border-radius: 10px; padding: 10px 12px; cursor: pointer;
+    transition: border-color .15s, background .15s;
+}
+.f2-berkas-row.checked { border-color: #a855f7 !important; background: #f5f0ff !important; }
+</style>
+
+<!-- FAB Button -->
+<button class="f2-fab <?= $float_widget['pendaftar'] ? 'linked' : '' ?>"
+        data-bs-toggle="offcanvas" data-bs-target="#f2Sidebar">
+    <i class="bi <?= $float_widget['pendaftar'] ? 'bi-person-check-fill' : 'bi-person-lines-fill' ?>"></i>
+    <span>
+        Fase 2 · Meja <?= $float_widget['meja']['nomor_meja'] ?>
+        <?php if ($float_widget['meja']['nama']): ?>
+        <span class="fw-normal opacity-75">— <?= htmlspecialchars($float_widget['meja']['nama']) ?></span>
+        <?php endif; ?>
+    </span>
+    <?php if ($float_widget['current']): ?>
+    <span class="fab-nomor">SSG<?= str_pad($float_widget['current']['nomor'], 3, '0', STR_PAD_LEFT) ?></span>
+    <?php elseif ($float_widget['sisa'] > 0): ?>
+    <span class="fab-nomor"><?= $float_widget['sisa'] ?> menunggu</span>
+    <?php endif; ?>
+</button>
+
+<!-- Offcanvas Sidebar -->
+<div class="offcanvas offcanvas-end f2-offcanvas" tabindex="-1" id="f2Sidebar">
+    <div class="offcanvas-header" style="background:#ede9fe;border-bottom:1.5px solid #c4b5fd;">
+        <div>
+            <h6 class="offcanvas-title mb-0 fw-bold" style="color:#6d28d9;">
+                <i class="bi bi-grid-3x2-gap-fill me-2"></i>Meja <?= $float_widget['meja']['nomor_meja'] ?> — Fase 2
+                <?php if ($float_widget['meja']['nama']): ?>
+                <small class="fw-normal text-muted"><?= htmlspecialchars($float_widget['meja']['nama']) ?></small>
+                <?php endif; ?>
+            </h6>
+            <div class="text-muted" style="font-size:.72rem;">
+                <?php if ($float_widget['current']): ?>
+                Melayani SSG<?= str_pad($float_widget['current']['nomor'], 3, '0', STR_PAD_LEFT) ?>
+                <?php elseif ($float_widget['sisa'] > 0): ?>
+                <?= $float_widget['sisa'] ?> pendaftar menunggu
+                <?php else: ?>
+                Antrian kosong
+                <?php endif; ?>
+            </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body p-0" style="background:#faf5ff;overflow-y:auto;">
+
+    <?php if ($float_widget['current']): ?>
+    <?php $fw_cur = $float_widget['current']; $fw_pend = $float_widget['pendaftar']; ?>
+
+    <!-- Nomor aktif -->
+    <div class="text-center py-4 px-3" style="background:#fff;border-bottom:1px solid #e9d5ff;">
+        <div class="small text-muted fw-semibold text-uppercase mb-1" style="letter-spacing:.5px;color:#7c3aed;">Sedang Dilayani</div>
+        <div class="f2-nomor-big">SSG<?= str_pad($fw_cur['nomor'], 3, '0', STR_PAD_LEFT) ?></div>
+        <div class="small text-muted mt-1">Dipanggil <?= date('H:i', strtotime($fw_cur['dipanggil_at'])) ?></div>
+    </div>
+
+    <div class="px-3 py-3">
+    <?php if ($fw_pend): ?>
+    <!-- Pendaftar sudah terhubung -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body py-3">
+            <div class="fw-bold"><?= htmlspecialchars($fw_pend['nama']) ?></div>
+            <?php if ($fw_pend['nisn']): ?><div class="text-muted small"><i class="bi bi-hash me-1"></i>NISN: <?= htmlspecialchars($fw_pend['nisn']) ?></div><?php endif; ?>
+            <div class="text-muted small"><i class="bi bi-mortarboard me-1"></i><?= htmlspecialchars($fw_pend['jurusan']) ?></div>
+            <?php $sb=['diproses'=>'bg-warning text-dark','lengkap'=>'bg-info text-dark','gugur'=>'bg-danger','terima'=>'bg-success'];
+                  $sl=['diproses'=>'Diproses','lengkap'=>'Lengkap','gugur'=>'Gugur','terima'=>'Terima']; ?>
+            <div class="mt-2"><span class="badge <?= $sb[$fw_pend['status']] ?? 'bg-secondary' ?>"><?= $sl[$fw_pend['status']] ?? $fw_pend['status'] ?></span></div>
+        </div>
+    </div>
+
+    <!-- Berkas checklist (localStorage) -->
+    <div class="small fw-semibold text-uppercase mb-2" style="color:#7c3aed;letter-spacing:.3px;">
+        <i class="bi bi-card-checklist me-1"></i>Cek Berkas
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+    <?php foreach ([
+        'kk'         => ['Kartu Keluarga (KK)', 'bi-house-fill',        '#dbeafe','#1d4ed8'],
+        'tka'        => ['Hasil Tes TKA',        'bi-file-earmark-text','#d1fae5','#065f46'],
+        'akta'       => ['Akta Kelahiran',       'bi-calendar-event',   '#fef3c7','#92400e'],
+        'buta_warna' => ['Tes Buta Warna',       'bi-eye',              '#fce7f3','#9d174d'],
+    ] as $fwk => [$fwl, $fwi, $fwbg, $fwco]): ?>
+    <label class="f2-berkas-row" id="f2BerkasRow_<?= $fwk ?>"
+           onclick="f2ToggleBerkas(<?= (int)$fw_cur['id'] ?>, '<?= $fwk ?>', this)">
+        <div style="width:32px;height:32px;border-radius:8px;background:<?= $fwbg ?>;color:<?= $fwco ?>;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <i class="bi <?= $fwi ?>"></i>
+        </div>
+        <span class="small flex-grow-1"><?= $fwl ?></span>
+        <i class="bi bi-circle" id="f2BerkasIco_<?= $fwk ?>" style="color:#d1d5db;"></i>
+    </label>
+    <?php endforeach; ?>
+    </div>
+
+    <div class="d-grid gap-2 mb-3">
+        <a href="?page=pendaftar" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-pencil me-1"></i>Edit Data Pendaftar
+        </a>
+        <form method="POST" class="d-grid">
+            <input type="hidden" name="action" value="f2_link">
+            <input type="hidden" name="antrian_id" value="<?= $fw_cur['id'] ?>">
+            <input type="hidden" name="pendaftar_id" value="0">
+            <button type="submit" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left-right me-1"></i>Ganti Pendaftar
+            </button>
+        </form>
+    </div>
+
+    <?php else: ?>
+    <!-- Belum terhubung: tombol daftar baru -->
+    <div class="text-center py-3 px-2">
+        <div style="width:60px;height:60px;border-radius:50%;background:#ede9fe;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+            <i class="bi bi-person-plus-fill" style="font-size:1.8rem;color:#7c3aed;"></i>
+        </div>
+        <div class="fw-semibold mb-1">Belum Ada Data</div>
+        <div class="small text-muted mb-4">Pendaftar ini belum diinput datanya.<br>Gunakan halaman Data Pendaftar untuk mendaftarkannya.</div>
+        <a href="superadmin_dashboard.php?page=pendaftar"
+           class="btn btn-sm fw-semibold text-white px-4"
+           style="background:linear-gradient(135deg,#7c3aed,#a855f7);">
+            <i class="bi bi-plus-lg me-1"></i>Daftarkan Sekarang
+        </a>
+    </div>
+    <?php endif; ?>
+
+    <!-- Tombol aksi utama -->
+    <div class="d-grid gap-2 pt-3 border-top" style="border-color:#e9d5ff !important;">
+        <form method="POST" action="superadmin_dashboard.php?page=antrian">
+            <input type="hidden" name="action" value="selesai">
+            <input type="hidden" name="antrian_id" value="<?= $fw_cur['id'] ?>">
+            <input type="hidden" name="nomor" value="<?= $fw_cur['nomor'] ?>">
+            <input type="hidden" name="redirect_to" value="<?= htmlspecialchars($page) ?>">
+            <button type="submit" class="btn btn-sm w-100 fw-semibold text-white"
+                    style="background:linear-gradient(135deg,#7c3aed,#a855f7);"
+                    onclick="f2ClearBerkas(<?= $fw_cur['id'] ?>); return confirm('Selesai? Surat Tanda Daftar diterbitkan untuk nomor <?= $fw_cur['nomor'] ?>.')">
+                <i class="bi bi-file-earmark-check me-1"></i>Selesai &amp; Terbitkan Surat
+            </button>
+        </form>
+        <form method="POST" action="superadmin_dashboard.php?page=antrian">
+            <input type="hidden" name="action" value="skip">
+            <input type="hidden" name="antrian_id" value="<?= $fw_cur['id'] ?>">
+            <input type="hidden" name="redirect_to" value="<?= htmlspecialchars($page) ?>">
+            <button type="submit" class="btn btn-sm btn-outline-warning w-100"
+                    onclick="return confirm('Lewati nomor <?= $fw_cur['nomor'] ?>? (Tidak hadir)')">
+                <i class="bi bi-forward-fill me-1"></i>Skip (Tidak Hadir)
+            </button>
+        </form>
+    </div>
+    </div>
+
+    <?php elseif ($float_widget['sisa'] > 0): ?>
+    <!-- Belum ada nomor aktif, ada yang menunggu -->
+    <div class="text-center py-5 px-3">
+        <i class="bi bi-hourglass-split d-block mb-3" style="font-size:2.5rem;color:#a855f7;opacity:.6;"></i>
+        <div class="fw-semibold mb-1"><?= $float_widget['sisa'] ?> pendaftar menunggu</div>
+        <div class="small text-muted mb-4">Belum ada nomor yang dipanggil</div>
+        <form method="POST" action="superadmin_dashboard.php?page=antrian">
+            <input type="hidden" name="action" value="mulai">
+            <input type="hidden" name="redirect_to" value="<?= htmlspecialchars($page) ?>">
+            <button type="submit" class="btn fw-semibold text-white px-4"
+                    style="background:linear-gradient(135deg,#7c3aed,#a855f7);">
+                <i class="bi bi-play-fill me-1"></i>Panggil Nomor Berikutnya
+            </button>
+        </form>
+    </div>
+
+    <?php else: ?>
+    <!-- Antrian kosong -->
+    <div class="text-center py-5 px-3">
+        <i class="bi bi-inbox d-block mb-3" style="font-size:2.5rem;color:#c4b5fd;"></i>
+        <div class="small text-muted">Belum ada pendaftar di Fase 2.</div>
+        <div class="small text-muted">Tunggu hasil Cek Berkas dari Fase 1.</div>
+    </div>
+    <?php endif; ?>
+
+    <div class="border-top text-center py-2 mt-auto" style="background:#fff;">
+        <a href="superadmin_dashboard.php?page=antrian" class="small text-decoration-none" style="color:#7c3aed;">
+            <i class="bi bi-grid-3x2-gap-fill me-1"></i>Buka Halaman Meja Antrian
+        </a>
+    </div>
+    </div>
+</div>
+
+<script>
+function f2BerkasKey(id) { return 'berkas_antrian_' + id; }
+function f2LoadBerkas(id) { try { return JSON.parse(localStorage.getItem(f2BerkasKey(id)) || '{}'); } catch { return {}; } }
+function f2ToggleBerkas(antrianId, key, rowEl) {
+    const data = f2LoadBerkas(antrianId);
+    data[key] = !data[key];
+    localStorage.setItem(f2BerkasKey(antrianId), JSON.stringify(data));
+    f2ApplyBerkasRow(key, data[key]);
+}
+function f2ApplyBerkasRow(key, checked) {
+    const row = document.getElementById('f2BerkasRow_' + key);
+    const ico = document.getElementById('f2BerkasIco_' + key);
+    if (row) row.classList.toggle('checked', !!checked);
+    if (ico) { ico.className = checked ? 'bi bi-check-circle-fill text-success' : 'bi bi-circle'; ico.style.color = checked ? '' : '#d1d5db'; }
+}
+function f2ClearBerkas(id) { localStorage.removeItem(f2BerkasKey(id)); }
+
+<?php if ($float_widget['current'] && $float_widget['pendaftar']): ?>
+document.addEventListener('DOMContentLoaded', () => {
+    const data = f2LoadBerkas(<?= $float_widget['current']['id'] ?>);
+    ['kk','tka','akta','buta_warna'].forEach(k => f2ApplyBerkasRow(k, !!data[k]));
+});
+<?php endif; ?>
+
+<?php if ($float_widget['current'] && !$float_widget['pendaftar']): ?>
+document.addEventListener('DOMContentLoaded', () => {
+    const el = document.getElementById('f2Sidebar');
+    if (el) new bootstrap.Offcanvas(el).show();
+});
+<?php endif; ?>
+</script>
+<?php endif; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <?php if ($needs_chart): ?>
