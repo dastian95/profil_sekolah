@@ -14,6 +14,10 @@ const HALAMAN_TERSEDIA = [
 ];
 
 $msg = '';
+if (!empty($_SESSION['flash_alur'])) {
+    $msg = $_SESSION['flash_alur'];
+    unset($_SESSION['flash_alur']);
+}
 
 // Auto-migrate: durasi_estimasi
 try { $conn->exec("ALTER TABLE tahapan ADD COLUMN durasi_estimasi VARCHAR(50) NULL AFTER deskripsi"); } catch(PDOException) {}
@@ -84,8 +88,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $conn->commit();
                 } catch (Throwable $e) { $conn->rollBack(); }
             }
-            echo '<script>window.location.href="?page=alur";</script>'; exit;
-
         } elseif ($action === 'reorder') {
             // AJAX drag & drop reorder — terima JSON array of IDs
             $ids = json_decode($_POST['ids'] ?? '[]', true);
@@ -117,6 +119,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             : '<div class="alert alert-danger">'.htmlspecialchars($e->getMessage()).'</div>';
     } catch (Exception $e) {
         $msg = '<div class="alert alert-danger">'.htmlspecialchars($e->getMessage()).'</div>';
+    }
+
+    // PRG: redirect setelah POST non-AJAX agar refresh tidak mengulang aksi
+    if (in_array($action, ['add', 'edit', 'delete', 'move'], true)) {
+        $_SESSION['flash_alur'] = $msg;
+        while (ob_get_level() > 0) ob_end_clean();
+        header('Location: ' . (!empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php') . '?page=alur');
+        exit;
     }
 }
 

@@ -11,6 +11,10 @@ if (empty($_SESSION['is_super'])) {
 }
 
 $msg = '';
+if (!empty($_SESSION['flash_pengaturan_ppdb'])) {
+    $msg = $_SESSION['flash_pengaturan_ppdb'];
+    unset($_SESSION['flash_pengaturan_ppdb']);
+}
 
 // Auto-migrate: kolom fitur & ketentuan gelombang
 foreach ([
@@ -74,6 +78,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         log_admin_action($conn, 'UNPUBLISH_HASIL', "Unpublish hasil penerimaan gelombang ID:{$id}");
         $msg = '<div class="alert alert-warning"><i class="bi bi-eye-slash me-2"></i>Daftar hasil penerimaan disembunyikan (banner pengumuman masih tampil).</div>';
     }
+
+    // PRG: redirect setelah POST agar refresh tidak mengulang aksi
+    $_SESSION['flash_pengaturan_ppdb'] = $msg;
+    while (ob_get_level() > 0) ob_end_clean();
+    header('Location: ' . (!empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php') . '?page=pengaturan_ppdb');
+    exit;
 }
 
 $gel_rows = $conn->query("SELECT * FROM gelombang ORDER BY gelombang")->fetchAll();

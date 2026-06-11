@@ -14,23 +14,31 @@ try { $conn->exec("ALTER TABLE antrian ADD COLUMN pendaftar_id INT NULL AFTER no
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
+    // PRG redirect: langsung ke dashboard yang sesuai (ob_start di dashboard membuat header() aman)
+    $redir_antrian = function(string $qs) {
+        $dash = !empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php';
+        while (ob_get_level() > 0) ob_end_clean();
+        header('Location: ' . $dash . '?' . $qs);
+        exit;
+    };
+
     if ($action === 'pilih_meja') {
         $mid = (int)$_POST['meja_id'];
         $_SESSION['antrian_meja_id']   = $mid;
         foreach ($mejas_aktif as $m) {
-            if ($m['id'] === $mid) { $_SESSION['antrian_meja_fase'] = (int)$m['fase']; break; }
+            if ((int)$m['id'] === $mid) { $_SESSION['antrian_meja_fase'] = (int)$m['fase']; break; }
         }
-        echo '<script>window.location.href="?page=antrian";</script>'; return;
+        $redir_antrian('page=antrian');
     }
 
     if ($action === 'ganti_meja') {
         unset($_SESSION['antrian_meja_id'], $_SESSION['antrian_meja_fase']);
-        echo '<script>window.location.href="?page=antrian";</script>'; return;
+        $redir_antrian('page=antrian');
     }
 
     $meja_id   = (int)($_SESSION['antrian_meja_id'] ?? 0);
     $meja_fase = (int)($_SESSION['antrian_meja_fase'] ?? 1);
-    if (!$meja_id) { echo '<script>window.location.href="?page=antrian";</script>'; return; }
+    if (!$meja_id) { $redir_antrian('page=antrian'); }
 
     // Helper: ambil nomor berikutnya dari fase tertentu untuk meja ini
     $ambilBerikutnya = function(int $fase) use ($conn, $meja_id, $today) {
@@ -60,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ambilBerikutnya(1);
             $conn->commit();
         } catch(Throwable $e) { $conn->rollBack(); }
-        echo '<script>window.location.href="?page=antrian";</script>'; return;
+        $redir_antrian('page=antrian');
     }
 
     // ── FASE 1: Gagal → tolak berkas ─────────────────────────────────────────
@@ -74,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ambilBerikutnya(1);
             $conn->commit();
         } catch(Throwable $e) { $conn->rollBack(); }
-        echo '<script>window.location.href="?page=antrian";</script>'; return;
+        $redir_antrian('page=antrian');
     }
 
     // ── FASE 2: Selesai ───────────────────────────────────────────────────────
@@ -90,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ambilBerikutnya(2);
             $conn->commit();
         } catch(Throwable $e) { $conn->rollBack(); }
-        echo '<script>window.location.href="?page=antrian&surat='.$nomor.'&back='.$back_page.'";</script>'; return;
+        $redir_antrian('page=antrian&surat=' . $nomor . '&back=' . $back_page);
     }
 
     // ── SKIP (berlaku semua fase) ─────────────────────────────────────────────
@@ -105,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ambilBerikutnya($meja_fase);
             $conn->commit();
         } catch(Throwable $e) { $conn->rollBack(); }
-        echo '<script>window.location.href="?page='.$back_page.'";</script>'; return;
+        $redir_antrian('page=' . $back_page);
     }
 
     // ── Mulai (panggil nomor pertama) ─────────────────────────────────────────
@@ -118,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$cek->fetch()) $ambilBerikutnya($meja_fase);
             $conn->commit();
         } catch(Throwable $e) { $conn->rollBack(); }
-        echo '<script>window.location.href="?page='.$back_page.'";</script>'; return;
+        $redir_antrian('page=' . $back_page);
     }
 
     // ── Hubungkan / lepas pendaftar dari antrian Fase 2 ───────────────────────
@@ -127,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pend_id = (int)$_POST['pendaftar_id'];
         $conn->prepare("UPDATE antrian SET pendaftar_id=? WHERE id=?")
              ->execute([$pend_id ?: null, $cur_id]);
-        echo '<script>window.location.href="?page=antrian";</script>'; return;
+        $redir_antrian('page=antrian');
     }
 }
 

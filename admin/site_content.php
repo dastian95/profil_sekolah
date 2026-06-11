@@ -56,6 +56,12 @@ $upd_fix = $conn->prepare("UPDATE site_settings SET setting_value=? WHERE settin
 $upd_fix->execute(['Bergabunglah di SMKS Laboratorium Jakarta', 'hero_title', 'Seleksi Penerimaan Murid Baru']);
 $upd_fix->execute(['https://maps.google.com/maps?q=-6.2350331,106.9439031&z=17&output=embed', 'maps_embed_url', 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3965.7!2d106.9439031!3d-6.2350331']);
 
+// Flash message dari PRG redirect
+if (!empty($_SESSION['flash_site_content'])) {
+    $msg = $_SESSION['flash_site_content'];
+    unset($_SESSION['flash_site_content']);
+}
+
 // ─── POST: simpan grup ───────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $group = $_POST['group'] ?? '';
@@ -68,6 +74,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         log_admin_action($conn, 'EDIT_SITE_CONTENT', "Update konten grup: {$group}");
         $msg = '<div class="alert alert-success alert-dismissible"><i class="bi bi-check-circle me-2"></i>Konten <strong>' . htmlspecialchars($group) . '</strong> berhasil disimpan. <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
     }
+
+    // PRG: redirect setelah POST agar refresh tidak mengulang aksi
+    $_SESSION['flash_site_content'] = $msg;
+    while (ob_get_level() > 0) ob_end_clean();
+    header('Location: ' . (!empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php') . '?page=site_content');
+    exit;
 }
 
 // ─── Load semua setting ──────────────────────────────────────────────────────

@@ -43,6 +43,10 @@ $my_acc = null;
 try { $st = $conn->prepare("SELECT * FROM superadmin_accounts WHERE id=?"); $st->execute([$acc_id]); $my_acc = $st->fetch() ?: null; } catch(Throwable) {}
 
 $msg = '';
+if (!empty($_SESSION['flash_superadmin_profile'])) {
+    $msg = $_SESSION['flash_superadmin_profile'];
+    unset($_SESSION['flash_superadmin_profile']);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -146,6 +150,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } catch (Throwable) {}
         }
     }
+
+    // PRG: redirect setelah POST agar refresh tidak mengulang aksi
+    $_SESSION['flash_superadmin_profile'] = $msg;
+    while (ob_get_level() > 0) ob_end_clean();
+    header('Location: superadmin_dashboard.php?page=superadmin_profile');
+    exit;
 }
 
 $display_name = $my_acc['nama'] ?? ($cfg['nama'] ?? SUPER_ADMIN_NAME);

@@ -1,5 +1,9 @@
 <?php
 $msg = '';
+if (!empty($_SESSION['flash_announcements'])) {
+    $msg = $_SESSION['flash_announcements'];
+    unset($_SESSION['flash_announcements']);
+}
 
 // Auto-migrate: kolom jadwal & urutan
 foreach ([
@@ -29,6 +33,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $conn->prepare("DELETE FROM announcements WHERE id=?")->execute([(int)$_POST['id']]);
         $msg = '<div class="alert alert-warning">Pengumuman dihapus.</div>';
     }
+
+    // PRG: redirect setelah POST agar refresh tidak mengulang aksi
+    $_SESSION['flash_announcements'] = $msg;
+    while (ob_get_level() > 0) ob_end_clean();
+    header('Location: ' . (!empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php') . '?page=announcements');
+    exit;
 }
 
 $list = $conn->query("SELECT * FROM announcements ORDER BY urutan ASC, created_at DESC")->fetchAll();

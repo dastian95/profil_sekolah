@@ -16,6 +16,10 @@ foreach ([
 }
 
 $msg = '';
+if (!empty($_SESSION['flash_kelola_admin'])) {
+    $msg = $_SESSION['flash_kelola_admin'];
+    unset($_SESSION['flash_kelola_admin']);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -109,6 +113,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (Exception $e) {
         $msg = '<div class="alert alert-danger">'.htmlspecialchars($e->getMessage()).'</div>';
     }
+
+    // PRG: redirect setelah POST agar refresh tidak mengulang aksi
+    $_SESSION['flash_kelola_admin'] = $msg;
+    while (ob_get_level() > 0) ob_end_clean();
+    header('Location: ' . (!empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php') . '?page=kelola_admin');
+    exit;
 }
 
 // Statistik & data

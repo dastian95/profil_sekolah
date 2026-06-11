@@ -15,6 +15,10 @@ if (empty($_SESSION['is_super'])) {
 }
 
 $msg = '';
+if (!empty($_SESSION['flash_meja'])) {
+    $msg = $_SESSION['flash_meja'];
+    unset($_SESSION['flash_meja']);
+}
 
 // Auto-migrate: is_paused
 try { $conn->exec("ALTER TABLE meja ADD COLUMN is_paused TINYINT(1) NOT NULL DEFAULT 0 AFTER is_active"); } catch(PDOException) {}
@@ -149,6 +153,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             : '<div class="alert alert-danger">'.htmlspecialchars($e->getMessage()).'</div>';
     } catch (Exception $e) {
         $msg = '<div class="alert alert-danger">'.htmlspecialchars($e->getMessage()).'</div>';
+    }
+
+    // PRG: redirect setelah POST non-AJAX agar refresh tidak mengulang aksi
+    if (!in_array($action, ['reorder_meja', 'rename_meja'], true)) {
+        $_SESSION['flash_meja'] = $msg;
+        while (ob_get_level() > 0) ob_end_clean();
+        header('Location: ' . (!empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php') . '?page=meja');
+        exit;
     }
 }
 

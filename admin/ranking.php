@@ -3,6 +3,10 @@ $jurusan_list = JURUSAN_LIST;
 $short        = JURUSAN_SHORT;
 
 $msg = '';
+if (!empty($_SESSION['flash_ranking'])) {
+    $msg = $_SESSION['flash_ranking'];
+    unset($_SESSION['flash_ranking']);
+}
 
 // Ambil konfigurasi gelombang
 $gel_rows = $conn->query("SELECT * FROM gelombang ORDER BY gelombang")->fetchAll();
@@ -19,7 +23,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pin')
     log_admin_action($conn, 'PIN_PENDAFTAR', "Pendaftar id={$pin_id} {$label}");
     $fGelRedirect = (int)($_POST['gelombang'] ?? 1);
     $fJurRedirect = urlencode($_POST['jurusan'] ?? '');
-    header("Location: ?page=ranking&gelombang={$fGelRedirect}&jurusan={$fJurRedirect}");
+    while (ob_get_level() > 0) ob_end_clean();
+    header('Location: ' . (!empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php') . "?page=ranking&gelombang={$fGelRedirect}&jurusan={$fJurRedirect}");
     exit;
 }
 
@@ -82,11 +87,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'prose
             Proses penerimaan Gelombang <strong>{$gelombang}</strong> selesai.
             <strong>{$total_diterima}</strong> pendaftar diterima dari seluruh jurusan.</div>";
     }
+
+    // PRG: redirect setelah proses agar refresh tidak mengulang seleksi
+    $_SESSION['flash_ranking'] = $msg;
+    while (ob_get_level() > 0) ob_end_clean();
+    header('Location: ' . (!empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php') . '?page=ranking&gelombang=' . $gelombang);
+    exit;
 }
 
 // ── Filter tampilan ───────────────────────────────────────────────────────────
-$fGel     = $_GET['gelombang'] ?? '1';
+$fGel     = (int)($_GET['gelombang'] ?? 1) ?: 1;
 $fJurusan = $_GET['jurusan']   ?? '';
+if ($fJurusan !== '' && !in_array($fJurusan, $jurusan_list, true)) $fJurusan = '';
 $g        = $gel_map[(int)$fGel] ?? null;
 $kuota_glm = $g ? (int)($g['kuota_glm'] ?? round($g['kuota_per_jurusan'] * $g['persen_gelombang'] / 100)) : 0;
 

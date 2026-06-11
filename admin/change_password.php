@@ -1,5 +1,9 @@
 <?php
 $msg = '';
+if (!empty($_SESSION['flash_change_password'])) {
+    $msg = $_SESSION['flash_change_password'];
+    unset($_SESSION['flash_change_password']);
+}
 $is_super = !empty($_SESSION['is_super']);
 
 if ($is_super) {
@@ -46,12 +50,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $msg = '<div class="alert alert-danger">Konfirmasi password tidak cocok.</div>';
     } else {
         $newHash = password_hash($new, PASSWORD_DEFAULT);
-        $conn->prepare("UPDATE admins SET password=? WHERE id=?")->execute([$newHash, $_SESSION['admin_id']]);
+        // password_plain di-NULL-kan: admin sudah ganti sendiri, plaintext lama tidak berlaku lagi
+        $conn->prepare("UPDATE admins SET password=?, password_plain=NULL WHERE id=?")->execute([$newHash, $_SESSION['admin_id']]);
 
         $log = $conn->prepare("INSERT INTO admin_logs (admin_id,action,details,ip_address) VALUES (?,?,?,?)");
         $log->execute([$_SESSION['admin_id'], 'CHANGE_PASSWORD', 'Admin ganti password', $_SERVER['REMOTE_ADDR']]);
         $msg = '<div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>Password berhasil diubah.</div>';
     }
+
+    // PRG: redirect setelah POST agar refresh tidak mengulang aksi
+    $_SESSION['flash_change_password'] = $msg;
+    while (ob_get_level() > 0) ob_end_clean();
+    header('Location: admin_dashboard.php?page=change_password');
+    exit;
 }
 ?>
 

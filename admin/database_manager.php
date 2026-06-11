@@ -117,8 +117,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $_SESSION['dbm_flash'] = $flash;
     $redir_url = '?page=database_manager' . ($tbl ? '&tbl=' . urlencode($tbl) : '');
-    echo '<script>window.location.replace(' . json_encode($redir_url) . ');</script>';
-    return;
+    while (ob_get_level() > 0) ob_end_clean();
+    header('Location: ' . (!empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php') . $redir_url);
+    exit;
 }
 
 if (isset($_SESSION['dbm_flash'])) {
