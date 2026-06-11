@@ -113,8 +113,9 @@ CREATE TABLE `pendaftar` (
   `jenis_kelamin` enum('L','P') NOT NULL,
   `asal_sekolah` varchar(255) NOT NULL,
   `no_telp` varchar(20) DEFAULT NULL,
+  `tgl_kk` date DEFAULT NULL COMMENT 'Tanggal terbit Kartu Keluarga (cek cut-off)',
   `alamat` text DEFAULT NULL,
-  `sistem_pendidikan` enum('reguler','pkbm') NOT NULL DEFAULT 'reguler' COMMENT 'reguler = SMP biasa; pkbm = Paket B Setara SMP',
+  `sistem_pendidikan` enum('reguler','pkbm','khusus') NOT NULL DEFAULT 'reguler' COMMENT 'reguler = R70%+T30%; pkbm & khusus = 85% raport tanpa TKA',
   `jurusan` enum('Rekayasa Perangkat Lunak (RPL)','Teknik Komputer dan Jaringan (TKJ)','Asisten Keperawatan (AP)','Tata Kecantikan Kulit dan Rambut (TKKR)') NOT NULL,
   `nilai_raport` decimal(5,2) NOT NULL COMMENT 'Rata-rata raport smt 1-6 (bobot 70%)',
   `nilai_tka` decimal(5,2) NOT NULL COMMENT 'Nilai TKA (bobot 30%)',
@@ -232,21 +233,26 @@ INSERT INTO `meja` (`nomor_meja`, `nama`) VALUES
 
 -- ============================================================
 -- Tabel: antrian
--- Nomor antrian harian dengan round-robin ke meja
+-- Nomor antrian harian dua fase (1: cek berkas, 2: input data)
+-- Nomor yang sama dipakai ulang di fase 2 → unique key per fase
 -- ============================================================
 CREATE TABLE `antrian` (
   `id` int NOT NULL AUTO_INCREMENT,
   `tanggal` date NOT NULL,
   `nomor` int NOT NULL,
+  `pendaftar_id` int DEFAULT NULL,
+  `fase` tinyint NOT NULL DEFAULT 1,
+  `hasil` enum('lulus','gagal') DEFAULT NULL,
   `meja_id` int DEFAULT NULL,
   `status` enum('menunggu','dipanggil','selesai','skip') NOT NULL DEFAULT 'menunggu',
   `dipanggil_at` timestamp NULL DEFAULT NULL,
   `selesai_at` timestamp NULL DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_tanggal_nomor` (`tanggal`, `nomor`),
+  UNIQUE KEY `uk_tanggal_nomor_fase` (`tanggal`, `nomor`, `fase`),
   KEY `meja_id` (`meja_id`),
-  CONSTRAINT `fk_antrian_meja` FOREIGN KEY (`meja_id`) REFERENCES `meja` (`id`) ON DELETE SET NULL
+  CONSTRAINT `fk_antrian_meja` FOREIGN KEY (`meja_id`) REFERENCES `meja` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_antrian_pendaftar` FOREIGN KEY (`pendaftar_id`) REFERENCES `pendaftar` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── Site Settings ──────────────────────────────────────────────────────────

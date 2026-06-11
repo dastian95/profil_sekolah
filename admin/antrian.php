@@ -9,6 +9,12 @@ $mejas_aktif = $conn->query("SELECT * FROM meja WHERE is_active=1 ORDER BY fase,
 
 // Auto-migrate: pendaftar_id di antrian
 try { $conn->exec("ALTER TABLE antrian ADD COLUMN pendaftar_id INT NULL AFTER nomor"); } catch (PDOException) {}
+// Auto-migrate: kolom fase & hasil (schema lama belum punya)
+try { $conn->exec("ALTER TABLE antrian ADD COLUMN fase TINYINT NOT NULL DEFAULT 1 AFTER pendaftar_id"); } catch (PDOException) {}
+try { $conn->exec("ALTER TABLE antrian ADD COLUMN hasil ENUM('lulus','gagal') NULL AFTER fase"); } catch (PDOException) {}
+// Auto-migrate: unique key lama (tanggal,nomor) memblokir nomor yang sama di fase 2
+// → ganti dengan (tanggal,nomor,fase). Gagal harmless jika sudah dimigrate.
+try { $conn->exec("ALTER TABLE antrian DROP INDEX uk_tanggal_nomor, ADD UNIQUE KEY uk_tanggal_nomor_fase (tanggal, nomor, fase)"); } catch (PDOException) {}
 
 // ── POST Handler ──────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

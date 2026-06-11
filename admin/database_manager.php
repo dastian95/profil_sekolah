@@ -1,5 +1,9 @@
 <?php
-// Hanya bisa diakses via superadmin_dashboard.php (session sudah dicek di sana)
+// Guard eksplisit — jangan hanya mengandalkan pengecekan di dashboard
+if (empty($_SESSION['is_super'])) {
+    echo '<div class="alert alert-danger"><i class="bi bi-shield-x me-2"></i>Akses ditolak. Halaman ini hanya untuk Super Admin.</div>';
+    return;
+}
 
 $DB_PROTECTED = ['admins', 'site_settings', 'gelombang', 'tahapan', 'meja'];
 $all_tables   = $conn->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);

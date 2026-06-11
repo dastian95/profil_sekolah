@@ -4,6 +4,12 @@ if (empty($_SESSION['is_super'])) {
     return;
 }
 
+// Flash dari PRG redirect
+if (!empty($_SESSION['flash_audit_log'])) {
+    $flash = $_SESSION['flash_audit_log'];
+    unset($_SESSION['flash_audit_log']);
+}
+
 // Hapus log lama (opsional)
 if (($_POST['action'] ?? '') === 'clear_old') {
     $days = (int)($_POST['days'] ?? 30);
@@ -12,7 +18,12 @@ if (($_POST['action'] ?? '') === 'clear_old') {
     $deleted = $stmt->rowCount();
     $log = $conn->prepare("INSERT INTO admin_logs (admin_id, action, details, ip_address) VALUES (NULL, 'LOG_CLEAR', ?, ?)");
     $log->execute(["Superadmin hapus log lebih dari $days hari ($deleted rows)", $_SERVER['REMOTE_ADDR']]);
-    $flash = '<div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>'.$deleted.' log lama dihapus.</div>';
+
+    // PRG: refresh tidak mengulang penghapusan
+    $_SESSION['flash_audit_log'] = '<div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>'.$deleted.' log lama dihapus.</div>';
+    while (ob_get_level() > 0) ob_end_clean();
+    header('Location: superadmin_dashboard.php?page=audit_log');
+    exit;
 }
 
 // Filter

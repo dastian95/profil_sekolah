@@ -123,6 +123,10 @@ try {
 try {
     $conn->exec("ALTER TABLE pendaftar MODIFY COLUMN status ENUM('diproses','lengkap','gugur','terima') NOT NULL DEFAULT 'diproses'");
 } catch (PDOException $e) {}
+// Auto-migrate: tambah 'khusus' ke enum sistem_pendidikan (schema lama hanya reguler/pkbm)
+try {
+    $conn->exec("ALTER TABLE pendaftar MODIFY COLUMN sistem_pendidikan ENUM('reguler','pkbm','khusus') NOT NULL DEFAULT 'reguler'");
+} catch (PDOException $e) {}
 
 // ─── POST: Tambah / Edit / Hapus ────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

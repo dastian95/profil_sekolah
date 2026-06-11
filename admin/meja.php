@@ -22,6 +22,11 @@ if (!empty($_SESSION['flash_meja'])) {
 
 // Auto-migrate: is_paused
 try { $conn->exec("ALTER TABLE meja ADD COLUMN is_paused TINYINT(1) NOT NULL DEFAULT 0 AFTER is_active"); } catch(PDOException) {}
+// Auto-migrate: kolom fase & hasil antrian + unique key per fase (schema lama)
+try { $conn->exec("ALTER TABLE antrian ADD COLUMN pendaftar_id INT NULL AFTER nomor"); } catch(PDOException) {}
+try { $conn->exec("ALTER TABLE antrian ADD COLUMN fase TINYINT NOT NULL DEFAULT 1 AFTER pendaftar_id"); } catch(PDOException) {}
+try { $conn->exec("ALTER TABLE antrian ADD COLUMN hasil ENUM('lulus','gagal') NULL AFTER fase"); } catch(PDOException) {}
+try { $conn->exec("ALTER TABLE antrian DROP INDEX uk_tanggal_nomor, ADD UNIQUE KEY uk_tanggal_nomor_fase (tanggal, nomor, fase)"); } catch(PDOException) {}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';

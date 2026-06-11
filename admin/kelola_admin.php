@@ -133,9 +133,9 @@ $tahap_pages_map = [
     'input_data'      => ['pendaftar', 'antrian'],
     'proses_berkas'   => ['antrian', 'pendaftar'],
     'ranking'         => ['ranking', 'pendaftar'],
-    'pengumuman'      => ['announcements', 'gelombang'],
+    'pengumuman'      => ['announcements', 'pengaturan_ppdb'],
     'kelola_meja'     => ['meja', 'antrian', 'antrian_display'],
-    'kelola_gelombang'=> ['gelombang'],
+    'kelola_gelombang'=> ['pengaturan_ppdb'],
 ];
 
 // Load semua tahapan + assigned tahapan per admin

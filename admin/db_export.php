@@ -6,6 +6,7 @@ if (empty($_SESSION['is_super'])) {
 }
 
 require_once dirname(__DIR__) . '/conn.php';
+require_once __DIR__ . '/_constants.php'; // log_admin_action()
 
 $all_tables = $conn->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
 $tbl        = trim($_GET['tbl'] ?? '');

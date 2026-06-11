@@ -124,8 +124,9 @@ if ($fw_meja_id && $fw_meja_fase === 2) {
             $fw_pendaftar = $fwp->fetch() ?: null;
         }
 
-        $fws = $conn->prepare("SELECT COUNT(*) FROM antrian WHERE tanggal=? AND meja_id=? AND fase=2 AND status='menunggu'");
-        $fws->execute([$today, $fw_meja_id]);
+        // Antrian Fase 2 menunggu belum punya meja_id (NULL) — hitung tanpa filter meja
+        $fws = $conn->prepare("SELECT COUNT(*) FROM antrian WHERE tanggal=? AND fase=2 AND status='menunggu'");
+        $fws->execute([$today]);
         $fw_sisa = (int)$fws->fetchColumn();
 
         $float_widget = ['meja' => $fw_meja, 'current' => $fw_current, 'pendaftar' => $fw_pendaftar, 'sisa' => $fw_sisa];

@@ -17,6 +17,12 @@ if (isset($_GET['export'])) {
     $rows = $stmt->fetchAll();
 
     $filename = 'pendaftar_ppdb_' . date('Ymd_His') . '.csv';
+
+    // Log dulu (aman untuk superadmin), lalu bersihkan buffer dashboard
+    // agar file CSV tidak tercampur HTML
+    log_admin_action($conn, 'EXPORT_CSV', "Export CSV: {$filename}");
+    while (ob_get_level() > 0) ob_end_clean();
+
     header('Content-Type: text/csv; charset=UTF-8');
     header("Content-Disposition: attachment; filename=\"$filename\"");
     header('Pragma: no-cache');
@@ -37,15 +43,12 @@ if (isset($_GET['export'])) {
         ]);
     }
     fclose($out);
-
-    $log = $conn->prepare("INSERT INTO admin_logs (admin_id,action,details,ip_address) VALUES (?,?,?,?)");
-    $log->execute([$_SESSION['admin_id'], 'EXPORT_CSV', "Export CSV: {$filename}", $_SERVER['REMOTE_ADDR']]);
     exit;
 }
 
 // Statistik ringkas
 $total      = $conn->query("SELECT COUNT(*) FROM pendaftar")->fetchColumn();
-$diterima   = $conn->query("SELECT COUNT(*) FROM pendaftar WHERE status='diterima'")->fetchColumn();
+$diterima   = $conn->query("SELECT COUNT(*) FROM pendaftar WHERE status='terima'")->fetchColumn();
 $gel_rows   = $conn->query("SELECT * FROM gelombang ORDER BY gelombang")->fetchAll();
 $jurusan_list = JURUSAN_LIST;
 ?>
@@ -111,8 +114,9 @@ $jurusan_list = JURUSAN_LIST;
                     <label class="form-label">Status</label>
                     <select name="status" class="form-select">
                         <option value="">Semua Status</option>
-                        <option value="diterima">Diterima</option>
-                        <option value="ditolak">Ditolak</option>
+                        <option value="terima">Diterima</option>
+                        <option value="gugur">Ditolak / Gugur</option>
+                        <option value="lengkap">Lengkap</option>
                         <option value="diproses">Diproses</option>
                     </select>
                 </div>
