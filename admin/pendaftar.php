@@ -93,6 +93,12 @@ if (!empty($_SESSION['pend_print_id'])) {
     unset($_SESSION['pend_print_id']);
 }
 
+// Server-side form token — satu token per halaman, habis setelah dipakai
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    $_SESSION['pend_form_token'] = bin2hex(random_bytes(16));
+}
+$form_token = $_SESSION['pend_form_token'] ?? '';
+
 // Data untuk preserve form saat validasi gagal
 $formData   = [];
 $formRaport = [];
@@ -115,6 +121,22 @@ try {
 // ─── POST: Tambah / Edit / Hapus ────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
+
+    // Token anti-double-submit: add/edit harus punya token valid
+    if (in_array($action, ['add', 'edit'])) {
+        $submitted_token = $_POST['form_token'] ?? '';
+        if (!$submitted_token || $submitted_token !== ($_SESSION['pend_form_token'] ?? '')) {
+            // Token tidak valid atau sudah terpakai — redirect saja, jangan proses
+            $glm_qs = !empty($_SESSION['pend_active_gelombang']) ? '&gelombang=' . urlencode($_SESSION['pend_active_gelombang']) : '';
+            while (ob_get_level() > 0) ob_end_clean();
+            header('Location: admin_dashboard.php?page=pendaftar' . $glm_qs);
+            exit;
+        }
+        unset($_SESSION['pend_form_token']); // Konsumsi token — tidak bisa dipakai lagi
+        // Langsung regenerate untuk retry jika validasi gagal
+        $_SESSION['pend_form_token'] = bin2hex(random_bytes(16));
+        $form_token = $_SESSION['pend_form_token'];
+    }
 
     if ($action === 'add' || $action === 'edit') {
         // Tab 1 fields selalu wajib
@@ -150,10 +172,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $err = 'Nilai TKA wajib diisi jika raport sudah dilengkapi.';
             }
 
+            $gel = 0;
+            $existing_status = 'diproses';
             if (!$err) {
                 // Tentukan gelombang
-                $gel = 0;
-                $existing_status = 'diproses';
                 if ($action === 'add') {
                     if (!$gelombang_aktif) {
                         $err = 'Tidak ada gelombang aktif. Atur tanggal gelombang di menu Pengaturan Gelombang.';
@@ -496,6 +518,7 @@ if ($edit_id_get > 0) {
       <form method="POST" id="formPendaftar" novalidate>
         <input type="hidden" name="action" id="formAction" value="<?= htmlspecialchars($formAction) ?>">
         <input type="hidden" name="id" id="formId" value="<?= htmlspecialchars($formId) ?>">
+        <input type="hidden" name="form_token" id="formToken" value="<?= htmlspecialchars($form_token) ?>">
 
         <!-- Tab Navigation -->
         <ul class="nav nav-tabs px-3 pt-2" role="tablist">
