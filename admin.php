@@ -1,16 +1,6 @@
 <?php
 require_once __DIR__ . '/conn.php';
 
-// =========================================================
-//  SUPERADMIN — HARDCODED (RAHASIA, TIDAK ADA DI DATABASE)
-//  Username : superadmin
-//  Password : SuperRahasia2026!
-//  Akun ini hanya bisa diubah lewat code (file ini).
-// =========================================================
-const SUPER_ADMIN_USERNAME = 'superadmin';
-const SUPER_ADMIN_HASH     = '$2y$12$rv40eZ5YsYmGZ4W5O44g4OxDkl99fcmcB9JVbKRta/esl2wiKw96S';
-const SUPER_ADMIN_NAME     = 'Super Admin';
-
 // Rate limit config
 const MAX_FAIL_ATTEMPTS = 999;
 const LOCKOUT_MINUTES   = 0;
@@ -59,8 +49,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$locked) {
     if ($username && $password) {
         $login_ok = false;
 
-        // 1. Cek SUPERADMIN dulu (hardcoded, tidak dari database)
-        if ($username === SUPER_ADMIN_USERNAME && password_verify($password, SUPER_ADMIN_HASH)) {
+        // 1. Cek SUPERADMIN dulu — hash dari DB, fallback ke konstanta
+        $super_hash = SUPER_ADMIN_HASH;
+        try {
+            $sh = $conn->query("SELECT password_hash FROM superadmin_config WHERE id=1")->fetchColumn();
+            if ($sh) $super_hash = $sh;
+        } catch (Throwable) {}
+        if ($username === SUPER_ADMIN_USERNAME && password_verify($password, $super_hash)) {
             $_SESSION['admin_id']   = 0;
             $_SESSION['admin_name'] = SUPER_ADMIN_NAME;
             $_SESSION['is_super']   = true;

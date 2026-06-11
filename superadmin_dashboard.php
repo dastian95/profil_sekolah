@@ -26,7 +26,8 @@ $pages = [
     'audit_log'        => ['label' => 'Audit Log',              'icon' => 'bi-journal-text',         'group' => 'Sistem'],
     'system_info'      => ['label' => 'System Info',            'icon' => 'bi-info-square',          'group' => 'Sistem'],
     'backup'           => ['label' => 'Backup / Export',        'icon' => 'bi-cloud-download',       'group' => 'Sistem'],
-    'database_manager' => ['label' => 'Database Manager',       'icon' => 'bi-database-fill',        'group' => 'Sistem'],
+    'database_manager'    => ['label' => 'Database Manager',       'icon' => 'bi-database-fill',        'group' => 'Sistem'],
+    'superadmin_profile'  => ['label' => 'Profil & Password',      'icon' => 'bi-person-circle',        'group' => 'Sistem'],
 ];
 
 if (!array_key_exists($page, $pages)) $page = 'super_home';
@@ -269,7 +270,8 @@ foreach ($pages as $key => $info) {
         'audit_log'       => 'admin/audit_log.php',
         'system_info'     => 'admin/system_info.php',
         'backup'           => 'admin/backup.php',
-        'database_manager' => 'admin/database_manager.php',
+        'database_manager'   => 'admin/database_manager.php',
+        'superadmin_profile' => 'admin/superadmin_profile.php',
     ];
     $file = $include_map[$page] ?? 'admin/super_home.php';
     if (file_exists(__DIR__ . '/' . $file)) {

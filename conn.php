@@ -3,6 +3,11 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Superadmin konstanta — tersedia di seluruh panel (admin.php, superadmin_dashboard.php, dst)
+define('SUPER_ADMIN_USERNAME', 'superadmin');
+define('SUPER_ADMIN_HASH',     '$2y$12$rv40eZ5YsYmGZ4W5O44g4OxDkl99fcmcB9JVbKRta/esl2wiKw96S');
+define('SUPER_ADMIN_NAME',     'Super Admin');
+
 require_once __DIR__ . '/env_loader.php';
 
 try {
