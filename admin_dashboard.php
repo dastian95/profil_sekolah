@@ -104,12 +104,17 @@ if ($fw_meja_id && $fw_meja_fase === 2) {
         $fwm = $conn->prepare("SELECT * FROM meja WHERE id=?");
         $fwm->execute([$fw_meja_id]);
         $fw_meja = $fwm->fetch();
+        if (!$fw_meja) {
+            // Meja sudah tidak ada — bersihkan session agar tidak loop
+            unset($_SESSION['antrian_meja_id'], $_SESSION['antrian_meja_fase']);
+            throw new RuntimeException('meja_not_found');
+        }
 
         $fwc = $conn->prepare("SELECT * FROM antrian
             WHERE tanggal=? AND meja_id=? AND fase=2 AND status='dipanggil'
             ORDER BY dipanggil_at DESC LIMIT 1");
         $fwc->execute([$today, $fw_meja_id]);
-        $fw_current = $fwc->fetch();
+        $fw_current = $fwc->fetch() ?: null;
 
         $fw_pendaftar = null;
         if ($fw_current && !empty($fw_current['pendaftar_id'])) {
@@ -118,19 +123,11 @@ if ($fw_meja_id && $fw_meja_fase === 2) {
             $fw_pendaftar = $fwp->fetch() ?: null;
         }
 
-        $fws = $conn->prepare("SELECT COUNT(*) FROM antrian WHERE tanggal=? AND fase=2 AND status='menunggu'");
-        $fws->execute([$today]);
+        $fws = $conn->prepare("SELECT COUNT(*) FROM antrian WHERE tanggal=? AND meja_id=? AND fase=2 AND status='menunggu'");
+        $fws->execute([$today, $fw_meja_id]);
         $fw_sisa = (int)$fws->fetchColumn();
 
-        $fw_sp = trim($_GET['sidebar_sp'] ?? '');
-        $fw_search_results = [];
-        if ($fw_sp && $fw_current && !$fw_pendaftar) {
-            $fwsr = $conn->prepare("SELECT id,nama,nisn,jurusan,status FROM pendaftar WHERE nama LIKE ? OR nisn LIKE ? ORDER BY nama LIMIT 8");
-            $fwsr->execute(["%$fw_sp%", "%$fw_sp%"]);
-            $fw_search_results = $fwsr->fetchAll();
-        }
-
-        $float_widget = ['meja' => $fw_meja, 'current' => $fw_current, 'pendaftar' => $fw_pendaftar, 'sisa' => $fw_sisa, 'sp' => $fw_sp, 'results' => $fw_search_results];
+        $float_widget = ['meja' => $fw_meja, 'current' => $fw_current, 'pendaftar' => $fw_pendaftar, 'sisa' => $fw_sisa];
     } catch(Throwable) {}
 }
 
@@ -533,38 +530,19 @@ foreach ($pages as $key => $info) {
     </div>
 
     <?php else: ?>
-    <!-- Belum terhubung: form pencarian -->
-    <div class="text-muted small mb-3">Cari & hubungkan pendaftar ke nomor ini.</div>
-    <form method="GET" class="mb-3">
-        <input type="hidden" name="page" value="<?= htmlspecialchars($page) ?>">
-        <div class="input-group">
-            <input type="text" name="sidebar_sp" class="form-control"
-                   value="<?= htmlspecialchars($float_widget['sp']) ?>"
-                   placeholder="Nama atau NISN...">
-            <button class="btn btn-primary" type="submit"><i class="bi bi-search"></i></button>
+    <!-- Belum terhubung: tombol daftar baru -->
+    <div class="text-center py-3 px-2">
+        <div style="width:60px;height:60px;border-radius:50%;background:#ede9fe;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+            <i class="bi bi-person-plus-fill" style="font-size:1.8rem;color:#7c3aed;"></i>
         </div>
-    </form>
-    <?php if (!empty($float_widget['results'])): ?>
-    <div style="display:flex;flex-direction:column;gap:6px;">
-        <?php foreach ($float_widget['results'] as $fwr): ?>
-        <form method="POST">
-            <input type="hidden" name="action" value="f2_link">
-            <input type="hidden" name="antrian_id" value="<?= $fw_cur['id'] ?>">
-            <input type="hidden" name="pendaftar_id" value="<?= $fwr['id'] ?>">
-            <button type="submit" class="btn btn-sm w-100 text-start py-2 px-3"
-                    style="background:#fff;border:1.5px solid #c4b5fd;border-radius:10px;">
-                <div class="fw-semibold small"><?= htmlspecialchars($fwr['nama']) ?></div>
-                <div class="text-muted" style="font-size:.72rem;"><?= htmlspecialchars($fwr['jurusan']) ?> · NISN: <?= $fwr['nisn'] ?: '—' ?></div>
-            </button>
-        </form>
-        <?php endforeach; ?>
+        <div class="fw-semibold mb-1">Belum Ada Data</div>
+        <div class="small text-muted mb-4">Pendaftar ini belum diinput datanya.<br>Gunakan halaman Data Pendaftar untuk mendaftarkannya.</div>
+        <a href="admin_dashboard.php?page=pendaftar"
+           class="btn btn-sm fw-semibold text-white px-4"
+           style="background:linear-gradient(135deg,#7c3aed,#a855f7);">
+            <i class="bi bi-plus-lg me-1"></i>Daftarkan Sekarang
+        </a>
     </div>
-    <?php elseif ($float_widget['sp']): ?>
-    <div class="text-center text-muted small py-3">
-        <i class="bi bi-search d-block mb-1 fs-5 opacity-50"></i>
-        Tidak ada hasil untuk "<?= htmlspecialchars($float_widget['sp']) ?>"
-    </div>
-    <?php endif; ?>
     <?php endif; ?>
 
     <!-- Tombol aksi utama -->
@@ -650,7 +628,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 <?php endif; ?>
 
-<?php if ($float_widget['sp'] || ($float_widget['current'] && !$float_widget['pendaftar'])): ?>
+<?php if ($float_widget['current'] && !$float_widget['pendaftar']): ?>
+// Auto-buka sidebar saat ada nomor aktif tapi belum ada data pendaftar
 document.addEventListener('DOMContentLoaded', () => {
     const el = document.getElementById('f2Sidebar');
     if (el) new bootstrap.Offcanvas(el).show();

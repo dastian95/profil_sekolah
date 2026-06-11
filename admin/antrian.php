@@ -180,20 +180,6 @@ try {
     $s6 = $conn->prepare("SELECT COUNT(*) FROM antrian WHERE tanggal=? AND fase=1 AND hasil='gagal'");       $s6->execute([$today]); $gagal_fase1   = (int)$s6->fetchColumn();
 } catch(Throwable) {}
 
-// Pencarian pendaftar untuk panel Fase 2
-$pend_search_q = '';
-$pend_search_results = [];
-if ($my_meja_fase == 2 && $current && !$current_pendaftar) {
-    $pend_search_q = trim($_GET['sp'] ?? '');
-    if ($pend_search_q) {
-        try {
-            $sps = $conn->prepare("SELECT id, nama, nisn, jurusan, status FROM pendaftar
-                WHERE nama LIKE ? OR nisn LIKE ? ORDER BY nama LIMIT 10");
-            $sps->execute(["%$pend_search_q%", "%$pend_search_q%"]);
-            $pend_search_results = $sps->fetchAll();
-        } catch(Throwable) {}
-    }
-}
 
 // Stat per meja untuk board
 $meja_stat = [];
@@ -576,118 +562,6 @@ $mejas_fase2 = array_filter($mejas_aktif, fn($m) => (int)$m['fase'] === 2);
     <?php endif; ?>
 </div>
 
-<?php if ($my_meja_fase == 2): ?>
-<!-- ─── FLOATING BUTTON ────────────────────────────────────────────────────── -->
-<button class="panel-sidebar-btn no-print <?= $current_pendaftar ? 'linked' : '' ?>"
-        data-bs-toggle="offcanvas" data-bs-target="#panelPendaftar">
-    <i class="bi <?= $current_pendaftar ? 'bi-person-check-fill' : 'bi-person-plus' ?>"></i>
-    <span><?= $current_pendaftar ? htmlspecialchars(mb_substr($current_pendaftar['nama'], 0, 20)) : 'Data Pendaftar' ?></span>
-</button>
-
-<!-- ─── OFFCANVAS: DATA PENDAFTAR ─────────────────────────────────────────── -->
-<div class="offcanvas offcanvas-end offcanvas-pendaftar no-print" tabindex="-1" id="panelPendaftar">
-    <div class="offcanvas-header" style="background:#ede9fe;border-bottom:1.5px solid #c4b5fd;">
-        <div>
-            <h6 class="offcanvas-title mb-0 fw-bold" style="color:#6d28d9;">
-                <i class="bi bi-person-vcard me-2"></i>Data Pendaftar
-            </h6>
-            <div class="text-muted" style="font-size:.72rem;">Nomor SSG<?= str_pad($current['nomor'], 3, '0', STR_PAD_LEFT) ?></div>
-        </div>
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
-    </div>
-    <div class="offcanvas-body" style="background:#faf5ff;">
-
-    <?php if ($current_pendaftar): ?>
-    <!-- Sudah terhubung — tampilkan data -->
-    <div class="card border-0 shadow-sm mb-3">
-        <div class="card-body py-3">
-            <div class="fw-bold" style="font-size:1.05rem;"><?= htmlspecialchars($current_pendaftar['nama']) ?></div>
-            <?php if ($current_pendaftar['nisn']): ?>
-            <div class="text-muted small"><i class="bi bi-hash me-1"></i>NISN: <?= htmlspecialchars($current_pendaftar['nisn']) ?></div>
-            <?php endif; ?>
-            <div class="text-muted small"><i class="bi bi-mortarboard me-1"></i><?= htmlspecialchars($current_pendaftar['jurusan']) ?></div>
-            <?php
-            $sb = ['diproses'=>'bg-warning text-dark','lengkap'=>'bg-info text-dark','gugur'=>'bg-danger','terima'=>'bg-success'];
-            $sl = ['diproses'=>'Diproses','lengkap'=>'Lengkap','gugur'=>'Gugur','terima'=>'Terima'];
-            ?>
-            <div class="mt-2">
-                <span class="badge <?= $sb[$current_pendaftar['status']] ?? 'bg-secondary' ?>"><?= $sl[$current_pendaftar['status']] ?? $current_pendaftar['status'] ?></span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Berkas Checklist (localStorage) -->
-    <div class="small fw-semibold text-uppercase mb-2" style="color:#7c3aed;letter-spacing:.3px;">
-        <i class="bi bi-card-checklist me-1"></i>Cek Berkas
-    </div>
-    <div id="berkasChecklist" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
-        <?php foreach ([
-            'kk'         => ['Kartu Keluarga (KK)',    'bi-house-fill',         '#dbeafe','#1d4ed8'],
-            'tka'        => ['Hasil Tes TKA',           'bi-file-earmark-text', '#d1fae5','#065f46'],
-            'akta'       => ['Akta Kelahiran',          'bi-calendar-event',    '#fef3c7','#92400e'],
-            'buta_warna' => ['Tes Buta Warna',          'bi-eye',               '#fce7f3','#9d174d'],
-        ] as $key => [$label, $icon, $bg, $color]): ?>
-        <label class="berkas-row" id="berkasRow_<?= $key ?>"
-               onclick="toggleBerkas(<?= json_encode((int)$current['id']) ?>, '<?= $key ?>', this)">
-            <div style="width:32px;height:32px;border-radius:8px;background:<?= $bg ?>;color:<?= $color ?>;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                <i class="bi <?= $icon ?>"></i>
-            </div>
-            <span class="small flex-grow-1"><?= $label ?></span>
-            <i class="bi bi-circle berkas-ico" id="berkasIco_<?= $key ?>" style="color:#d1d5db;"></i>
-        </label>
-        <?php endforeach; ?>
-    </div>
-
-    <div class="d-grid gap-2">
-        <a href="?page=pendaftar" class="btn btn-outline-primary btn-sm">
-            <i class="bi bi-pencil me-1"></i>Edit Data Pendaftar
-        </a>
-        <button type="button" class="btn btn-outline-secondary btn-sm"
-                onclick="unlinkPendaftar(<?= $current['id'] ?>)">
-            <i class="bi bi-arrow-left-right me-1"></i>Ganti Pendaftar
-        </button>
-    </div>
-
-    <?php else: ?>
-    <!-- Belum terhubung — form pencarian -->
-    <div class="text-muted small mb-3">Cari pendaftar yang sedang dilayani dan hubungkan ke nomor ini.</div>
-
-    <form method="GET" class="mb-3">
-        <input type="hidden" name="page" value="antrian">
-        <div class="input-group">
-            <input type="text" name="sp" class="form-control"
-                   value="<?= htmlspecialchars($pend_search_q) ?>"
-                   placeholder="Nama atau NISN..." autofocus>
-            <button class="btn btn-primary" type="submit"><i class="bi bi-search"></i></button>
-        </div>
-    </form>
-
-    <?php if (!empty($pend_search_results)): ?>
-    <div style="display:flex;flex-direction:column;gap:6px;">
-        <?php foreach ($pend_search_results as $pr): ?>
-        <form method="POST">
-            <input type="hidden" name="action" value="link_pendaftar">
-            <input type="hidden" name="antrian_id" value="<?= $current['id'] ?>">
-            <input type="hidden" name="pendaftar_id" value="<?= $pr['id'] ?>">
-            <button type="submit" class="btn btn-sm w-100 text-start py-2 px-3"
-                    style="background:#fff;border:1.5px solid #c4b5fd;border-radius:10px;">
-                <div class="fw-semibold small"><?= htmlspecialchars($pr['nama']) ?></div>
-                <div class="text-muted" style="font-size:.72rem;"><?= htmlspecialchars($pr['jurusan']) ?> · NISN: <?= $pr['nisn'] ?: '—' ?></div>
-            </button>
-        </form>
-        <?php endforeach; ?>
-    </div>
-    <?php elseif ($pend_search_q): ?>
-    <div class="text-center text-muted small py-3">
-        <i class="bi bi-search d-block mb-1 fs-5 opacity-50"></i>
-        Tidak ada hasil untuk "<?= htmlspecialchars($pend_search_q) ?>"
-    </div>
-    <?php endif; ?>
-    <?php endif; ?>
-
-    </div><!-- /offcanvas-body -->
-</div><!-- /offcanvas -->
-<?php endif; ?>
 
 <?php else: ?>
 <!-- ══ BELUM ADA NOMOR AKTIF ════════════════════════════════════════════════ -->
@@ -904,15 +778,4 @@ function unlinkPendaftar(antrianId) {
 document.addEventListener('DOMContentLoaded', () => initBerkas(<?= $current['id'] ?>));
 <?php endif; ?>
 
-<?php if ($my_meja_fase == 2 && $current): ?>
-// Auto-buka sidebar jika sedang mencari (?sp=) atau belum ada pendaftar terhubung
-document.addEventListener('DOMContentLoaded', () => {
-    const params = new URLSearchParams(location.search);
-    const autoOpen = params.has('sp') || <?= $current_pendaftar ? 'false' : 'true' ?>;
-    if (autoOpen) {
-        const el = document.getElementById('panelPendaftar');
-        if (el) new bootstrap.Offcanvas(el).show();
-    }
-});
-<?php endif; ?>
 </script>
