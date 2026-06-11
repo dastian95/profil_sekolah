@@ -267,24 +267,26 @@ $fase_color = [1 => '#2563eb', 2 => '#7c3aed'];
 .fase2-step-body { flex: 1; text-align: left; }
 .fase2-step-check { flex-shrink: 0; }
 
-/* ── Fase 2 Right Panel ───────────────────────────────── */
-.fase2-layout {
-    display: grid;
-    grid-template-columns: 58% 42%;
-    gap: 1.5rem;
-    align-items: start;
-}
-@media (max-width: 900px) { .fase2-layout { grid-template-columns: 1fr; } }
-.panel-pendaftar {
-    background: #faf5ff; border: 1.5px solid #c4b5fd;
-    border-radius: 20px; padding: 20px;
-    position: sticky; top: 80px;
-}
+/* ── Fase 2 Sidebar (Offcanvas) ───────────────────────── */
+.offcanvas-pendaftar { width: 380px !important; }
+@media (max-width: 480px) { .offcanvas-pendaftar { width: 100vw !important; } }
 .panel-pendaftar-header {
     font-size: .72rem; font-weight: 700; text-transform: uppercase;
     letter-spacing: .5px; color: #7c3aed; margin-bottom: 14px;
     display: flex; align-items: center; gap: 6px;
 }
+.panel-sidebar-btn {
+    position: fixed; right: 20px; bottom: 110px; z-index: 1040;
+    background: linear-gradient(135deg, #7c3aed, #a855f7);
+    color: #fff; border: 0; border-radius: 50px;
+    padding: 11px 18px; font-weight: 700; font-size: .85rem;
+    box-shadow: 0 4px 16px rgba(124,58,237,.35);
+    display: flex; align-items: center; gap: 8px; cursor: pointer;
+    transition: box-shadow .2s, transform .2s;
+    white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis;
+}
+.panel-sidebar-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(124,58,237,.45); color: #fff; }
+.panel-sidebar-btn.linked { background: linear-gradient(135deg, #059669, #10b981); box-shadow: 0 4px 16px rgba(5,150,105,.3); }
 .berkas-row {
     display: flex; align-items: center; gap: 10px;
     background: #fff; border: 1.5px solid #e5e7eb;
@@ -464,8 +466,6 @@ $mejas_fase2 = array_filter($mejas_aktif, fn($m) => (int)$m['fase'] === 2);
 
 <?php elseif ($current): ?>
 <!-- ══ ADA NOMOR AKTIF ══════════════════════════════════════════════════════ -->
-<?php if ($my_meja_fase == 2): ?><div class="fase2-layout no-print"><?php endif; ?>
-
 <div class="text-center mb-4 <?= $my_meja_fase == 1 ? 'no-print' : '' ?>">
     <div class="text-muted small fw-semibold mb-2 text-uppercase letter-spacing-1">Sedang Dilayani</div>
     <div class="nomor-box fase-<?= $my_meja_fase ?> mb-3">
@@ -518,11 +518,13 @@ $mejas_fase2 = array_filter($mejas_aktif, fn($m) => (int)$m['fase'] === 2);
     </div>
 
     <div class="fase2-checklist mx-auto mb-4" style="max-width:440px;">
-        <div class="fase2-step">
+        <div class="fase2-step" role="button" tabindex="0"
+             data-bs-toggle="offcanvas" data-bs-target="#panelPendaftar"
+             style="cursor:pointer;" title="Buka panel data pendaftar">
             <div class="fase2-step-icon" style="background:#ede9fe;color:#7c3aed;"><i class="bi bi-person-lines-fill"></i></div>
             <div class="fase2-step-body">
                 <div class="fw-bold">Hubungkan Data Pendaftar</div>
-                <div class="text-muted small">Cari & hubungkan data di panel kanan →</div>
+                <div class="text-muted small"><?= $current_pendaftar ? htmlspecialchars($current_pendaftar['nama']) : 'Klik untuk buka panel pendaftar →' ?></div>
             </div>
             <div class="fase2-step-check">
                 <i class="bi <?= $current_pendaftar ? 'bi-check-circle-fill text-success' : 'bi-circle text-muted' ?> fs-5"></i>
@@ -575,31 +577,49 @@ $mejas_fase2 = array_filter($mejas_aktif, fn($m) => (int)$m['fase'] === 2);
 </div>
 
 <?php if ($my_meja_fase == 2): ?>
-<!-- ─── PANEL KANAN: DATA PENDAFTAR ──────────────────────────────────────── -->
-<aside class="panel-pendaftar">
-    <div class="panel-pendaftar-header">
-        <i class="bi bi-person-vcard"></i>Data Pendaftar
+<!-- ─── FLOATING BUTTON ────────────────────────────────────────────────────── -->
+<button class="panel-sidebar-btn no-print <?= $current_pendaftar ? 'linked' : '' ?>"
+        data-bs-toggle="offcanvas" data-bs-target="#panelPendaftar">
+    <i class="bi <?= $current_pendaftar ? 'bi-person-check-fill' : 'bi-person-plus' ?>"></i>
+    <span><?= $current_pendaftar ? htmlspecialchars(mb_substr($current_pendaftar['nama'], 0, 20)) : 'Data Pendaftar' ?></span>
+</button>
+
+<!-- ─── OFFCANVAS: DATA PENDAFTAR ─────────────────────────────────────────── -->
+<div class="offcanvas offcanvas-end offcanvas-pendaftar no-print" tabindex="-1" id="panelPendaftar">
+    <div class="offcanvas-header" style="background:#ede9fe;border-bottom:1.5px solid #c4b5fd;">
+        <div>
+            <h6 class="offcanvas-title mb-0 fw-bold" style="color:#6d28d9;">
+                <i class="bi bi-person-vcard me-2"></i>Data Pendaftar
+            </h6>
+            <div class="text-muted" style="font-size:.72rem;">Nomor SSG<?= str_pad($current['nomor'], 3, '0', STR_PAD_LEFT) ?></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
     </div>
+    <div class="offcanvas-body" style="background:#faf5ff;">
 
     <?php if ($current_pendaftar): ?>
     <!-- Sudah terhubung — tampilkan data -->
-    <div class="mb-3 pb-3 border-bottom border-purple" style="border-color:#e9d5ff !important;">
-        <div class="fw-bold" style="font-size:1.05rem;"><?= htmlspecialchars($current_pendaftar['nama']) ?></div>
-        <?php if ($current_pendaftar['nisn']): ?>
-        <div class="text-muted small"><i class="bi bi-hash me-1"></i>NISN: <?= htmlspecialchars($current_pendaftar['nisn']) ?></div>
-        <?php endif; ?>
-        <div class="text-muted small"><i class="bi bi-mortarboard me-1"></i><?= htmlspecialchars($current_pendaftar['jurusan']) ?></div>
-        <?php
-        $sb = ['diproses'=>'bg-warning text-dark','lengkap'=>'bg-info text-dark','gugur'=>'bg-danger','terima'=>'bg-success'];
-        $sl = ['diproses'=>'Diproses','lengkap'=>'Lengkap','gugur'=>'Gugur','terima'=>'Terima'];
-        ?>
-        <div class="mt-1">
-            <span class="badge <?= $sb[$current_pendaftar['status']] ?? 'bg-secondary' ?>"><?= $sl[$current_pendaftar['status']] ?? $current_pendaftar['status'] ?></span>
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body py-3">
+            <div class="fw-bold" style="font-size:1.05rem;"><?= htmlspecialchars($current_pendaftar['nama']) ?></div>
+            <?php if ($current_pendaftar['nisn']): ?>
+            <div class="text-muted small"><i class="bi bi-hash me-1"></i>NISN: <?= htmlspecialchars($current_pendaftar['nisn']) ?></div>
+            <?php endif; ?>
+            <div class="text-muted small"><i class="bi bi-mortarboard me-1"></i><?= htmlspecialchars($current_pendaftar['jurusan']) ?></div>
+            <?php
+            $sb = ['diproses'=>'bg-warning text-dark','lengkap'=>'bg-info text-dark','gugur'=>'bg-danger','terima'=>'bg-success'];
+            $sl = ['diproses'=>'Diproses','lengkap'=>'Lengkap','gugur'=>'Gugur','terima'=>'Terima'];
+            ?>
+            <div class="mt-2">
+                <span class="badge <?= $sb[$current_pendaftar['status']] ?? 'bg-secondary' ?>"><?= $sl[$current_pendaftar['status']] ?? $current_pendaftar['status'] ?></span>
+            </div>
         </div>
     </div>
 
     <!-- Berkas Checklist (localStorage) -->
-    <div class="small fw-semibold text-uppercase mb-2" style="color:#7c3aed;letter-spacing:.3px;">Cek Berkas</div>
+    <div class="small fw-semibold text-uppercase mb-2" style="color:#7c3aed;letter-spacing:.3px;">
+        <i class="bi bi-card-checklist me-1"></i>Cek Berkas
+    </div>
     <div id="berkasChecklist" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
         <?php foreach ([
             'kk'         => ['Kartu Keluarga (KK)',    'bi-house-fill',         '#dbeafe','#1d4ed8'],
@@ -629,12 +649,12 @@ $mejas_fase2 = array_filter($mejas_aktif, fn($m) => (int)$m['fase'] === 2);
     </div>
 
     <?php else: ?>
-    <!-- Belum terhubung — tampilkan form pencarian -->
+    <!-- Belum terhubung — form pencarian -->
     <div class="text-muted small mb-3">Cari pendaftar yang sedang dilayani dan hubungkan ke nomor ini.</div>
 
-    <form method="GET" class="mb-2">
+    <form method="GET" class="mb-3">
         <input type="hidden" name="page" value="antrian">
-        <div class="input-group input-group-sm">
+        <div class="input-group">
             <input type="text" name="sp" class="form-control"
                    value="<?= htmlspecialchars($pend_search_q) ?>"
                    placeholder="Nama atau NISN..." autofocus>
@@ -643,7 +663,7 @@ $mejas_fase2 = array_filter($mejas_aktif, fn($m) => (int)$m['fase'] === 2);
     </form>
 
     <?php if (!empty($pend_search_results)): ?>
-    <div style="max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;">
+    <div style="display:flex;flex-direction:column;gap:6px;">
         <?php foreach ($pend_search_results as $pr): ?>
         <form method="POST">
             <input type="hidden" name="action" value="link_pendaftar">
@@ -664,8 +684,9 @@ $mejas_fase2 = array_filter($mejas_aktif, fn($m) => (int)$m['fase'] === 2);
     </div>
     <?php endif; ?>
     <?php endif; ?>
-</aside>
-</div><!-- end fase2-layout -->
+
+    </div><!-- /offcanvas-body -->
+</div><!-- /offcanvas -->
 <?php endif; ?>
 
 <?php else: ?>
@@ -881,5 +902,17 @@ function unlinkPendaftar(antrianId) {
 }
 <?php if ($current && $current_pendaftar): ?>
 document.addEventListener('DOMContentLoaded', () => initBerkas(<?= $current['id'] ?>));
+<?php endif; ?>
+
+<?php if ($my_meja_fase == 2 && $current): ?>
+// Auto-buka sidebar jika sedang mencari (?sp=) atau belum ada pendaftar terhubung
+document.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(location.search);
+    const autoOpen = params.has('sp') || <?= $current_pendaftar ? 'false' : 'true' ?>;
+    if (autoOpen) {
+        const el = document.getElementById('panelPendaftar');
+        if (el) new bootstrap.Offcanvas(el).show();
+    }
+});
 <?php endif; ?>
 </script>
