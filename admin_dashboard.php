@@ -72,6 +72,14 @@ if (count($allowed_pages) <= 2) {
     $allowed_pages = array_keys($all_pages);
 }
 
+// Direct nav: admin dengan tepat 1 tool langsung diarahkan ke halaman itu
+$extra_pages = array_diff($allowed_pages, ['home', 'change_password']);
+if ($page === 'home' && count($extra_pages) === 1) {
+    $only_page = reset($extra_pages);
+    header('Location: admin_dashboard.php?page=' . urlencode($only_page));
+    exit;
+}
+
 $pages       = array_filter($all_pages, fn($k) => in_array($k, $allowed_pages), ARRAY_FILTER_USE_KEY);
 $needs_chart = ($page === 'home');
 

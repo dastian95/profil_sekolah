@@ -254,9 +254,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// ─── Session-based active gelombang (persist setelah reload/tutup tab) ──────
+if (isset($_GET['gelombang'])) {
+    $glm_val = $_GET['gelombang'];
+    if (in_array($glm_val, ['1','2',''], true)) {
+        $_SESSION['pend_active_gelombang'] = $glm_val;
+    }
+}
+$active_glm = $_SESSION['pend_active_gelombang'] ?? '';
+
 // ─── Filter & paginasi ──────────────────────────────────────────────────────
 $fJurusan  = $_GET['jurusan']  ?? '';
-$fGelombang= $_GET['gelombang']?? '';
+$fGelombang= $active_glm; // pakai session, bukan GET langsung
 $fStatus   = $_GET['status']   ?? '';
 $fCari     = trim($_GET['cari']?? '');
 $page_num  = max(1, (int)($_GET['p'] ?? 1));
@@ -278,6 +287,12 @@ $offset = ($page_num - 1) * $per_page;
 $dataStmt = $conn->prepare("SELECT * FROM pendaftar WHERE $whereStr ORDER BY nilai_akhir DESC, usia DESC LIMIT $per_page OFFSET $offset");
 $dataStmt->execute($params);
 $rows = $dataStmt->fetchAll();
+
+// Hitung jumlah pendaftar per gelombang untuk badge tab
+$s1 = $conn->prepare("SELECT COUNT(*) FROM pendaftar WHERE gelombang=1");
+$s1->execute(); $glm_counts[1] = (int)$s1->fetchColumn();
+$s2 = $conn->prepare("SELECT COUNT(*) FROM pendaftar WHERE gelombang=2");
+$s2->execute(); $glm_counts[2] = (int)$s2->fetchColumn();
 
 // Untuk JS edit form, kita perlu data raport per pendaftar — load semua sekaligus untuk halaman ini
 $raport_per_pendaftar = [];
@@ -310,27 +325,50 @@ if ($edit_id_get > 0) {
 <?php if ($msg): ?><div class="alert alert-success alert-dismissible fade show"><?= $msg ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div><?php endif; ?>
 <?php if ($err): ?><div class="alert alert-danger"><?= htmlspecialchars($err) ?></div><?php endif; ?>
 
+<!-- Gelombang Tabs -->
+<div class="d-flex align-items-center justify-content-between mb-0 flex-wrap gap-2">
+    <ul class="nav nav-tabs border-bottom-0" id="gelombangTabs" style="flex-wrap:nowrap;">
+        <?php
+        $tab_opts = ['' => 'Semua', '1' => 'Gelombang 1', '2' => 'Gelombang 2'];
+        foreach ($tab_opts as $gval => $glabel):
+            $isActive = ($active_glm === (string)$gval);
+            $badge = $gval !== '' ? '<span class="badge bg-secondary ms-1">' . ($glm_counts[(int)$gval] ?? 0) . '</span>' : '';
+        ?>
+        <li class="nav-item">
+            <a class="nav-link <?= $isActive ? 'active fw-semibold' : '' ?> glm-tab-link"
+               href="#" data-glm="<?= $gval ?>" data-current="<?= $active_glm ?>">
+                <?= $glabel ?><?= $badge ?>
+            </a>
+        </li>
+        <?php endforeach; ?>
+    </ul>
+    <!-- Badge status aktif -->
+    <?php if ($active_glm !== ''): ?>
+    <span class="badge bg-primary fs-6 py-2 px-3">
+        <i class="bi bi-funnel-fill me-1"></i>Gelombang <?= $active_glm ?> aktif
+    </span>
+    <?php endif; ?>
+</div>
+
 <!-- Tombol Tambah + Filter -->
-<div class="d-flex flex-wrap gap-2 mb-3 align-items-center justify-content-between">
-    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalPendaftar" onclick="resetForm()">
-        <i class="bi bi-plus-lg me-1"></i>Tambah Pendaftar
-    </button>
-    <button class="btn btn-outline-secondary" onclick="loadTemplate()">
-        <i class="bi bi-file-earmark-text me-1"></i>Template
-    </button>
+<div class="d-flex flex-wrap gap-2 mb-3 align-items-center justify-content-between border rounded-bottom p-2 bg-white">
+    <div class="d-flex gap-2">
+        <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#modalPendaftar" onclick="resetForm()">
+            <i class="bi bi-plus-lg me-1"></i>Tambah Pendaftar
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="loadTemplate()">
+            <i class="bi bi-file-earmark-text me-1"></i>Template
+        </button>
+    </div>
     <form class="d-flex flex-wrap gap-2" method="GET">
         <input type="hidden" name="page" value="pendaftar">
+        <input type="hidden" name="gelombang" value="<?= htmlspecialchars($active_glm) ?>">
         <input type="text" name="cari" class="form-control form-control-sm" placeholder="Cari nama / NISN..." value="<?= htmlspecialchars($fCari) ?>" style="width:180px">
         <select name="jurusan" class="form-select form-select-sm" style="width:auto">
             <option value="">Semua Jurusan</option>
             <?php foreach ($jurusan_list as $j): ?>
             <option value="<?= htmlspecialchars($j) ?>" <?= $fJurusan===$j?'selected':'' ?>><?= $short[$j] ?></option>
             <?php endforeach; ?>
-        </select>
-        <select name="gelombang" class="form-select form-select-sm" style="width:auto">
-            <option value="">Semua Gelombang</option>
-            <option value="1" <?= $fGelombang==='1'?'selected':'' ?>>Gelombang 1</option>
-            <option value="2" <?= $fGelombang==='2'?'selected':'' ?>>Gelombang 2</option>
         </select>
         <select name="status" class="form-select form-select-sm" style="width:auto">
             <option value="">Semua Status</option>
@@ -340,7 +378,7 @@ if ($edit_id_get > 0) {
             <option value="gugur"    <?= $fStatus==='gugur'   ?'selected':'' ?>>Gugur</option>
         </select>
         <button type="submit" class="btn btn-primary btn-sm">Filter</button>
-        <a href="?page=pendaftar" class="btn btn-outline-secondary btn-sm">Reset</a>
+        <a href="?page=pendaftar&gelombang=<?= $active_glm ?>" class="btn btn-outline-secondary btn-sm">Reset</a>
     </form>
 </div>
 
@@ -1578,4 +1616,80 @@ function printBukti(r) {
     w.document.close();
     w.onload = () => w.print();
 }
+
+// ── Gelombang Tab Switching dengan Captcha Lock ──────────────────────────────
+(function() {
+    const CURRENT_GLM = <?= json_encode($active_glm) ?>;
+
+    document.querySelectorAll('.glm-tab-link').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const target = this.dataset.glm;
+            if (target === CURRENT_GLM) return; // sudah di tab ini
+
+            // Jika pindah antar gelombang (1↔2), minta konfirmasi
+            const fromG = CURRENT_GLM;
+            const toG   = target;
+            const needsConfirm = (fromG === '1' || fromG === '2') && (toG === '1' || toG === '2');
+            if (needsConfirm) {
+                const targetName = toG === '' ? 'semua' : 'gelombang ' + toG;
+                const expectedText = toG === '' ? 'semua' : 'gelombang ' + toG;
+                document.getElementById('captchaTarget').value = toG;
+                document.getElementById('captchaExpected').textContent = expectedText;
+                document.getElementById('captchaInput').value = '';
+                document.getElementById('captchaConfirmBtn').disabled = true;
+                const modal = new bootstrap.Modal(document.getElementById('modalCaptchaGlm'));
+                modal.show();
+            } else {
+                navigateGelombang(toG);
+            }
+        });
+    });
+
+    const captchaInput = document.getElementById('captchaInput');
+    if (captchaInput) {
+        captchaInput.addEventListener('input', function() {
+            const expected = document.getElementById('captchaExpected').textContent.trim();
+            document.getElementById('captchaConfirmBtn').disabled = this.value.trim().toLowerCase() !== expected;
+        });
+    }
+
+    window.confirmCaptcha = function() {
+        const target = document.getElementById('captchaTarget').value;
+        bootstrap.Modal.getInstance(document.getElementById('modalCaptchaGlm')).hide();
+        navigateGelombang(target);
+    };
+
+    function navigateGelombang(glm) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('gelombang', glm);
+        url.searchParams.delete('p');
+        window.location.href = url.toString();
+    }
+})();
 </script>
+
+<!-- Modal Captcha Pindah Gelombang -->
+<div class="modal fade" id="modalCaptchaGlm" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header bg-warning bg-opacity-10 border-warning">
+                <h6 class="modal-title fw-bold"><i class="bi bi-shield-lock me-2 text-warning"></i>Konfirmasi Pindah Gelombang</h6>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted mb-3">Ketik <strong id="captchaExpected" class="text-danger"></strong> untuk pindah gelombang.</p>
+                <input type="text" id="captchaInput" class="form-control text-center fw-bold"
+                       placeholder="ketik di sini..." autocomplete="off">
+                <input type="hidden" id="captchaTarget" value="">
+                <div class="form-text">Ini mencegah perpindahan gelombang yang tidak disengaja.</div>
+            </div>
+            <div class="modal-footer gap-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-warning btn-sm" id="captchaConfirmBtn"
+                        disabled onclick="confirmCaptcha()">
+                    <i class="bi bi-arrow-right-circle me-1"></i>Pindah
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
