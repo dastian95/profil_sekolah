@@ -4,7 +4,7 @@ $short        = JURUSAN_SHORT;
 $mapel_list   = MATA_PELAJARAN;
 $semester_list = SEMESTER_LIST;
 
-$msg = $err = '';
+$err = '';
 
 // ─── Helper: hitung usia & nilai_akhir ──────────────────────────────────────
 function hitungPendaftar(array $data, float $rata_raport, string $sistem = 'reguler'): array {
@@ -80,6 +80,18 @@ function generateNoPendaftaran(PDO $conn, int $gelombang): string {
 
 // Tentukan gelombang aktif (auto) — dipakai untuk default saat tambah baru
 $gelombang_aktif = getActiveGelombang($conn);
+
+// Flash messages dari PRG redirect (cegah duplikasi submit)
+$msg = '';
+if (!empty($_SESSION['pend_flash_msg'])) {
+    $msg = $_SESSION['pend_flash_msg'];
+    unset($_SESSION['pend_flash_msg']);
+}
+$pend_print_id = 0;
+if (!empty($_SESSION['pend_print_id'])) {
+    $pend_print_id = (int)$_SESSION['pend_print_id'];
+    unset($_SESSION['pend_print_id']);
+}
 
 // Data untuk preserve form saat validasi gagal
 $formData   = [];
@@ -212,12 +224,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
 
                     log_admin_action($conn, 'TAMBAH_PENDAFTAR', "Tambah pendaftar: {$d['nama']} ({$no}) [{$new_status}]");
-                    $msg = "Pendaftar <strong>{$d['nama']}</strong> berhasil ditambahkan dengan nomor <strong>{$no}</strong>.";
+                    $_SESSION['pend_flash_msg'] = "Pendaftar <strong>{$d['nama']}</strong> berhasil ditambahkan dengan nomor <strong>{$no}</strong>.";
                     if (!empty($_POST['print_after_save'])) {
-                        $ps = $conn->prepare("SELECT * FROM pendaftar WHERE id=?");
-                        $ps->execute([$id]);
-                        $printAfterSave = $ps->fetch(PDO::FETCH_ASSOC);
+                        $_SESSION['pend_print_id'] = $id;
                     }
+                    $glm_qs = !empty($_SESSION['pend_active_gelombang']) ? '&gelombang=' . urlencode($_SESSION['pend_active_gelombang']) : '';
+                    header('Location: admin_dashboard.php?page=pendaftar' . $glm_qs);
+                    exit;
                 } else {
                     $id = (int)$_POST['id'];
                     $stmt = $conn->prepare("UPDATE pendaftar SET
@@ -230,7 +243,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
 
                     log_admin_action($conn, 'EDIT_PENDAFTAR', "Edit pendaftar ID:{$id} — {$d['nama']} [{$new_status}]");
-                    $msg = "Data <strong>{$d['nama']}</strong> berhasil diperbarui.";
+                    $_SESSION['pend_flash_msg'] = "Data <strong>{$d['nama']}</strong> berhasil diperbarui.";
+                    $glm_qs = !empty($_SESSION['pend_active_gelombang']) ? '&gelombang=' . urlencode($_SESSION['pend_active_gelombang']) : '';
+                    header('Location: admin_dashboard.php?page=pendaftar' . $glm_qs);
+                    exit;
                 }
             }
         }
@@ -241,7 +257,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $del = $row->fetch();
         $conn->prepare("DELETE FROM pendaftar WHERE id=?")->execute([$id]);
         log_admin_action($conn, 'HAPUS_PENDAFTAR', "Hapus: {$del['nama']} ({$del['no_pendaftaran']})");
-        $msg = "Pendaftar <strong>{$del['nama']}</strong> berhasil dihapus.";
+        $_SESSION['pend_flash_msg'] = "Pendaftar <strong>{$del['nama']}</strong> berhasil dihapus.";
+        $glm_qs = !empty($_SESSION['pend_active_gelombang']) ? '&gelombang=' . urlencode($_SESSION['pend_active_gelombang']) : '';
+        header('Location: admin_dashboard.php?page=pendaftar' . $glm_qs);
+        exit;
     }
 
     // Preserve form data so modal reopens with filled values when validation fails
@@ -305,6 +324,13 @@ if ($rows) {
         $raport_per_pendaftar[$r['pendaftar_id']][$r['mata_pelajaran']][(int)$r['semester']] = (float)$r['nilai'];
     }
 }
+// Load print data jika ada flash print_id dari PRG
+if ($pend_print_id > 0) {
+    $ps = $conn->prepare("SELECT * FROM pendaftar WHERE id=?");
+    $ps->execute([$pend_print_id]);
+    $printAfterSave = $ps->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
 // Auto-open edit modal jika redirect dari Ranking
 $editFromRanking = null;
 $edit_id_get = (int)($_GET['edit_id'] ?? 0);
@@ -1343,7 +1369,11 @@ function updateSubmitBtn() {
 
 // Form submit: Tab 1 langsung submit (tidak perlu pindah ke Tab 2 dulu)
 // Tab 2: submit juga langsung
+let _pend_submitting = false;
 document.getElementById('formPendaftar').addEventListener('submit', function(e) {
+    // Cegah double-submit (klik berkali-kali)
+    if (_pend_submitting) { e.preventDefault(); return; }
+
     // Validasi field wajib
     const fields = [
         { el: document.getElementById('fNama'),    label: 'Nama Lengkap' },
@@ -1359,11 +1389,19 @@ document.getElementById('formPendaftar').addEventListener('submit', function(e) 
             f.el.classList.add('is-invalid');
             f.el.addEventListener('input', () => f.el.classList.remove('is-invalid'), { once: true });
         });
-        // Kalau ada yang kosong di Tab 1, pindah ke Tab 1
         const isTab1Field = ['fNama','fNisn','fJurusan','fTgl','fAsal'].includes(kosong[0].el.id);
         if (isTab1Field) new bootstrap.Tab(document.querySelector('[data-bs-target="#tabDiri"]')).show();
         kosong[0].el.focus();
+        return;
     }
+
+    // Semua valid — kunci tombol supaya tidak double-submit
+    _pend_submitting = true;
+    const btn = document.getElementById('btnSubmit');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Menyimpan...';
+    const btnPrint = document.getElementById('btnTab1Print');
+    if (btnPrint) btnPrint.disabled = true;
 });
 
 // Update label tombol saat tab berubah
@@ -1617,79 +1655,17 @@ function printBukti(r) {
     w.onload = () => w.print();
 }
 
-// ── Gelombang Tab Switching dengan Captcha Lock ──────────────────────────────
-(function() {
-    const CURRENT_GLM = <?= json_encode($active_glm) ?>;
-
-    document.querySelectorAll('.glm-tab-link').forEach(link => {
-        link.addEventListener('click', function(e) {
-            e.preventDefault();
-            const target = this.dataset.glm;
-            if (target === CURRENT_GLM) return; // sudah di tab ini
-
-            // Jika pindah antar gelombang (1↔2), minta konfirmasi
-            const fromG = CURRENT_GLM;
-            const toG   = target;
-            const needsConfirm = (fromG === '1' || fromG === '2') && (toG === '1' || toG === '2');
-            if (needsConfirm) {
-                const targetName = toG === '' ? 'semua' : 'gelombang ' + toG;
-                const expectedText = toG === '' ? 'semua' : 'gelombang ' + toG;
-                document.getElementById('captchaTarget').value = toG;
-                document.getElementById('captchaExpected').textContent = expectedText;
-                document.getElementById('captchaInput').value = '';
-                document.getElementById('captchaConfirmBtn').disabled = true;
-                const modal = new bootstrap.Modal(document.getElementById('modalCaptchaGlm'));
-                modal.show();
-            } else {
-                navigateGelombang(toG);
-            }
-        });
-    });
-
-    const captchaInput = document.getElementById('captchaInput');
-    if (captchaInput) {
-        captchaInput.addEventListener('input', function() {
-            const expected = document.getElementById('captchaExpected').textContent.trim();
-            document.getElementById('captchaConfirmBtn').disabled = this.value.trim().toLowerCase() !== expected;
-        });
-    }
-
-    window.confirmCaptcha = function() {
-        const target = document.getElementById('captchaTarget').value;
-        bootstrap.Modal.getInstance(document.getElementById('modalCaptchaGlm')).hide();
-        navigateGelombang(target);
-    };
-
-    function navigateGelombang(glm) {
+// ── Gelombang Tab Switching (langsung, tanpa konfirmasi) ─────────────────────
+document.querySelectorAll('.glm-tab-link').forEach(link => {
+    link.addEventListener('click', function(e) {
+        e.preventDefault();
+        const target = this.dataset.glm;
+        if (target === <?= json_encode($active_glm) ?>) return;
         const url = new URL(window.location.href);
-        url.searchParams.set('gelombang', glm);
+        url.searchParams.set('gelombang', target);
         url.searchParams.delete('p');
         window.location.href = url.toString();
-    }
-})();
+    });
+});
 </script>
 
-<!-- Modal Captcha Pindah Gelombang -->
-<div class="modal fade" id="modalCaptchaGlm" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
-    <div class="modal-dialog modal-sm">
-        <div class="modal-content">
-            <div class="modal-header bg-warning bg-opacity-10 border-warning">
-                <h6 class="modal-title fw-bold"><i class="bi bi-shield-lock me-2 text-warning"></i>Konfirmasi Pindah Gelombang</h6>
-            </div>
-            <div class="modal-body">
-                <p class="small text-muted mb-3">Ketik <strong id="captchaExpected" class="text-danger"></strong> untuk pindah gelombang.</p>
-                <input type="text" id="captchaInput" class="form-control text-center fw-bold"
-                       placeholder="ketik di sini..." autocomplete="off">
-                <input type="hidden" id="captchaTarget" value="">
-                <div class="form-text">Ini mencegah perpindahan gelombang yang tidak disengaja.</div>
-            </div>
-            <div class="modal-footer gap-2">
-                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
-                <button type="button" class="btn btn-warning btn-sm" id="captchaConfirmBtn"
-                        disabled onclick="confirmCaptcha()">
-                    <i class="bi bi-arrow-right-circle me-1"></i>Pindah
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
