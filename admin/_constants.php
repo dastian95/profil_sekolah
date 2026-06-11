@@ -69,7 +69,7 @@ const PKBM_MAPEL_UMUM = [
     'Ilmu Pengetahuan Alam (IPA)',
     'Ilmu Pengetahuan Sosial (IPS)',
 ];
-const PKBM_MAPEL_KHUSUS = ['Pemberdayaan', 'Keterampilan'];
+const PKBM_MAPEL_KHUSUS = []; // dihapus — hanya 6 mapel umum yang dipakai
 const PKBM_MAPEL = [
     'Pendidikan Pancasila dan Kewarganegaraan (PPKn)',
     'Bahasa Indonesia',
@@ -77,8 +77,6 @@ const PKBM_MAPEL = [
     'Matematika',
     'Ilmu Pengetahuan Alam (IPA)',
     'Ilmu Pengetahuan Sosial (IPS)',
-    'Pemberdayaan',
-    'Keterampilan',
 ];
 const PKBM_TINGKAT = [1 => 'Tingkat 3 (Kls VII–VIII)', 2 => 'Tingkat 4 (Kls IX)'];
 

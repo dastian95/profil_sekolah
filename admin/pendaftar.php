@@ -11,8 +11,8 @@ function hitungPendaftar(array $data, float $rata_raport, string $sistem = 'regu
     $lahir       = new DateTime($data['tanggal_lahir']);
     $sekarang    = new DateTime();
     $usia        = (int)$lahir->diff($sekarang)->y;
-    // Daftar Khusus (usia >= KHUSUS_MIN_USIA) → 100% nilai raport, TKA diabaikan
-    $is_khusus   = ($sistem === 'khusus' || $usia >= KHUSUS_MIN_USIA);
+    // Daftar Khusus: hanya berdasarkan pilihan sistem, bukan paksa dari usia
+    $is_khusus   = ($sistem === 'khusus');
     $nilai_akhir = $is_khusus
         ? round($rata_raport, 4)
         : round(($rata_raport * 0.70) + ($data['nilai_tka'] * 0.30), 4);
@@ -118,14 +118,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Cek apakah raport diisi
             if ($sistem === 'pkbm') {
                 $matrix       = $_POST['pkbm_raport'] ?? [];
-                $mapel_active = PKBM_MAPEL;
+                $mapel_active = PKBM_MAPEL_UMUM;
                 $sem_active   = array_keys(PKBM_TINGKAT);
             } else {
                 $matrix       = $_POST['raport'] ?? [];
                 $mapel_active = $mapel_list;
                 $sem_active   = $semester_list;
             }
-            $rata       = rataRaportFromMatrix($matrix);
+            $rata = rataRaportFromMatrix($matrix);
+            // Mode input rata-rata langsung: pakai nilai manual jika matrix kosong
+            if ($rata == 0 && isset($_POST['nilai_raport_manual'])) {
+                $manual = (float)$_POST['nilai_raport_manual'];
+                if ($manual > 0) $rata = min(100, max(0, $manual));
+            }
             $has_raport = $rata > 0;
 
             // Jika raport diisi, TKA wajib (kecuali Khusus)
@@ -584,9 +589,14 @@ if ($edit_id_get > 0) {
                 </label>
               </div>
             </div>
-            <div id="notifKhusus" class="alert alert-warning py-2 small mb-3 d-none">
-              <i class="bi bi-stars me-1"></i>
-              <strong>Daftar Khusus diaktifkan otomatis</strong> — Pendaftar berusia ≥ <?= KHUSUS_MIN_USIA ?> tahun. Nilai akhir dihitung 100% dari rata-rata raport. TKA tidak diperlukan.
+            <!-- notifKhusus: aktif = sedang pilih Khusus; notifKhususWarn: usia ≥17 tapi belum pilih Khusus -->
+            <div id="notifKhusus" class="alert alert-success py-2 small mb-3 d-none">
+              <i class="bi bi-check-circle-fill me-1"></i>
+              <strong>Daftar Khusus aktif</strong> — Nilai akhir dihitung 100% dari rata-rata raport. TKA tidak diperlukan.
+            </div>
+            <div id="notifKhususWarn" class="alert alert-warning py-2 small mb-3 d-none">
+              <i class="bi bi-exclamation-triangle-fill me-1"></i>
+              <strong>Usia ≥ <?= KHUSUS_MIN_USIA ?> tahun</strong> — Disarankan pilih <strong>Daftar Khusus</strong>, namun Anda masih bisa memilih Reguler atau PKBM jika sesuai.
             </div>
 
             <!-- Nilai TKA -->
@@ -601,8 +611,36 @@ if ($edit_id_get > 0) {
             <hr>
             <h6 class="fw-bold mb-2"><i class="bi bi-table me-2"></i>Detail Nilai Raport per Mata Pelajaran</h6>
 
+            <!-- Mode Input Toggle -->
+            <div class="d-flex align-items-center gap-3 mb-3 p-2 rounded border bg-white">
+              <span class="small fw-semibold text-muted"><i class="bi bi-pencil-square me-1 text-primary"></i>Mode Input:</span>
+              <div class="form-check form-check-inline mb-0">
+                <input class="form-check-input" type="radio" name="input_mode" id="modeMatrix" value="matrix" checked onchange="switchInputMode('matrix')">
+                <label class="form-check-label small" for="modeMatrix">Per Mata Pelajaran</label>
+              </div>
+              <div class="form-check form-check-inline mb-0">
+                <input class="form-check-input" type="radio" name="input_mode" id="modeManual" value="manual" onchange="switchInputMode('manual')">
+                <label class="form-check-label small" for="modeManual"><strong>Langsung (Rata-rata)</strong> <span class="text-muted">— jika raport sudah ada nilai rata-ratanya</span></label>
+              </div>
+            </div>
+
+            <!-- Input Rata-rata Langsung (tersembunyi default) -->
+            <div id="wrapManualRata" class="mb-3" style="display:none;">
+              <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Nilai Rata-rata Raport <span class="text-danger">*</span></label>
+                  <input type="number" name="nilai_raport_manual" id="fManualRata"
+                         class="form-control form-control-lg text-center fw-bold"
+                         min="0" max="100" step="0.01" placeholder="0 – 100"
+                         value="<?= ($formData['nilai_raport'] ?? 0) > 0 && empty($formRaport) ? htmlspecialchars($formData['nilai_raport']) : '' ?>"
+                         oninput="updateRataRataManual()">
+                  <div class="form-text">Skala 0–100. Nilai ini langsung dipakai sebagai rata-rata raport.</div>
+                </div>
+              </div>
+            </div>
+
             <!-- Toolbar Shortcut -->
-            <div class="card mb-2 border-0 bg-light">
+            <div class="card mb-2 border-0 bg-light" id="raportToolbar">
               <div class="card-body py-2 px-3">
                 <div class="d-flex flex-wrap align-items-center gap-2">
                   <span class="small fw-semibold text-muted me-2"><i class="bi bi-lightning-fill text-warning"></i> Shortcut:</span>
@@ -753,25 +791,6 @@ if ($edit_id_get > 0) {
                   <td class="text-center fw-semibold text-success" id="pkbmAvgRow<?= $pi ?>">—</td>
                 </tr>
                 <?php endforeach; ?>
-                <tr class="table-secondary"><td colspan="4" class="fw-bold small ps-2 py-1"><i class="bi bi-bookmark-fill text-warning me-1"></i>Kelompok Khusus</td></tr>
-                <?php foreach (PKBM_MAPEL_KHUSUS as $pi => $pmp): $pi_abs = count(PKBM_MAPEL_UMUM) + $pi; ?>
-                <tr>
-                  <td class="fw-semibold small" style="background:#f8f9fa;"><?= htmlspecialchars($pmp) ?></td>
-                  <?php foreach (array_keys(PKBM_TINGKAT) as $tki => $tk): ?>
-                  <td class="p-0">
-                    <input type="number" name="pkbm_raport[<?= htmlspecialchars($pmp) ?>][<?= $tk ?>]"
-                           class="form-control form-control-sm text-center pkbm-cell border-0 rounded-0"
-                           data-pkbm-row="<?= $pi_abs ?>" data-pkbm-col="<?= $tki ?>"
-                           min="0" max="100" step="0.01" placeholder="—"
-                           value="<?= htmlspecialchars((string)($formRaport[$pmp][$tk] ?? '')) ?>"
-                           oninput="clampCell(this); updateRataRataPKBM()"
-                           onfocus="this.select(); this.parentElement.style.background='#fff3cd';"
-                           onblur="this.parentElement.style.background=''">
-                  </td>
-                  <?php endforeach; ?>
-                  <td class="text-center fw-semibold text-success" id="pkbmAvgRow<?= $pi_abs ?>">—</td>
-                </tr>
-                <?php endforeach; ?>
               </tbody>
               <tfoot>
                 <tr class="table-success">
@@ -832,8 +851,12 @@ function switchSistem(sistem) {
     const isReg    = (sistem === 'reguler');
     const isPKBM   = (sistem === 'pkbm');
     const isKhusus = (sistem === 'khusus');
-    document.getElementById('matrixRegular').style.display = (isReg || isKhusus) ? '' : 'none';
-    document.getElementById('matrixPKBM').style.display    = isPKBM ? '' : 'none';
+    const isManualMode = document.getElementById('modeManual')?.checked;
+
+    if (!isManualMode) {
+        document.getElementById('matrixRegular').style.display = (isReg || isKhusus) ? '' : 'none';
+        document.getElementById('matrixPKBM').style.display    = isPKBM ? '' : 'none';
+    }
 
     // TKA field: sembunyikan untuk Daftar Khusus
     const wrapTka = document.getElementById('wrapTka');
@@ -843,15 +866,21 @@ function switchSistem(sistem) {
         if (isKhusus) document.getElementById('fTka').value = '';
     }
 
-    // Notif khusus
-    const notif = document.getElementById('notifKhusus');
-    if (notif) notif.classList.toggle('d-none', !isKhusus);
+    // Notif: aktif jika Khusus; warn jika bukan Khusus tapi usia >= batas
+    const notif     = document.getElementById('notifKhusus');
+    const notifWarn = document.getElementById('notifKhususWarn');
+    const usiaEl    = document.getElementById('previewUsia');
+    const usiaVal   = usiaEl ? parseInt(usiaEl.value) || 0 : 0;
+    if (notif)     notif.classList.toggle('d-none', !isKhusus);
+    if (notifWarn) notifWarn.classList.toggle('d-none', isKhusus || usiaVal < KHUSUS_MIN_USIA);
 
     // Label formula
     const lbl = document.getElementById('formulaLabel');
     if (lbl) lbl.textContent = isKhusus ? '100% Raport' : 'R×70% + T×30%';
 
-    if (isReg || isKhusus) updateRataRata(); else updateRataRataPKBM();
+    if (isManualMode) updateRataRataManual();
+    else if (isReg || isKhusus) updateRataRata();
+    else updateRataRataPKBM();
 }
 
 function updateRataRataPKBM() {
@@ -872,6 +901,32 @@ function updateRataRataPKBM() {
     const elTotal = document.getElementById('rataTotalPKBM');
     if (elTotal) elTotal.textContent = totalCount > 0 ? rata.toFixed(2) : '—';
     document.getElementById('displayRata').textContent = totalCount > 0 ? rata.toFixed(2) : '—';
+    updatePreviewNilai();
+}
+
+function switchInputMode(mode) {
+    const isManual  = mode === 'manual';
+    const sistem    = getSistem();
+    const isPKBM    = sistem === 'pkbm';
+    const toolbar   = document.getElementById('raportToolbar');
+    const helpBlock = document.getElementById('helpRaportCollapse');
+
+    document.getElementById('wrapManualRata').style.display = isManual ? '' : 'none';
+    document.getElementById('matrixRegular').style.display  = (!isManual && !isPKBM) ? '' : 'none';
+    document.getElementById('matrixPKBM').style.display     = (!isManual && isPKBM)  ? '' : 'none';
+    if (toolbar)   toolbar.style.display   = isManual ? 'none' : '';
+    if (helpBlock) helpBlock.classList.add('collapse');
+
+    if (isManual) updateRataRataManual();
+    else isPKBM ? updateRataRataPKBM() : updateRataRata();
+}
+
+function updateRataRataManual() {
+    const v = parseFloat(document.getElementById('fManualRata').value) || 0;
+    const disp = document.getElementById('displayRata');
+    const tot  = document.getElementById('rataTotal');
+    if (disp) disp.textContent = v > 0 ? v.toFixed(2) : '—';
+    if (tot)  tot.textContent  = v > 0 ? v.toFixed(2) : '—';
     updatePreviewNilai();
 }
 
@@ -1180,16 +1235,10 @@ function hitungUsia() {
     el.value = `${years} thn ${months} bln ${days} hr`;
     el.className = 'form-control bg-light ' + (years > 21 ? 'text-danger fw-bold' : 'text-success');
 
-    // Auto-switch ke Daftar Khusus jika usia >= batas
+    // Tampilkan warning jika usia >= batas tapi bukan Khusus (tidak paksa switch)
     const sistemSaat = getSistem();
-    if (years >= KHUSUS_MIN_USIA && sistemSaat === 'reguler') {
-        document.getElementById('sistemKhusus').checked = true;
-        switchSistem('khusus');
-    } else if (years < KHUSUS_MIN_USIA && sistemSaat === 'khusus') {
-        // Balik ke reguler jika tanggal lahir diubah ke < batas
-        document.getElementById('sistemReguler').checked = true;
-        switchSistem('reguler');
-    }
+    const notifWarn  = document.getElementById('notifKhususWarn');
+    if (notifWarn) notifWarn.classList.toggle('d-none', sistemSaat === 'khusus' || years < KHUSUS_MIN_USIA);
 }
 
 function clampCell(el) {
