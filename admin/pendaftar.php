@@ -83,6 +83,9 @@ function generateNoPendaftaran(PDO $conn, int $gelombang): string {
 // Tentukan gelombang aktif (auto) — dipakai untuk default saat tambah baru
 $gelombang_aktif = getActiveGelombang($conn);
 
+// Dashboard URL: langsung ke dashboard yang sesuai (hindari double-redirect superadmin)
+$back_dash = !empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php';
+
 // Flash messages dari PRG redirect (cegah duplikasi submit)
 $msg = '';
 if (!empty($_SESSION['pend_flash_msg'])) {
@@ -131,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Token tidak valid atau sudah terpakai — redirect saja, jangan proses
             $glm_qs = !empty($_SESSION['pend_active_gelombang']) ? '&gelombang=' . urlencode($_SESSION['pend_active_gelombang']) : '';
             while (ob_get_level() > 0) ob_end_clean();
-            header('Location: admin_dashboard.php?page=pendaftar' . $glm_qs);
+            header('Location: ' . $back_dash . '?page=pendaftar' . $glm_qs);
             exit;
         }
         unset($_SESSION['pend_form_token']); // Konsumsi token — tidak bisa dipakai lagi
@@ -254,7 +257,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     $_SESSION['pend_active_gelombang'] = (string)$d['gelombang'];
                     while (ob_get_level() > 0) ob_end_clean();
-                    header('Location: admin_dashboard.php?page=pendaftar&gelombang=' . $d['gelombang']);
+                    header('Location: ' . $back_dash . '?page=pendaftar&gelombang=' . $d['gelombang']);
                     exit;
                 } else {
                     $id = (int)$_POST['id'];
@@ -271,7 +274,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['pend_flash_msg'] = "Data <strong>{$d['nama']}</strong> berhasil diperbarui.";
                     $glm_qs = !empty($_SESSION['pend_active_gelombang']) ? '&gelombang=' . urlencode($_SESSION['pend_active_gelombang']) : '';
                     while (ob_get_level() > 0) ob_end_clean();
-                    header('Location: admin_dashboard.php?page=pendaftar' . $glm_qs);
+                    header('Location: ' . $back_dash . '?page=pendaftar' . $glm_qs);
                     exit;
                 }
             }
@@ -285,8 +288,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         log_admin_action($conn, 'HAPUS_PENDAFTAR', "Hapus: {$del['nama']} ({$del['no_pendaftaran']})");
         $_SESSION['pend_flash_msg'] = "Pendaftar <strong>{$del['nama']}</strong> berhasil dihapus.";
         $glm_qs = !empty($_SESSION['pend_active_gelombang']) ? '&gelombang=' . urlencode($_SESSION['pend_active_gelombang']) : '';
-        ob_end_clean();
-        header('Location: admin_dashboard.php?page=pendaftar' . $glm_qs);
+        while (ob_get_level() > 0) ob_end_clean();
+        header('Location: ' . $back_dash . '?page=pendaftar' . $glm_qs);
         exit;
     }
 

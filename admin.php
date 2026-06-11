@@ -49,24 +49,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$locked) {
     if ($username && $password) {
         $login_ok = false;
 
-        // 1. Cek SUPERADMIN dulu — hash dari DB, fallback ke konstanta
-        $super_hash = SUPER_ADMIN_HASH;
+        // 1. Cek SUPERADMIN — dari tabel superadmin_accounts (multi-akun)
+        $super_checked = false;
         try {
-            $sh = $conn->query("SELECT password_hash FROM superadmin_config WHERE id=1")->fetchColumn();
-            if ($sh) $super_hash = $sh;
+            $sa = $conn->prepare("SELECT * FROM superadmin_accounts WHERE username=? AND is_active=1 LIMIT 1");
+            $sa->execute([$username]);
+            $super_row = $sa->fetch();
+            $super_checked = true;
+            if ($super_row && password_verify($password, $super_row['password_hash'])) {
+                $_SESSION['admin_id']     = 0;
+                $_SESSION['admin_name']   = $super_row['nama'] ?: $super_row['username'];
+                $_SESSION['is_super']     = true;
+                $_SESSION['super_acc_id'] = $super_row['id'];
+                try {
+                    $conn->prepare("INSERT INTO admin_logs (admin_id, action, details, ip_address) VALUES (NULL, 'LOGIN_SUPER', ?, ?)")
+                         ->execute(['Login: ' . $super_row['username'], $ip]);
+                } catch (Throwable) {}
+                header('Location: admin_dashboard.php');
+                exit;
+            }
         } catch (Throwable) {}
-        if ($username === SUPER_ADMIN_USERNAME && password_verify($password, $super_hash)) {
-            $_SESSION['admin_id']   = 0;
-            $_SESSION['admin_name'] = SUPER_ADMIN_NAME;
-            $_SESSION['is_super']   = true;
 
+        // Fallback: cek superadmin_config (sebelum tabel superadmin_accounts ada)
+        if (!$super_checked) {
+            $super_hash = SUPER_ADMIN_HASH;
             try {
-                $log = $conn->prepare("INSERT INTO admin_logs (admin_id, action, details, ip_address) VALUES (NULL, 'LOGIN_SUPER', 'Superadmin login berhasil', ?)");
-                $log->execute([$ip]);
-            } catch (Throwable $e) {}
-
-            header('Location: admin_dashboard.php');
-            exit;
+                $sh = $conn->query("SELECT password_hash FROM superadmin_config WHERE id=1")->fetchColumn();
+                if ($sh) $super_hash = $sh;
+            } catch (Throwable) {}
+            if ($username === SUPER_ADMIN_USERNAME && password_verify($password, $super_hash)) {
+                $_SESSION['admin_id']   = 0;
+                $_SESSION['admin_name'] = SUPER_ADMIN_NAME;
+                $_SESSION['is_super']   = true;
+                try {
+                    $conn->prepare("INSERT INTO admin_logs (admin_id, action, details, ip_address) VALUES (NULL, 'LOGIN_SUPER', 'Superadmin login berhasil', ?)")
+                         ->execute([$ip]);
+                } catch (Throwable) {}
+                header('Location: admin_dashboard.php');
+                exit;
+            }
         }
 
         // 2. Cek admin biasa di database (cari pakai username)

@@ -401,6 +401,23 @@ foreach ($pages as $key => $info) {
     </main>
 </div>
 
+<?php if (!$float_widget): ?>
+<!-- Skeleton offcanvas — selalu ada di DOM agar tombol Fase 2 selalu bisa dibuka -->
+<div class="offcanvas offcanvas-end" style="width:400px !important;" tabindex="-1" id="f2Sidebar">
+    <div class="offcanvas-header" style="background:#ede9fe;border-bottom:1.5px solid #c4b5fd;">
+        <h6 class="offcanvas-title mb-0 fw-bold" style="color:#6d28d9;"><i class="bi bi-grid-3x2-gap-fill me-2"></i>Panel Fase 2</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body p-3" style="background:#faf5ff;">
+        <div class="text-center py-5 px-2">
+            <i class="bi bi-info-circle d-block mb-2" style="font-size:2rem;color:#c4b5fd;"></i>
+            <div class="small text-muted mb-3">Tidak ada meja Fase 2 aktif.<br>Pilih meja terlebih dahulu.</div>
+            <a href="?page=antrian" class="btn btn-sm btn-outline-primary">Ke Halaman Antrian</a>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <?php if ($float_widget): ?>
 <!-- ══ SIDEBAR FASE 2 GLOBAL ══════════════════════════════════════════════════ -->
 <style>

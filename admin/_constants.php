@@ -57,7 +57,7 @@ const MATA_PELAJARAN = [
 
 const SEMESTER_LIST = [1, 2, 3, 4, 5];
 
-// Batas usia otomatis masuk Daftar Khusus (100% nilai raport, tanpa TKA)
+// Batas usia otomatis masuk Daftar Khusus (85% nilai raport, tanpa TKA)
 const KHUSUS_MIN_USIA = 17;
 
 // Kurikulum PKBM Paket B Setara SMP

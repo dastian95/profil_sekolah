@@ -539,11 +539,11 @@ function openViewModal(d) {
     <hr>
     <div class="row g-2 mb-3">
         <div class="col-md-4 text-center">
-            <div class="fw-semibold text-muted small">Nilai Raport ${d.sistem_pendidikan === 'khusus' ? '(100%)' : '(70%)'}</div>
+            <div class="fw-semibold text-muted small">Nilai Raport ${(d.sistem_pendidikan==='khusus'||d.sistem_pendidikan==='pkbm') ? '(85%)' : '(70%)'}</div>
             <div class="fs-4 fw-bold">${parseFloat(d.nilai_raport).toFixed(2)}</div>
         </div>
         <div class="col-md-4 text-center">
-            <div class="fw-semibold text-muted small">${d.sistem_pendidikan === 'khusus' ? 'Nilai TKA (N/A)' : 'Nilai TKA (30%)'}</div>
+            <div class="fw-semibold text-muted small">${(d.sistem_pendidikan==='khusus'||d.sistem_pendidikan==='pkbm') ? 'Nilai TKA (N/A)' : 'Nilai TKA (30%)'}</div>
             <div class="fs-4 fw-bold">${parseFloat(d.nilai_tka).toFixed(2)}</div>
         </div>
         <div class="col-md-4 text-center">
