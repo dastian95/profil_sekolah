@@ -228,9 +228,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (!empty($_POST['print_after_save'])) {
                         $_SESSION['pend_print_id'] = $id;
                     }
-                    $glm_qs = !empty($_SESSION['pend_active_gelombang']) ? '&gelombang=' . urlencode($_SESSION['pend_active_gelombang']) : '';
-                    echo '<script>window.location.replace("admin_dashboard.php?page=pendaftar' . $glm_qs . '")</script>';
-                    return;
+                    $_SESSION['pend_active_gelombang'] = (string)$d['gelombang'];
+                    while (ob_get_level() > 0) ob_end_clean();
+                    header('Location: admin_dashboard.php?page=pendaftar&gelombang=' . $d['gelombang']);
+                    exit;
                 } else {
                     $id = (int)$_POST['id'];
                     $stmt = $conn->prepare("UPDATE pendaftar SET
@@ -245,8 +246,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     log_admin_action($conn, 'EDIT_PENDAFTAR', "Edit pendaftar ID:{$id} — {$d['nama']} [{$new_status}]");
                     $_SESSION['pend_flash_msg'] = "Data <strong>{$d['nama']}</strong> berhasil diperbarui.";
                     $glm_qs = !empty($_SESSION['pend_active_gelombang']) ? '&gelombang=' . urlencode($_SESSION['pend_active_gelombang']) : '';
-                    echo '<script>window.location.replace("admin_dashboard.php?page=pendaftar' . $glm_qs . '")</script>';
-                    return;
+                    while (ob_get_level() > 0) ob_end_clean();
+                    header('Location: admin_dashboard.php?page=pendaftar' . $glm_qs);
+                    exit;
                 }
             }
         }
@@ -259,8 +261,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         log_admin_action($conn, 'HAPUS_PENDAFTAR', "Hapus: {$del['nama']} ({$del['no_pendaftaran']})");
         $_SESSION['pend_flash_msg'] = "Pendaftar <strong>{$del['nama']}</strong> berhasil dihapus.";
         $glm_qs = !empty($_SESSION['pend_active_gelombang']) ? '&gelombang=' . urlencode($_SESSION['pend_active_gelombang']) : '';
-        echo '<script>window.location.replace("admin_dashboard.php?page=pendaftar' . $glm_qs . '")</script>';
-        return;
+        ob_end_clean();
+        header('Location: admin_dashboard.php?page=pendaftar' . $glm_qs);
+        exit;
     }
 
     // Preserve form data so modal reopens with filled values when validation fails

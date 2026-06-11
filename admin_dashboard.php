@@ -1,4 +1,5 @@
 <?php
+ob_start();
 require_once __DIR__ . '/conn.php';
 require_once __DIR__ . '/admin/_constants.php';
 
