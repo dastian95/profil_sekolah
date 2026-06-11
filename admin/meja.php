@@ -16,6 +16,9 @@ if (empty($_SESSION['is_super'])) {
 
 $msg = '';
 
+// Auto-migrate: is_paused
+try { $conn->exec("ALTER TABLE meja ADD COLUMN is_paused TINYINT(1) NOT NULL DEFAULT 0 AFTER is_active"); } catch(PDOException) {}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     try {
@@ -106,6 +109,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode(['ok' => true, 'nama' => $nama ?? '']);
             exit;
 
+        } elseif ($action === 'pause_meja') {
+            $id = (int)$_POST['id'];
+            $conn->prepare("UPDATE meja SET is_paused=1 WHERE id=?")->execute([$id]);
+            log_admin_action($conn, 'MEJA_PAUSE', "Pause meja ID:$id");
+            $msg = '<div class="alert alert-warning"><i class="bi bi-pause-circle me-2"></i>Meja di-pause — antrian tidak akan dipanggil dari meja ini.</div>';
+
+        } elseif ($action === 'resume_meja') {
+            $id = (int)$_POST['id'];
+            $conn->prepare("UPDATE meja SET is_paused=0 WHERE id=?")->execute([$id]);
+            log_admin_action($conn, 'MEJA_RESUME', "Resume meja ID:$id");
+            $msg = '<div class="alert alert-success"><i class="bi bi-play-circle me-2"></i>Meja aktif kembali.</div>';
+
         } elseif ($action === 'buka_antrian') {
             $tanggal   = date('Y-m-d');
             $jumlah    = (int)($_POST['jumlah'] ?? 50);
@@ -159,6 +174,19 @@ try {
     foreach ($ms as $row) {
         if (!isset($meja_status[$row['meja_id']])) $meja_status[$row['meja_id']] = $row['nomor'];
     }
+} catch(Throwable) {}
+
+// Rata-rata waktu layanan per meja hari ini
+$meja_avg = [];
+try {
+    $mavg = $conn->prepare("SELECT meja_id,
+        ROUND(AVG(TIMESTAMPDIFF(SECOND, dipanggil_at, selesai_at))) AS avg_sec,
+        COUNT(*) AS total
+        FROM antrian WHERE tanggal=? AND status='selesai'
+        AND dipanggil_at IS NOT NULL AND selesai_at IS NOT NULL
+        GROUP BY meja_id");
+    $mavg->execute([$tanggal]);
+    foreach ($mavg->fetchAll() as $r) $meja_avg[(int)$r['meja_id']] = $r;
 } catch(Throwable) {}
 ?>
 
@@ -238,19 +266,39 @@ try {
                 </span>
             </div>
             <div class="mt-2">
-                <?php if (isset($meja_status[$m['id']])): ?>
-                    <span class="badge bg-info">Melayani #<?= $meja_status[$m['id']] ?></span>
-                <?php elseif ($m['is_active']): ?>
-                    <span class="badge bg-success">Siap</span>
-                <?php else: ?>
+                <?php if (!$m['is_active']): ?>
                     <span class="badge bg-secondary">Nonaktif</span>
+                <?php elseif (!empty($m['is_paused'])): ?>
+                    <span class="badge bg-warning text-dark"><i class="bi bi-pause-fill me-1"></i>Dipause</span>
+                <?php elseif (isset($meja_status[$m['id']])): ?>
+                    <span class="badge bg-info">Melayani #<?= $meja_status[$m['id']] ?></span>
+                <?php else: ?>
+                    <span class="badge bg-success">Siap</span>
                 <?php endif; ?>
             </div>
-            <div class="mt-2 d-flex gap-1 justify-content-center">
+            <?php if (isset($meja_avg[$m['id']])): ?>
+            <div class="text-muted mt-1" style="font-size:.68rem;">
+                <i class="bi bi-clock me-1"></i>
+                <?php
+                $sec = (int)$meja_avg[$m['id']]['avg_sec'];
+                echo $sec >= 60 ? floor($sec/60).'m '.($sec%60).'s' : $sec.'s';
+                ?> avg · <?= $meja_avg[$m['id']]['total'] ?> selesai
+            </div>
+            <?php endif; ?>
+            <div class="mt-2 d-flex gap-1 justify-content-center flex-wrap">
                 <button class="btn btn-xs btn-outline-primary py-0 px-2" style="font-size:.75rem;"
                         data-bs-toggle="modal" data-bs-target="#modalEditMeja<?= $m['id'] ?>">
                     <i class="bi bi-pencil"></i>
                 </button>
+                <?php if ($m['is_active']): ?>
+                <form method="POST" class="d-inline">
+                    <input type="hidden" name="action" value="<?= !empty($m['is_paused']) ? 'resume_meja' : 'pause_meja' ?>">
+                    <input type="hidden" name="id" value="<?= $m['id'] ?>">
+                    <button type="submit" class="btn btn-xs <?= !empty($m['is_paused']) ? 'btn-outline-success' : 'btn-outline-warning' ?> py-0 px-2" style="font-size:.75rem;" title="<?= !empty($m['is_paused']) ? 'Resume' : 'Pause' ?>">
+                        <i class="bi <?= !empty($m['is_paused']) ? 'bi-play-fill' : 'bi-pause-fill' ?>"></i>
+                    </button>
+                </form>
+                <?php endif; ?>
                 <form method="POST" class="d-inline" onsubmit="return confirm('Hapus Meja <?= $m['nomor_meja'] ?>?')">
                     <input type="hidden" name="action" value="delete">
                     <input type="hidden" name="id" value="<?= $m['id'] ?>">

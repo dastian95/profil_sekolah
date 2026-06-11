@@ -15,6 +15,9 @@ const HALAMAN_TERSEDIA = [
 
 $msg = '';
 
+// Auto-migrate: durasi_estimasi
+try { $conn->exec("ALTER TABLE tahapan ADD COLUMN durasi_estimasi VARCHAR(50) NULL AFTER deskripsi"); } catch(PDOException) {}
+
 // ── POST Handler ──────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -31,8 +34,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!preg_match('/^[a-z0-9_]{2,50}$/', $kode)) throw new Exception('Kode hanya huruf kecil, angka, underscore (2-50 karakter).');
             if (!array_key_exists($hal, HALAMAN_TERSEDIA)) throw new Exception('Halaman tidak valid.');
 
-            $conn->prepare("INSERT INTO tahapan (nama, kode, urutan, icon, deskripsi, halaman_key) VALUES (?,?,?,?,?,?)")
-                 ->execute([$nama, $kode, $urutan, $icon, $desk ?: null, $hal]);
+            $durasi = trim($_POST['durasi_estimasi'] ?? '') ?: null;
+            $conn->prepare("INSERT INTO tahapan (nama, kode, urutan, icon, deskripsi, halaman_key, durasi_estimasi) VALUES (?,?,?,?,?,?,?)")
+                 ->execute([$nama, $kode, $urutan, $icon, $desk ?: null, $hal, $durasi]);
             log_admin_action($conn, 'TAHAPAN_ADD', "Tambah tahapan: $kode ($nama)");
             $msg = '<div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>Tahapan <strong>'.htmlspecialchars($nama).'</strong> ditambahkan.</div>';
 
@@ -50,8 +54,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!preg_match('/^[a-z0-9_]{2,50}$/', $kode)) throw new Exception('Kode hanya huruf kecil, angka, underscore.');
             if (!array_key_exists($hal, HALAMAN_TERSEDIA)) throw new Exception('Halaman tidak valid.');
 
-            $conn->prepare("UPDATE tahapan SET nama=?,kode=?,urutan=?,icon=?,deskripsi=?,halaman_key=?,is_active=? WHERE id=?")
-                 ->execute([$nama, $kode, $urutan, $icon, $desk ?: null, $hal, $aktif, $id]);
+            $durasi = trim($_POST['durasi_estimasi'] ?? '') ?: null;
+            $conn->prepare("UPDATE tahapan SET nama=?,kode=?,urutan=?,icon=?,deskripsi=?,halaman_key=?,is_active=?,durasi_estimasi=? WHERE id=?")
+                 ->execute([$nama, $kode, $urutan, $icon, $desk ?: null, $hal, $aktif, $durasi, $id]);
             log_admin_action($conn, 'TAHAPAN_EDIT', "Edit tahapan ID:$id → $kode");
             $msg = '<div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>Tahapan diupdate.</div>';
 
@@ -148,6 +153,7 @@ $max_urutan = count($tahapan_list);
                 <i class="bi <?= htmlspecialchars($t['icon']) ?> d-block mb-1" style="font-size:1.3rem;<?= $t['is_active'] ? 'color:#7c3aed' : 'color:#aaa' ?>"></i>
                 <div class="fw-semibold small"><?= htmlspecialchars($t['nama']) ?></div>
                 <div class="text-muted" style="font-size:.68rem;"><?= HALAMAN_TERSEDIA[$t['halaman_key']] ?? $t['halaman_key'] ?></div>
+                <?php if (!empty($t['durasi_estimasi'])): ?><div style="font-size:.62rem;color:#9ca3af;"><i class="bi bi-clock"></i> <?= htmlspecialchars($t['durasi_estimasi']) ?></div><?php endif; ?>
             </div>
             <?php if ($i < count($tahapan_list) - 1): ?>
                 <i class="bi bi-arrow-right text-muted"></i>
@@ -199,6 +205,9 @@ $max_urutan = count($tahapan_list);
                         ><?= htmlspecialchars($t['nama']) ?></div>
                         <?php if ($t['deskripsi']): ?>
                             <div class="text-muted small"><?= htmlspecialchars(mb_strimwidth($t['deskripsi'], 0, 60, '…')) ?></div>
+                        <?php endif; ?>
+                        <?php if (!empty($t['durasi_estimasi'])): ?>
+                            <div class="text-muted" style="font-size:.72rem;"><i class="bi bi-clock me-1"></i><?= htmlspecialchars($t['durasi_estimasi']) ?></div>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -273,6 +282,10 @@ $max_urutan = count($tahapan_list);
                   <div class="mb-3">
                     <label class="form-label">Deskripsi <small class="text-muted">(opsional)</small></label>
                     <textarea name="deskripsi" class="form-control" rows="2"><?= htmlspecialchars($t['deskripsi'] ?? '') ?></textarea>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Estimasi Durasi <small class="text-muted">(opsional, contoh: 5-10 menit)</small></label>
+                    <input type="text" name="durasi_estimasi" class="form-control" value="<?= htmlspecialchars($t['durasi_estimasi'] ?? '') ?>" placeholder="5-10 menit">
                   </div>
                   <div class="form-check">
                     <input class="form-check-input" type="checkbox" name="is_active" id="aktif<?= $t['id'] ?>" <?= $t['is_active']?'checked':'' ?>>
@@ -396,6 +409,10 @@ document.querySelectorAll('.tahapan-nama').forEach(el => {
           <div class="mb-3">
             <label class="form-label">Deskripsi <small class="text-muted">(opsional)</small></label>
             <textarea name="deskripsi" class="form-control" rows="2" placeholder="Jelaskan tugas admin di tahapan ini"></textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Estimasi Durasi <small class="text-muted">(opsional)</small></label>
+            <input type="text" name="durasi_estimasi" class="form-control" placeholder="contoh: 5-10 menit">
           </div>
         </div>
         <div class="modal-footer">

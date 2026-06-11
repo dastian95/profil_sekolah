@@ -12,6 +12,15 @@ if (empty($_SESSION['is_super'])) {
 
 $msg = '';
 
+// Auto-migrate: kolom fitur & ketentuan gelombang
+foreach ([
+    "ALTER TABLE gelombang ADD COLUMN min_tka TINYINT NOT NULL DEFAULT 0 AFTER kuota_glm",
+    "ALTER TABLE gelombang ADD COLUMN buta_warna_wajib TINYINT(1) NOT NULL DEFAULT 0 AFTER min_tka",
+    "ALTER TABLE gelombang ADD COLUMN pesan_gugur TEXT NULL AFTER buta_warna_wajib",
+] as $_gsql) {
+    try { $conn->exec($_gsql); } catch(PDOException) {}
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
@@ -20,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $conn->prepare("UPDATE gelombang SET
             tanggal_buka=?, tanggal_tutup=?, tanggal_pengumuman=?,
             tanggal_daftar_ulang_mulai=?, tanggal_daftar_ulang_selesai=?,
-            kuota_glm=?,
+            kuota_glm=?, min_tka=?, buta_warna_wajib=?, pesan_gugur=?,
             jadwal_pendaftaran_text=?, jadwal_pengumuman_text=?, jadwal_daftar_ulang_text=?
             WHERE id=?");
         $stmt->execute([
@@ -30,6 +39,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_POST['tanggal_daftar_ulang_mulai'] ?: null,
             $_POST['tanggal_daftar_ulang_selesai'] ?: null,
             (int)$_POST['kuota_glm'],
+            (int)($_POST['min_tka'] ?? 0),
+            (int)($_POST['buta_warna_wajib'] ?? 0),
+            trim($_POST['pesan_gugur'] ?? '') ?: null,
             trim($_POST['jadwal_pendaftaran_text'] ?? ''),
             trim($_POST['jadwal_pengumuman_text'] ?? ''),
             trim($_POST['jadwal_daftar_ulang_text'] ?? ''),
@@ -285,6 +297,38 @@ $first_id = !empty($gel_rows) ? $gel_rows[0]['id'] : 0;
                             <textarea name="jadwal_daftar_ulang_text" class="form-control form-control-sm" rows="1"
                                       placeholder="contoh: 3 - 4 Juli 2026 | 08:00 - 16:00"><?= htmlspecialchars($g['jadwal_daftar_ulang_text'] ?? '') ?></textarea>
                             <div class="form-text">Gunakan baris baru untuk multi-jadwal. Tampil di halaman publik bagian Cara Mendaftar.</div>
+                        </div>
+
+                        <h6 class="text-muted text-uppercase small mb-2 fw-bold mt-3">
+                            <i class="bi bi-toggle-on me-1"></i>Fitur &amp; Ketentuan
+                        </h6>
+                        <div class="row g-2 mb-3">
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-semibold mb-1">
+                                    Nilai Min. TKA
+                                    <small class="text-muted fw-normal">(0 = tidak dibatasi)</small>
+                                </label>
+                                <input type="number" name="min_tka" class="form-control form-control-sm"
+                                       value="<?= (int)($g['min_tka'] ?? 0) ?>" min="0" max="100">
+                            </div>
+                            <div class="col-sm-6 d-flex align-items-end pb-1">
+                                <div class="form-check form-switch">
+                                    <input type="hidden" name="buta_warna_wajib" value="0">
+                                    <input class="form-check-input" type="checkbox"
+                                           id="bww_<?= $g['id'] ?>"
+                                           name="buta_warna_wajib" value="1"
+                                           <?= !empty($g['buta_warna_wajib']) ? 'checked' : '' ?>>
+                                    <label class="form-check-label small" for="bww_<?= $g['id'] ?>">
+                                        Tes Buta Warna Wajib
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold mb-1">Pesan untuk Peserta Gugur</label>
+                            <textarea name="pesan_gugur" class="form-control form-control-sm" rows="2"
+                                      placeholder="contoh: Terima kasih telah mendaftar. Nilai Anda belum memenuhi syarat minimum..."><?= htmlspecialchars($g['pesan_gugur'] ?? '') ?></textarea>
+                            <div class="form-text">Tampil di halaman cek status pendaftar yang ditolak/gugur.</div>
                         </div>
 
                         <button type="submit" class="btn btn-primary btn-sm w-100">

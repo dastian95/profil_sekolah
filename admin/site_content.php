@@ -32,6 +32,17 @@ $defaults = [
     ['about_image',     'assets/img/gedung-sekolah.webp',             'image_url', 'Foto Gedung (path/URL)',    'Tentang'],
     ['maps_embed_url',  'https://maps.google.com/maps?q=-6.2350331,106.9439031&z=17&output=embed', 'url', 'URL Embed Google Maps', 'Lokasi'],
     ['footer_text',     '',                                            'text',      'Teks Footer Tambahan',     'Footer'],
+    // Sosial Media
+    ['sosmed_instagram', '', 'url',      'Instagram URL',                 'Sosial Media'],
+    ['sosmed_facebook',  '', 'url',      'Facebook URL',                  'Sosial Media'],
+    ['sosmed_youtube',   '', 'url',      'YouTube URL',                   'Sosial Media'],
+    ['sosmed_tiktok',    '', 'url',      'TikTok URL',                    'Sosial Media'],
+    // SEO
+    ['seo_description',  '', 'textarea', 'Meta Description (maks 160 karakter)', 'SEO'],
+    ['seo_keywords',     '', 'text',     'Meta Keywords (pisah koma)',    'SEO'],
+    // Logo
+    ['logo_url',     '', 'image_url', 'Logo Sekolah (path/URL)',         'Logo'],
+    ['favicon_url',  '', 'image_url', 'Favicon (path/URL .ico/.png)',    'Logo'],
 ];
 $ins_default = $conn->prepare("INSERT IGNORE INTO site_settings (setting_key, setting_value, type, label, group_name) VALUES (?,?,?,?,?)");
 foreach ($defaults as $d) $ins_default->execute($d);
@@ -68,11 +79,14 @@ foreach ($conn->query("SELECT * FROM site_settings ORDER BY group_name, setting_
 }
 
 $group_icons = [
-    'Identitas' => 'bi-building',
-    'Hero'      => 'bi-image',
-    'Tentang'   => 'bi-info-circle',
-    'Lokasi'    => 'bi-geo-alt',
-    'Footer'    => 'bi-layout-text-window',
+    'Identitas'    => 'bi-building',
+    'Hero'         => 'bi-image',
+    'Tentang'      => 'bi-info-circle',
+    'Lokasi'       => 'bi-geo-alt',
+    'Footer'       => 'bi-layout-text-window',
+    'Sosial Media' => 'bi-share-fill',
+    'SEO'          => 'bi-search',
+    'Logo'         => 'bi-badge-hd',
 ];
 ?>
 
