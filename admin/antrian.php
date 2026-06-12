@@ -284,6 +284,13 @@ $fase_color = [1 => '#2563eb', 2 => '#7c3aed'];
     transition: border-color .15s, background .15s;
 }
 .f2p-berkas-row.checked { border-color: #a855f7 !important; background: #f5f0ff !important; }
+/* Mobile/tablet: panel tidak sticky, ikut mengalir di bawah nomor */
+@media (max-width: 991.98px) {
+    .f2-panel { position: static !important; }
+    .nomor-display { font-size: 4.5rem; letter-spacing: -2px; }
+    .nomor-box { padding: 20px 28px; }
+    .btn-aksi-main { padding: 13px 20px; font-size: .95rem; width: 100%; }
+}
 
 /* ── Fase 2 Checklist ─────────────────────────────────── */
 .fase2-checklist { display: flex; flex-direction: column; gap: 12px; }
@@ -453,10 +460,11 @@ $fase_color = [1 => '#2563eb', 2 => '#7c3aed'];
                     <input type="hidden" name="action" value="selesai">
                     <input type="hidden" name="antrian_id" value="<?= $current['id'] ?>">
                     <input type="hidden" name="nomor" value="<?= $current['nomor'] ?>">
+                    <?php $selesai_confirm = $current_pendaftar
+                        ? 'Selesai? Bukti pendaftaran akan dicetak dari Data Pendaftar.'
+                        : 'PERHATIAN: belum ada pendaftar terhubung ke nomor ini — selesaikan TANPA cetak bukti?'; ?>
                     <button type="submit" class="btn-aksi-main btn-selesai" id="btnSelesai"
-                            onclick="clearBerkas(<?= $current['id'] ?>); return confirm('<?= $current_pendaftar
-                                ? 'Selesai? Bukti pendaftaran akan dicetak dari Data Pendaftar.'
-                                : 'PERHATIAN: belum ada pendaftar terhubung ke nomor ini — selesaikan TANPA cetak bukti?' ?>')">
+                            onclick="clearBerkas(<?= $current['id'] ?>); return confirm('<?= $selesai_confirm ?>')">
                         <i class="bi bi-file-earmark-check me-2"></i>Selesai<?= $current_pendaftar ? ' &amp; Cetak Bukti' : '' ?>
                     </button>
                 </form>
@@ -537,7 +545,7 @@ $fase_color = [1 => '#2563eb', 2 => '#7c3aed'];
                     </div>
                     <div class="fw-semibold mb-1">Belum Ada Data Pendaftar</div>
                     <div class="small text-muted mb-3">Daftarkan di halaman Data Pendaftar —<br>otomatis terhubung ke nomor ini.</div>
-                    <a href="?page=pendaftar" class="btn btn-sm fw-semibold text-white px-4"
+                    <a href="?page=pendaftar&add=1" class="btn btn-sm fw-semibold text-white px-4"
                        style="background:linear-gradient(135deg,#7c3aed,#a855f7);">
                         <i class="bi bi-plus-lg me-1"></i>Daftarkan Sekarang
                     </a>

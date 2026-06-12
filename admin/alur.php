@@ -140,7 +140,10 @@ $max_urutan = count($tahapan_list);
 <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
     <div>
         <h5 class="mb-1 fw-semibold">Alur Pendaftaran</h5>
-        <p class="text-muted small mb-0">Konfigurasi tahapan proses SPMB. Setiap tahapan menentukan halaman yang bisa diakses oleh admin yang ditugaskan.</p>
+        <p class="text-muted small mb-0">
+            Urutan tahapan yang dilalui pendaftar. Cukup isi <strong>nama</strong> &amp; pilih <strong>halaman</strong> —
+            kode &amp; urutan dibuat otomatis. Seret <i class="bi bi-grip-vertical"></i> untuk mengubah urutan, klik nama untuk ganti nama.
+        </p>
     </div>
     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAdd">
         <i class="bi bi-plus-lg me-1"></i>Tambah Tahapan
@@ -340,6 +343,23 @@ if (tbody) {
     });
 }
 
+// ── Modal Tambah: kode otomatis dari nama + icon picker ───────────────────────
+function autoKode(nama) {
+    const slug = nama.toLowerCase()
+        .replace(/[^a-z0-9\s_]/g, '')
+        .trim()
+        .replace(/\s+/g, '_')
+        .substring(0, 50);
+    const kode = slug.length >= 2 ? slug : '';
+    document.getElementById('addKode').value = kode;
+    document.getElementById('kodePreview').textContent = kode || '—';
+}
+function pickIcon(btn) {
+    document.querySelectorAll('#iconPicker .icon-pick').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('addIcon').value = btn.dataset.icon;
+}
+
 // ── Inline edit nama ───────────────────────────────────────────────────────────
 document.querySelectorAll('.tahapan-nama').forEach(el => {
     el.addEventListener('click', function() {
@@ -389,45 +409,57 @@ document.querySelectorAll('.tahapan-nama').forEach(el => {
         </div>
         <div class="modal-body">
           <input type="hidden" name="action" value="add">
+          <!-- Kode & urutan diisi otomatis — user cukup isi nama, pilih halaman, klik ikon -->
+          <input type="hidden" name="kode" id="addKode" value="">
+          <input type="hidden" name="urutan" value="<?= $max_urutan + 1 ?>">
+
           <div class="mb-3">
-            <label class="form-label">Nama Tahapan</label>
-            <input type="text" name="nama" class="form-control" placeholder="contoh: Pengimput Data" required>
+            <label class="form-label fw-semibold">1. Nama Tahapan <span class="text-danger">*</span></label>
+            <input type="text" name="nama" id="addNama" class="form-control form-control-lg"
+                   placeholder="contoh: Cek Berkas Pendaftar" required oninput="autoKode(this.value)">
+            <small class="text-muted">Kode otomatis: <code id="kodePreview">—</code> · Urutan otomatis di posisi terakhir (bisa diseret nanti)</small>
           </div>
-          <div class="row g-2 mb-3">
-            <div class="col-md-6">
-              <label class="form-label">Kode <small class="text-muted">(huruf kecil/angka/_)</small></label>
-              <input type="text" name="kode" class="form-control font-monospace" placeholder="contoh: input_data" pattern="[a-z0-9_]{2,50}" required>
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">Urutan</label>
-              <input type="number" name="urutan" class="form-control" value="<?= $max_urutan + 1 ?>" min="1" required>
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">Icon <small class="text-muted"><a href="https://icons.getbootstrap.com" target="_blank">?</a></small></label>
-              <input type="text" name="icon" class="form-control" value="bi-circle" placeholder="bi-circle">
-            </div>
-          </div>
+
           <div class="mb-3">
-            <label class="form-label">Halaman yang Dibuka untuk Admin</label>
+            <label class="form-label fw-semibold">2. Halaman yang Dibuka untuk Admin <span class="text-danger">*</span></label>
             <select name="halaman_key" class="form-select">
               <?php foreach (HALAMAN_TERSEDIA as $k => $l): ?>
                 <option value="<?= $k ?>"><?= $l ?></option>
               <?php endforeach; ?>
             </select>
-            <small class="text-muted">Admin yang di-assign ke tahapan ini hanya bisa membuka halaman yang dipilih.</small>
+            <small class="text-muted">Admin yang ditugaskan ke tahapan ini hanya bisa membuka halaman tersebut.</small>
           </div>
+
           <div class="mb-3">
-            <label class="form-label">Deskripsi <small class="text-muted">(opsional)</small></label>
-            <textarea name="deskripsi" class="form-control" rows="2" placeholder="Jelaskan tugas admin di tahapan ini"></textarea>
+            <label class="form-label fw-semibold">3. Pilih Ikon</label>
+            <input type="hidden" name="icon" id="addIcon" value="bi-circle">
+            <div class="d-flex flex-wrap gap-2" id="iconPicker">
+              <?php foreach (['bi-folder-check','bi-person-lines-fill','bi-pencil-square','bi-card-checklist',
+                              'bi-printer','bi-clipboard-check','bi-people-fill','bi-table',
+                              'bi-trophy','bi-megaphone','bi-file-earmark-text','bi-check-circle',
+                              'bi-grid-3x2-gap-fill','bi-display','bi-shield-check','bi-circle'] as $ic): ?>
+              <button type="button" class="btn btn-outline-secondary icon-pick <?= $ic === 'bi-circle' ? 'active' : '' ?>"
+                      data-icon="<?= $ic ?>" onclick="pickIcon(this)"
+                      style="width:44px;height:44px;font-size:1.2rem;">
+                <i class="bi <?= $ic ?>"></i>
+              </button>
+              <?php endforeach; ?>
+            </div>
           </div>
-          <div class="mb-3">
-            <label class="form-label">Estimasi Durasi <small class="text-muted">(opsional)</small></label>
-            <input type="text" name="durasi_estimasi" class="form-control" placeholder="contoh: 5-10 menit">
+
+          <a class="small text-decoration-none" data-bs-toggle="collapse" href="#addOpsional">
+            <i class="bi bi-chevron-down me-1"></i>Opsional: deskripsi &amp; estimasi durasi
+          </a>
+          <div class="collapse mt-2" id="addOpsional">
+            <div class="mb-2">
+              <textarea name="deskripsi" class="form-control" rows="2" placeholder="Deskripsi singkat tugas admin di tahapan ini"></textarea>
+            </div>
+            <input type="text" name="durasi_estimasi" class="form-control" placeholder="Estimasi durasi, contoh: 5-10 menit">
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
-          <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Tambah</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Tambah Tahapan</button>
         </div>
       </form>
     </div>

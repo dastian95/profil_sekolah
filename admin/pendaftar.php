@@ -130,6 +130,10 @@ try {
 // Auto-migrate: TKA dipecah 2 mapel (MTK & B.Indonesia) — nilai_tka = rata-rata keduanya
 try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN tka_mtk DECIMAL(5,2) NULL AFTER nilai_tka"); } catch (PDOException $e) {}
 try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN tka_bindo DECIMAL(5,2) NULL AFTER tka_mtk"); } catch (PDOException $e) {}
+// Auto-migrate: zonasi & status orang tua (Gelombang 2)
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN kelurahan VARCHAR(100) NULL AFTER alamat"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN jarak_km DECIMAL(5,2) NULL AFTER kelurahan"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN status_ortu ENUM('tidak','yatim','piatu','yatim_piatu') NOT NULL DEFAULT 'tidak' AFTER jarak_km"); } catch (PDOException $e) {}
 
 // ─── POST: Tambah / Edit / Hapus ────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -195,6 +199,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $tka_mtk_sv   = $sistem === 'reguler' ? $tka_mtk   : null;
             $tka_bindo_sv = $sistem === 'reguler' ? $tka_bindo : null;
 
+            // ── Zonasi & status orang tua (section Gelombang 2) ──────────────
+            $kelurahan_in = trim($_POST['kelurahan'] ?? '');
+            $status_ortu  = in_array($_POST['status_ortu'] ?? '', ['tidak','yatim','piatu','yatim_piatu'], true)
+                ? $_POST['status_ortu'] : 'tidak';
+            $zon          = $kelurahan_in !== '' ? zonasi_lookup($kelurahan_in) : null;
+            $kelurahan_sv = $zon ? $kelurahan_in : null;
+            $jarak_sv     = $zon ? $zon['jarak'] : null;
+
+            // Alamat: jika kelurahan dipilih, lengkapi otomatis dengan Kel/Kec
+            $alamat_in = trim($_POST['alamat'] ?? '');
+            if ($kelurahan_sv && stripos($alamat_in, $kelurahan_sv) === false) {
+                $alamat_in = trim($alamat_in . ($alamat_in !== '' ? ', ' : '')
+                    . 'Kel. ' . $kelurahan_sv . ', Kec. ' . $zon['kecamatan'] . ', Jakarta Timur');
+            }
+
             $gel = 0;
             $existing_status = 'diproses';
             if (!$err) {
@@ -225,7 +244,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'asal_sekolah'  => trim($_POST['asal_sekolah']),
                         'no_telp'       => trim($_POST['no_telp'] ?? ''),
                         'tgl_kk'        => $tgl_kk,
-                        'alamat'        => trim($_POST['alamat'] ?? ''),
+                        'alamat'        => $alamat_in,
                         'jurusan'       => $_POST['jurusan'],
                         'gelombang'     => $gel,
                         'nilai_tka'     => $sistem === 'reguler' ? $nilai_tka_in : 0,
@@ -248,7 +267,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'asal_sekolah'  => trim($_POST['asal_sekolah']),
                         'no_telp'       => trim($_POST['no_telp'] ?? ''),
                         'tgl_kk'        => $tgl_kk,
-                        'alamat'        => trim($_POST['alamat'] ?? ''),
+                        'alamat'        => $alamat_in,
                         'jurusan'       => $_POST['jurusan'],
                         'gelombang'     => $gel,
                         'nilai_raport'  => 0,
@@ -263,22 +282,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($action === 'add') {
                     $no = generateNoPendaftaran($conn, $d['gelombang']);
                     $stmt = $conn->prepare("INSERT INTO pendaftar
-                        (no_pendaftaran,gelombang,nama,nisn,tanggal_lahir,usia,jenis_kelamin,asal_sekolah,no_telp,tgl_kk,alamat,jurusan,sistem_pendidikan,nilai_raport,nilai_tka,tka_mtk,tka_bindo,nilai_akhir,lolos_usia,status)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+                        (no_pendaftaran,gelombang,nama,nisn,tanggal_lahir,usia,jenis_kelamin,asal_sekolah,no_telp,tgl_kk,alamat,kelurahan,jarak_km,status_ortu,jurusan,sistem_pendidikan,nilai_raport,nilai_tka,tka_mtk,tka_bindo,nilai_akhir,lolos_usia,status)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
                     $stmt->execute([$no,$d['gelombang'],$d['nama'],$d['nisn'],$d['tanggal_lahir'],$d['usia'],
-                        $d['jenis_kelamin'],$d['asal_sekolah'],$d['no_telp'],$tgl_kk,$d['alamat'],$d['jurusan'],
+                        $d['jenis_kelamin'],$d['asal_sekolah'],$d['no_telp'],$tgl_kk,$d['alamat'],$kelurahan_sv,$jarak_sv,$status_ortu,$d['jurusan'],
                         $sistem,$d['nilai_raport'],$d['nilai_tka'],$tka_mtk_sv,$tka_bindo_sv,$d['nilai_akhir'],$d['lolos_usia'],$new_status]);
                     $id = (int)$conn->lastInsertId();
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
 
-                    // Auto-link: jika admin sedang melayani nomor Fase 2 yang belum
+                    // Auto-link: jika admin sedang melayani nomor antrian yang belum
                     // terhubung pendaftar, hubungkan otomatis ke pendaftar baru ini
                     $autolink_note = '';
                     $alk_meja = (int)($_SESSION['antrian_meja_id'] ?? 0);
-                    if ($alk_meja && (int)($_SESSION['antrian_meja_fase'] ?? 0) === 2) {
+                    if ($alk_meja) {
                         try {
                             $aq = $conn->prepare("SELECT id, nomor FROM antrian
-                                WHERE tanggal=? AND meja_id=? AND fase=2 AND status='dipanggil' AND pendaftar_id IS NULL
+                                WHERE tanggal=? AND meja_id=? AND status='dipanggil' AND pendaftar_id IS NULL
                                 ORDER BY dipanggil_at DESC LIMIT 1");
                             $aq->execute([date('Y-m-d'), $alk_meja]);
                             if ($arow = $aq->fetch()) {
@@ -304,10 +323,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $id = (int)$_POST['id'];
                     $stmt = $conn->prepare("UPDATE pendaftar SET
                         gelombang=?,nama=?,nisn=?,tanggal_lahir=?,usia=?,jenis_kelamin=?,asal_sekolah=?,
-                        no_telp=?,tgl_kk=?,alamat=?,jurusan=?,sistem_pendidikan=?,nilai_raport=?,nilai_tka=?,tka_mtk=?,tka_bindo=?,nilai_akhir=?,lolos_usia=?,status=?
+                        no_telp=?,tgl_kk=?,alamat=?,kelurahan=?,jarak_km=?,status_ortu=?,jurusan=?,sistem_pendidikan=?,nilai_raport=?,nilai_tka=?,tka_mtk=?,tka_bindo=?,nilai_akhir=?,lolos_usia=?,status=?
                         WHERE id=?");
                     $stmt->execute([$d['gelombang'],$d['nama'],$d['nisn'],$d['tanggal_lahir'],$d['usia'],
-                        $d['jenis_kelamin'],$d['asal_sekolah'],$d['no_telp'],$tgl_kk,$d['alamat'],$d['jurusan'],
+                        $d['jenis_kelamin'],$d['asal_sekolah'],$d['no_telp'],$tgl_kk,$d['alamat'],$kelurahan_sv,$jarak_sv,$status_ortu,$d['jurusan'],
                         $sistem,$d['nilai_raport'],$d['nilai_tka'],$tka_mtk_sv,$tka_bindo_sv,$d['nilai_akhir'],$d['lolos_usia'],$new_status,$id]);
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
 
@@ -401,6 +420,9 @@ if ($pend_print_id > 0) {
     $ps->execute([$pend_print_id]);
     $printAfterSave = $ps->fetch(PDO::FETCH_ASSOC) ?: null;
 }
+
+// Auto-open modal Tambah (dari tombol "Daftarkan Sekarang" panel meja antrian)
+$addOnLoad = isset($_GET['add']);
 
 // Auto-open edit modal jika redirect dari Ranking
 $editFromRanking = null;
@@ -565,6 +587,50 @@ if ($edit_id_get > 0) {
         <input type="hidden" name="action" id="formAction" value="<?= htmlspecialchars($formAction) ?>">
         <input type="hidden" name="id" id="formId" value="<?= htmlspecialchars($formId) ?>">
         <input type="hidden" name="form_token" id="formToken" value="<?= htmlspecialchars($form_token) ?>">
+
+        <!-- ── Section Gelombang 2: Zonasi & Yatim/Piatu (di atas Data Diri) ── -->
+        <?php $g2_aktif = $gelombang_aktif && (int)$gelombang_aktif['gelombang'] === 2; ?>
+        <div id="sectionG2" class="px-3 pt-3" style="<?= $g2_aktif ? '' : 'display:none;' ?>">
+          <div class="border rounded-3 p-3" style="background:#fffbeb;border-color:#fcd34d !important;">
+            <div class="fw-bold small text-uppercase mb-2" style="color:#92400e;letter-spacing:.4px;">
+              <i class="bi bi-geo-alt-fill me-1"></i>Gelombang 2 — Zonasi &amp; Status Orang Tua
+            </div>
+            <div class="row g-3">
+              <div class="col-md-5">
+                <label class="form-label fw-semibold small mb-1">Kelurahan Domisili (sesuai KK)</label>
+                <select name="kelurahan" id="fKelurahan" class="form-select form-select-sm"
+                        onchange="updateJarakZonasi()">
+                  <option value="" data-jarak="">— Pilih Kelurahan —</option>
+                  <?php foreach (KELURAHAN_ZONASI as $zon_kec => $zon_list): ?>
+                  <optgroup label="Kec. <?= htmlspecialchars($zon_kec) ?>">
+                    <?php foreach ($zon_list as $zon_kel => [$zon_lat, $zon_lng]): ?>
+                    <option value="<?= htmlspecialchars($zon_kel) ?>"
+                            data-jarak="<?= zonasi_jarak_km($zon_lat, $zon_lng) ?>"
+                            <?= ($formData['kelurahan'] ?? '') === $zon_kel ? 'selected' : '' ?>>
+                      <?= htmlspecialchars($zon_kel) ?>
+                    </option>
+                    <?php endforeach; ?>
+                  </optgroup>
+                  <?php endforeach; ?>
+                </select>
+                <small class="text-muted">Luar Jakarta Timur? Biarkan kosong, isi alamat manual saja.</small>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold small mb-1">Jarak ke Sekolah</label>
+                <input type="text" id="fJarak" class="form-control form-control-sm bg-light" readonly placeholder="—">
+                <small class="text-muted">Garis lurus, otomatis</small>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-semibold small mb-1">Status Orang Tua</label>
+                <select name="status_ortu" id="fStatusOrtu" class="form-select form-select-sm">
+                  <?php foreach (STATUS_ORTU_LABEL as $so_k => $so_l): ?>
+                  <option value="<?= $so_k ?>" <?= ($formData['status_ortu'] ?? 'tidak') === $so_k ? 'selected' : '' ?>><?= htmlspecialchars($so_l) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <!-- Tab Navigation -->
         <ul class="nav nav-tabs px-3 pt-2" role="tablist">
@@ -1424,6 +1490,20 @@ function updateRataRata() {
     updatePreviewNilai();
 }
 
+// ── Zonasi Gelombang 2 ──────────────────────────────────────────────────────
+function updateJarakZonasi() {
+    const sel = document.getElementById('fKelurahan');
+    const out = document.getElementById('fJarak');
+    if (!sel || !out) return;
+    const j = sel.options[sel.selectedIndex]?.dataset.jarak || '';
+    out.value = j !== '' ? j + ' km' : '';
+}
+function setG2Section(gel) {
+    const sec = document.getElementById('sectionG2');
+    if (sec) sec.style.display = (parseInt(gel, 10) === 2) ? '' : 'none';
+}
+document.addEventListener('DOMContentLoaded', updateJarakZonasi);
+
 // Rata-rata TKA dari 2 mapel (MTK & B.Indonesia) + update field readonly
 function getTkaAvg() {
     const m = parseFloat(document.getElementById('fTkaMtk')?.value);
@@ -1545,6 +1625,13 @@ function resetForm() {
     if (_mr) _mr.value = '';
     const _mx = document.getElementById('modeMatrix');
     if (_mx) { _mx.checked = true; switchInputMode('matrix'); }
+    // Reset zonasi & status ortu, tampilkan section sesuai gelombang aktif
+    const _kel = document.getElementById('fKelurahan');
+    if (_kel) _kel.value = '';
+    const _so = document.getElementById('fStatusOrtu');
+    if (_so) _so.value = 'tidak';
+    updateJarakZonasi();
+    setG2Section(<?= $gelombang_aktif ? (int)$gelombang_aktif['gelombang'] : 0 ?>);
     // Reset field KK
     const fTglKk = document.getElementById('fTglKk');
     if (fTglKk) fTglKk.value = '';
@@ -1573,6 +1660,14 @@ function submitWithPrint() {
 <?php if ($editFromRanking): ?>
 window.addEventListener('load', function() {
     editForm(<?= json_encode($editFromRanking, JSON_HEX_APOS|JSON_HEX_QUOT) ?>);
+});
+<?php endif; ?>
+
+<?php if ($addOnLoad && !$showModalOnLoad && !$editFromRanking): ?>
+// Buka modal Tambah otomatis (dari panel meja antrian "Daftarkan Sekarang")
+window.addEventListener('load', function() {
+    resetForm();
+    new bootstrap.Modal(document.getElementById('modalPendaftar')).show();
 });
 <?php endif; ?>
 
@@ -1607,6 +1702,14 @@ function editForm(d) {
     document.getElementById('fTelp').value    = d.no_telp || '';
     document.getElementById('fAlamat').value  = d.alamat || '';
     document.getElementById('fJurusan').value = d.jurusan;
+    // Zonasi & status ortu — section tampil sesuai gelombang baris ini
+    const _kel = document.getElementById('fKelurahan');
+    if (_kel) _kel.value = d.kelurahan || '';
+    const _so = document.getElementById('fStatusOrtu');
+    if (_so) _so.value = d.status_ortu || 'tidak';
+    updateJarakZonasi();
+    setG2Section(d.gelombang);
+
     // TKA 2 mapel — fallback data lama (hanya punya nilai_tka): isi keduanya dengan nilai itu
     const tkaM = (d.tka_mtk !== null && d.tka_mtk !== undefined && d.tka_mtk !== '') ? d.tka_mtk
                : (parseFloat(d.nilai_tka) > 0 ? d.nilai_tka : '');

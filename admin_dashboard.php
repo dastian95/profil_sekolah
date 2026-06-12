@@ -440,8 +440,12 @@ foreach ($pages as $key => $info) {
 .f2-fab.linked { background: linear-gradient(135deg,#059669,#10b981); box-shadow: 0 4px 18px rgba(5,150,105,.35); }
 .f2-fab.linked:hover { box-shadow: 0 8px 28px rgba(5,150,105,.45); }
 .f2-fab .fab-nomor { background: rgba(255,255,255,.25); border-radius: 20px; padding: 2px 10px; font-size: .75rem; }
-.f2-offcanvas { width: 400px !important; }
-@media (max-width:480px) { .f2-offcanvas { width: 100vw !important; } }
+.f2-offcanvas { width: min(420px, 94vw) !important; }
+@media (max-width: 576px) {
+    .f2-offcanvas { width: 100vw !important; }
+    .f2-fab { bottom: 16px; right: 12px; padding: 10px 14px; font-size: .8rem; max-width: 92vw; }
+    .f2-fab > span:not(.fab-nomor) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
 .f2-nomor-big { font-size: 4rem; font-weight: 900; color: #7c3aed; line-height: 1; letter-spacing: -2px; }
 .f2-berkas-row {
     display: flex; align-items: center; gap: 10px;
@@ -565,7 +569,7 @@ foreach ($pages as $key => $info) {
         </div>
         <div class="fw-semibold mb-1">Belum Ada Data</div>
         <div class="small text-muted mb-4">Pendaftar ini belum diinput datanya.<br>Gunakan halaman Data Pendaftar untuk mendaftarkannya.</div>
-        <a href="admin_dashboard.php?page=pendaftar"
+        <a href="admin_dashboard.php?page=pendaftar&add=1"
            class="btn btn-sm fw-semibold text-white px-4"
            style="background:linear-gradient(135deg,#7c3aed,#a855f7);">
             <i class="bi bi-plus-lg me-1"></i>Daftarkan Sekarang
@@ -677,6 +681,14 @@ const toggleBtn = document.getElementById('sidebarToggle');
 if (toggleBtn) {
     toggleBtn.addEventListener('click', () => { sidebar.classList.toggle('show'); backdrop.classList.toggle('show'); });
     backdrop.addEventListener('click',  () => { sidebar.classList.remove('show'); backdrop.classList.remove('show'); });
+}
+
+// Ingat posisi scroll sidebar antar halaman (tidak balik ke atas saat pindah menu)
+if (sidebar) {
+    const sbKey = 'sidebar_scroll_admin';
+    const saved = sessionStorage.getItem(sbKey);
+    if (saved !== null) sidebar.scrollTop = parseInt(saved, 10) || 0;
+    sidebar.addEventListener('scroll', () => sessionStorage.setItem(sbKey, sidebar.scrollTop));
 }
 </script>
 </body>
