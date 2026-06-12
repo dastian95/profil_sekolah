@@ -213,6 +213,33 @@ try {
     $meja_stat = $ms->fetchAll();
 } catch(Throwable) {}
 
+// Riwayat hari ini (meja ini) + preview nomor berikutnya
+$riwayat = [];
+$next_up = [];
+if ($my_meja_id) {
+    try {
+        $rh = $conn->prepare("SELECT nomor, status, hasil, selesai_at FROM antrian
+            WHERE tanggal=? AND meja_id=? AND fase=? AND status IN ('selesai','skip')
+            ORDER BY selesai_at DESC LIMIT 8");
+        $rh->execute([$today, $my_meja_id, $my_meja_fase]);
+        $riwayat = $rh->fetchAll();
+
+        $nu = $conn->prepare("SELECT nomor FROM antrian
+            WHERE tanggal=? AND fase=? AND status='menunggu' ORDER BY nomor ASC LIMIT 3");
+        $nu->execute([$today, $my_meja_fase]);
+        $next_up = $nu->fetchAll(PDO::FETCH_COLUMN);
+    } catch(Throwable) {}
+}
+
+// Cek buta warna: sembunyikan dari checklist hanya jika gelombang aktif set buta_warna_wajib=0
+$show_buta_warna = true;
+try {
+    $ga_bw = getActiveGelombang($conn);
+    if ($ga_bw && isset($ga_bw['buta_warna_wajib']) && (int)$ga_bw['buta_warna_wajib'] === 0) {
+        $show_buta_warna = false;
+    }
+} catch(Throwable) {}
+
 $fase_label = [1 => 'Cek Berkas', 2 => 'Input Data & Surat'];
 $fase_color = [1 => '#2563eb', 2 => '#7c3aed'];
 ?>
@@ -256,6 +283,15 @@ $fase_color = [1 => '#2563eb', 2 => '#7c3aed'];
 .meja-mini-card.active-meja { border-color: #7c3aed; background: #f5f3ff; }
 .nomor-mini { font-size: 1.6rem; font-weight: 800; }
 .no-antrian-box { border-radius: 20px; padding: 50px 40px; text-align: center; }
+
+/* ── Fase 2 Panel Kanan ───────────────────────────────── */
+.f2p-berkas-row {
+    display: flex; align-items: center; gap: 10px;
+    background: #fff; border: 1.5px solid #e5e7eb;
+    border-radius: 10px; padding: 10px 12px; cursor: pointer;
+    transition: border-color .15s, background .15s;
+}
+.f2p-berkas-row.checked { border-color: #a855f7 !important; background: #f5f0ff !important; }
 
 /* ── Fase 2 Checklist ─────────────────────────────────── */
 .fase2-checklist { display: flex; flex-direction: column; gap: 12px; }
@@ -471,19 +507,18 @@ $mejas_fase2 = array_filter($mejas_aktif, fn($m) => (int)$m['fase'] === 2);
 </div>
 
 <?php elseif ($current): ?>
-<!-- ══ ADA NOMOR AKTIF ══════════════════════════════════════════════════════ -->
-<div class="text-center mb-4 <?= $my_meja_fase == 1 ? 'no-print' : '' ?>">
+<?php if ($my_meja_fase == 1): ?>
+<!-- ══ FASE 1: ADA NOMOR AKTIF ══════════════════════════════════════════════ -->
+<div class="text-center mb-4 no-print">
     <div class="text-muted small fw-semibold mb-2 text-uppercase letter-spacing-1">Sedang Dilayani</div>
-    <div class="nomor-box fase-<?= $my_meja_fase ?> mb-3">
-        <div class="nomor-display fase-<?= $my_meja_fase ?>">SSG<?= str_pad($current['nomor'], 3, '0', STR_PAD_LEFT) ?></div>
+    <div class="nomor-box fase-1 mb-3">
+        <div class="nomor-display fase-1">SSG<?= str_pad($current['nomor'], 3, '0', STR_PAD_LEFT) ?></div>
     </div>
     <div class="text-muted small mb-4">
         Dipanggil <?= date('H:i:s', strtotime($current['dipanggil_at'])) ?>
         · <span id="timer" data-start="<?= time() - strtotime($current['dipanggil_at']) ?>">...</span> yang lalu
     </div>
 
-    <?php if ($my_meja_fase == 1): ?>
-    <!-- FASE 1: Tombol Aksi -->
     <div class="mb-3">
         <div class="fw-semibold text-muted small mb-3">Hasil Pemeriksaan Berkas:</div>
         <div class="d-flex gap-3 justify-content-center flex-wrap">
@@ -517,70 +552,146 @@ $mejas_fase2 = array_filter($mejas_aktif, fn($m) => (int)$m['fase'] === 2);
         </form>
     </div>
 
-    <?php else: ?>
-    <!-- FASE 2: Checklist Langkah + Tombol Selesai -->
-    <div class="fw-semibold text-muted small mb-3 text-uppercase" style="letter-spacing:.5px;">
-        Langkah Fase 2 — Input Data &amp; Surat Tanda Daftar:
-    </div>
-
-    <div class="fase2-checklist mx-auto mb-4" style="max-width:440px;">
-        <div class="fase2-step" role="button" tabindex="0"
-             data-bs-toggle="offcanvas" data-bs-target="#f2Sidebar"
-             style="cursor:pointer;" title="Buka panel data pendaftar">
-            <div class="fase2-step-icon" style="background:#ede9fe;color:#7c3aed;"><i class="bi bi-person-lines-fill"></i></div>
-            <div class="fase2-step-body">
-                <div class="fw-bold">Hubungkan Data Pendaftar</div>
-                <div class="text-muted small"><?= $current_pendaftar ? htmlspecialchars($current_pendaftar['nama']) : 'Klik untuk buka panel pendaftar →' ?></div>
-            </div>
-            <div class="fase2-step-check">
-                <i class="bi <?= $current_pendaftar ? 'bi-check-circle-fill text-success' : 'bi-circle text-muted' ?> fs-5"></i>
-            </div>
-        </div>
-        <div class="fase2-step">
-            <div class="fase2-step-icon" style="background:#d1fae5;color:#065f46;"><i class="bi bi-file-earmark-text"></i></div>
-            <div class="fase2-step-body">
-                <div class="fw-bold">Verifikasi & Input Data</div>
-                <div class="text-muted small">Buka Data Pendaftar, isi NISN, jurusan, nilai raport & TKA.</div>
-            </div>
-            <div class="fase2-step-check">
-                <input type="checkbox" class="fase2-cb form-check-input" id="cbStep2" style="width:1.3rem;height:1.3rem;">
-            </div>
-        </div>
-        <div class="fase2-step">
-            <div class="fase2-step-icon" style="background:#fef3c7;color:#92400e;"><i class="bi bi-printer"></i></div>
-            <div class="fase2-step-body">
-                <div class="fw-bold">Selesai &amp; Terbitkan Surat</div>
-                <div class="text-muted small">Klik tombol Selesai — surat otomatis muncul untuk dicetak.</div>
-            </div>
-            <div class="fase2-step-check">
-                <input type="checkbox" class="fase2-cb form-check-input" id="cbStep3" style="width:1.3rem;height:1.3rem;">
-            </div>
-        </div>
-    </div>
-
-    <div class="d-flex gap-3 justify-content-center flex-wrap mb-2">
-        <form method="POST">
-            <input type="hidden" name="action" value="selesai">
-            <input type="hidden" name="antrian_id" value="<?= $current['id'] ?>">
-            <input type="hidden" name="nomor" value="<?= $current['nomor'] ?>">
-            <button type="submit" class="btn-aksi-main btn-selesai" id="btnSelesai"
-                    onclick="clearBerkas(<?= $current['id'] ?>); return confirm('Selesai input data? Surat Tanda Daftar akan diterbitkan.')">
-                <i class="bi bi-file-earmark-check me-2"></i>Selesai &amp; Terbitkan Surat
-            </button>
-        </form>
-    </div>
-    <div class="d-flex gap-2 justify-content-center">
-        <form method="POST">
-            <input type="hidden" name="action" value="skip">
-            <input type="hidden" name="antrian_id" value="<?= $current['id'] ?>">
-            <button type="submit" class="btn btn-outline-warning"
-                    onclick="return confirm('Lewati nomor <?= $current['nomor'] ?>?')">
-                <i class="bi bi-forward-fill me-1"></i>Skip (Tidak Hadir)
-            </button>
-        </form>
+    <?php if (!empty($next_up)): ?>
+    <div class="text-muted small mt-4">
+        <i class="bi bi-skip-forward me-1"></i>Berikutnya:
+        <?php foreach ($next_up as $nu_i => $nu_n): ?>
+        <span class="badge bg-light text-dark border ms-1">SSG<?= str_pad($nu_n, 3, '0', STR_PAD_LEFT) ?></span>
+        <?php endforeach; ?>
     </div>
     <?php endif; ?>
 </div>
+
+<?php else: ?>
+<!-- ══ FASE 2: ADA NOMOR AKTIF — LAYOUT 2 KOLOM ═════════════════════════════ -->
+<div class="row g-4 mb-4">
+    <!-- Kolom kiri: nomor + aksi utama -->
+    <div class="col-lg-7">
+        <div class="text-center">
+            <div class="text-muted small fw-semibold mb-2 text-uppercase letter-spacing-1">Sedang Dilayani</div>
+            <div class="nomor-box fase-2 mb-3">
+                <div class="nomor-display fase-2">SSG<?= str_pad($current['nomor'], 3, '0', STR_PAD_LEFT) ?></div>
+            </div>
+            <div class="text-muted small mb-4">
+                Dipanggil <?= date('H:i:s', strtotime($current['dipanggil_at'])) ?>
+                · <span id="timer" data-start="<?= time() - strtotime($current['dipanggil_at']) ?>">...</span> yang lalu
+            </div>
+
+            <div class="d-flex gap-3 justify-content-center flex-wrap mb-2">
+                <form method="POST">
+                    <input type="hidden" name="action" value="selesai">
+                    <input type="hidden" name="antrian_id" value="<?= $current['id'] ?>">
+                    <input type="hidden" name="nomor" value="<?= $current['nomor'] ?>">
+                    <button type="submit" class="btn-aksi-main btn-selesai" id="btnSelesai"
+                            onclick="clearBerkas(<?= $current['id'] ?>); return confirm('Selesai input data? Surat Tanda Daftar akan diterbitkan.')">
+                        <i class="bi bi-file-earmark-check me-2"></i>Selesai &amp; Terbitkan Surat
+                    </button>
+                </form>
+            </div>
+            <div class="d-flex gap-2 justify-content-center">
+                <form method="POST">
+                    <input type="hidden" name="action" value="skip">
+                    <input type="hidden" name="antrian_id" value="<?= $current['id'] ?>">
+                    <button type="submit" class="btn btn-outline-warning"
+                            onclick="return confirm('Lewati nomor <?= $current['nomor'] ?>?')">
+                        <i class="bi bi-forward-fill me-1"></i>Skip (Tidak Hadir)
+                    </button>
+                </form>
+            </div>
+
+            <?php if (!empty($next_up)): ?>
+            <div class="text-muted small mt-4">
+                <i class="bi bi-skip-forward me-1"></i>Berikutnya:
+                <?php foreach ($next_up as $nu_n): ?>
+                <span class="badge bg-light text-dark border ms-1">SSG<?= str_pad($nu_n, 3, '0', STR_PAD_LEFT) ?></span>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <!-- Kolom kanan: panel pendaftar & berkas (sticky) -->
+    <div class="col-lg-5">
+        <div class="card border-0 shadow-sm f2-panel" style="position:sticky;top:80px;border-radius:16px;overflow:hidden;">
+            <div class="card-header border-0 fw-semibold"
+                 style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;">
+                <i class="bi bi-person-lines-fill me-2"></i>Panel Pendaftar — SSG<?= str_pad($current['nomor'], 3, '0', STR_PAD_LEFT) ?>
+            </div>
+            <div class="card-body" style="background:#faf5ff;">
+
+                <?php if ($current_pendaftar): ?>
+                <!-- Pendaftar terhubung -->
+                <div class="card border-0 shadow-sm mb-3">
+                    <div class="card-body py-3">
+                        <div class="d-flex align-items-start justify-content-between">
+                            <div>
+                                <div class="fw-bold"><?= htmlspecialchars($current_pendaftar['nama']) ?></div>
+                                <?php if (!empty($current_pendaftar['nisn'])): ?>
+                                <div class="text-muted small"><i class="bi bi-hash me-1"></i>NISN: <?= htmlspecialchars($current_pendaftar['nisn']) ?></div>
+                                <?php endif; ?>
+                                <div class="text-muted small"><i class="bi bi-mortarboard me-1"></i><?= htmlspecialchars($current_pendaftar['jurusan']) ?></div>
+                            </div>
+                            <i class="bi bi-check-circle-fill text-success fs-4"></i>
+                        </div>
+                        <?php $f2sb = STATUS_BADGE[$current_pendaftar['status']] ?? 'bg-secondary';
+                              $f2sl = STATUS_LABEL[$current_pendaftar['status']] ?? $current_pendaftar['status']; ?>
+                        <div class="mt-2"><span class="badge <?= $f2sb ?>"><?= $f2sl ?></span></div>
+                    </div>
+                </div>
+                <div class="d-grid gap-2 mb-3">
+                    <a href="?page=pendaftar" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-pencil me-1"></i>Edit Data Pendaftar
+                    </a>
+                    <button type="button" class="btn btn-outline-secondary btn-sm"
+                            onclick="unlinkPendaftar(<?= $current['id'] ?>)">
+                        <i class="bi bi-arrow-left-right me-1"></i>Ganti Pendaftar
+                    </button>
+                </div>
+
+                <?php else: ?>
+                <!-- Belum terhubung -->
+                <div class="text-center py-3 px-2 mb-3" style="background:#fff;border-radius:12px;">
+                    <div style="width:54px;height:54px;border-radius:50%;background:#ede9fe;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
+                        <i class="bi bi-person-plus-fill" style="font-size:1.6rem;color:#7c3aed;"></i>
+                    </div>
+                    <div class="fw-semibold mb-1">Belum Ada Data Pendaftar</div>
+                    <div class="small text-muted mb-3">Daftarkan di halaman Data Pendaftar —<br>otomatis terhubung ke nomor ini.</div>
+                    <a href="?page=pendaftar" class="btn btn-sm fw-semibold text-white px-4"
+                       style="background:linear-gradient(135deg,#7c3aed,#a855f7);">
+                        <i class="bi bi-plus-lg me-1"></i>Daftarkan Sekarang
+                    </a>
+                </div>
+                <?php endif; ?>
+
+                <!-- Checklist Berkas -->
+                <div class="small fw-semibold text-uppercase mb-2" style="color:#7c3aed;letter-spacing:.3px;">
+                    <i class="bi bi-card-checklist me-1"></i>Cek Berkas
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                <?php
+                $f2_berkas = [
+                    'kk'   => ['Kartu Keluarga (KK)', 'bi-house-fill',         '#dbeafe', '#1d4ed8'],
+                    'tka'  => ['Hasil Tes TKA',       'bi-file-earmark-text',  '#d1fae5', '#065f46'],
+                    'akta' => ['Akta Kelahiran',      'bi-calendar-event',     '#fef3c7', '#92400e'],
+                ];
+                if ($show_buta_warna) $f2_berkas['buta_warna'] = ['Tes Buta Warna', 'bi-eye', '#fce7f3', '#9d174d'];
+                foreach ($f2_berkas as $bk => [$bl, $bi, $bbg, $bco]): ?>
+                <label class="f2p-berkas-row" id="berkasRow_<?= $bk ?>"
+                       onclick="toggleBerkas(<?= (int)$current['id'] ?>, '<?= $bk ?>', this)">
+                    <div style="width:32px;height:32px;border-radius:8px;background:<?= $bbg ?>;color:<?= $bco ?>;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <i class="bi <?= $bi ?>"></i>
+                    </div>
+                    <span class="small flex-grow-1"><?= $bl ?></span>
+                    <i class="bi bi-circle" id="berkasIco_<?= $bk ?>" style="color:#d1d5db;"></i>
+                </label>
+                <?php endforeach; ?>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 
 <?php else: ?>
@@ -605,6 +716,31 @@ $mejas_fase2 = array_filter($mejas_aktif, fn($m) => (int)$m['fase'] === 2);
         </button>
     </form>
     <?php endif; ?>
+</div>
+<?php endif; ?>
+
+<!-- ══ RIWAYAT HARI INI — MEJA INI ══════════════════════════════════════════ -->
+<?php if (!empty($riwayat)): ?>
+<div class="card mt-4 no-print">
+    <div class="card-header">
+        <i class="bi bi-clock-history me-2"></i>Riwayat Hari Ini — Meja Anda
+    </div>
+    <div class="card-body py-2">
+        <div class="d-flex flex-wrap gap-2">
+        <?php foreach ($riwayat as $rw):
+            if ($rw['status'] === 'skip') { $rw_cls = 'bg-warning text-dark'; $rw_lbl = 'Skip'; }
+            elseif (($rw['hasil'] ?? '') === 'lulus') { $rw_cls = 'bg-success'; $rw_lbl = 'Lulus → Fase 2'; }
+            elseif (($rw['hasil'] ?? '') === 'gagal') { $rw_cls = 'bg-danger'; $rw_lbl = 'Tidak Lengkap'; }
+            else { $rw_cls = 'bg-success'; $rw_lbl = 'Selesai'; }
+        ?>
+            <div class="border rounded-3 px-3 py-2 d-flex align-items-center gap-2" style="background:#f8fafc;">
+                <span class="fw-bold" style="font-size:.85rem;">SSG<?= str_pad($rw['nomor'], 3, '0', STR_PAD_LEFT) ?></span>
+                <span class="badge <?= $rw_cls ?>" style="font-size:.65rem;"><?= $rw_lbl ?></span>
+                <span class="text-muted" style="font-size:.7rem;"><?= $rw['selesai_at'] ? date('H:i', strtotime($rw['selesai_at'])) : '' ?></span>
+            </div>
+        <?php endforeach; ?>
+        </div>
+    </div>
 </div>
 <?php endif; ?>
 
@@ -794,7 +930,7 @@ function unlinkPendaftar(antrianId) {
     document.body.appendChild(f);
     f.submit();
 }
-<?php if ($current && $current_pendaftar): ?>
+<?php if ($current && $my_meja_fase == 2): ?>
 document.addEventListener('DOMContentLoaded', () => initBerkas(<?= $current['id'] ?>));
 <?php endif; ?>
 

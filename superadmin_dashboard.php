@@ -51,7 +51,14 @@ if ($fw_meja_id && $fw_meja_fase === 2) {
         $fws = $conn->prepare("SELECT COUNT(*) FROM antrian WHERE tanggal=? AND fase=2 AND status='menunggu'");
         $fws->execute([$today]);
         $fw_sisa = (int)$fws->fetchColumn();
-        $float_widget = ['meja' => $fw_meja, 'current' => $fw_current, 'pendaftar' => $fw_pendaftar, 'sisa' => $fw_sisa];
+        // Aturan buta warna ikut setting gelombang aktif
+        $fw_show_bw = true;
+        try {
+            $fw_ga = getActiveGelombang($conn);
+            if ($fw_ga && isset($fw_ga['buta_warna_wajib']) && (int)$fw_ga['buta_warna_wajib'] === 0) $fw_show_bw = false;
+        } catch(Throwable) {}
+
+        $float_widget = ['meja' => $fw_meja, 'current' => $fw_current, 'pendaftar' => $fw_pendaftar, 'sisa' => $fw_sisa, 'show_buta_warna' => $fw_show_bw];
     } catch(Throwable) {}
 }
 $admin_name  = $_SESSION['admin_name'] ?? 'Super Admin';
@@ -380,7 +387,8 @@ foreach ($pages as $key => $info) {
 .f2-berkas-row.checked { border-color: #a855f7 !important; background: #f5f0ff !important; }
 </style>
 
-<!-- FAB Button -->
+<?php if ($page !== 'antrian'): ?>
+<!-- FAB Button (tidak perlu di halaman antrian — sudah ada panel inline) -->
 <button class="f2-fab <?= $float_widget['pendaftar'] ? 'linked' : '' ?>"
         data-bs-toggle="offcanvas" data-bs-target="#f2Sidebar">
     <i class="bi <?= $float_widget['pendaftar'] ? 'bi-person-check-fill' : 'bi-person-lines-fill' ?>"></i>
@@ -396,6 +404,7 @@ foreach ($pages as $key => $info) {
     <span class="fab-nomor"><?= $float_widget['sisa'] ?> menunggu</span>
     <?php endif; ?>
 </button>
+<?php endif; ?>
 
 <!-- Offcanvas Sidebar -->
 <div class="offcanvas offcanvas-end f2-offcanvas" tabindex="-1" id="f2Sidebar">
@@ -450,12 +459,14 @@ foreach ($pages as $key => $info) {
         <i class="bi bi-card-checklist me-1"></i>Cek Berkas
     </div>
     <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
-    <?php foreach ([
-        'kk'         => ['Kartu Keluarga (KK)', 'bi-house-fill',        '#dbeafe','#1d4ed8'],
-        'tka'        => ['Hasil Tes TKA',        'bi-file-earmark-text','#d1fae5','#065f46'],
-        'akta'       => ['Akta Kelahiran',       'bi-calendar-event',   '#fef3c7','#92400e'],
-        'buta_warna' => ['Tes Buta Warna',       'bi-eye',              '#fce7f3','#9d174d'],
-    ] as $fwk => [$fwl, $fwi, $fwbg, $fwco]): ?>
+    <?php
+    $fw_berkas = [
+        'kk'   => ['Kartu Keluarga (KK)', 'bi-house-fill',        '#dbeafe','#1d4ed8'],
+        'tka'  => ['Hasil Tes TKA',        'bi-file-earmark-text','#d1fae5','#065f46'],
+        'akta' => ['Akta Kelahiran',       'bi-calendar-event',   '#fef3c7','#92400e'],
+    ];
+    if (!empty($float_widget['show_buta_warna'])) $fw_berkas['buta_warna'] = ['Tes Buta Warna', 'bi-eye', '#fce7f3', '#9d174d'];
+    foreach ($fw_berkas as $fwk => [$fwl, $fwi, $fwbg, $fwco]): ?>
     <label class="f2-berkas-row" id="f2BerkasRow_<?= $fwk ?>"
            onclick="f2ToggleBerkas(<?= (int)$fw_cur['id'] ?>, '<?= $fwk ?>', this)">
         <div style="width:32px;height:32px;border-radius:8px;background:<?= $fwbg ?>;color:<?= $fwco ?>;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
@@ -579,7 +590,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 <?php endif; ?>
 
-<?php if ($float_widget['current'] && !$float_widget['pendaftar']): ?>
+<?php if ($float_widget['current'] && !$float_widget['pendaftar'] && $page !== 'antrian'): ?>
 document.addEventListener('DOMContentLoaded', () => {
     const el = document.getElementById('f2Sidebar');
     if (el) new bootstrap.Offcanvas(el).show();
