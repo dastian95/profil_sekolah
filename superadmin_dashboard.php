@@ -8,6 +8,8 @@ if (empty($_SESSION['is_super'])) {
     header('Location: admin_dashboard.php');
     exit;
 }
+// Self-heal sesi lama: jalur login lama hanya cocok untuk akun utama (id=1)
+if (empty($_SESSION['super_acc_id'])) $_SESSION['super_acc_id'] = 1;
 
 $page = $_GET['page'] ?? 'super_home';
 
@@ -52,7 +54,8 @@ if ($fw_meja_id && $fw_meja_fase === 2) {
         $float_widget = ['meja' => $fw_meja, 'current' => $fw_current, 'pendaftar' => $fw_pendaftar, 'sisa' => $fw_sisa];
     } catch(Throwable) {}
 }
-$admin_name = 'Super Admin';
+$admin_name  = $_SESSION['admin_name'] ?? 'Super Admin';
+$super_label = is_primary_super() ? 'Superadmin Utama' : 'Superadmin';
 
 $pages = [
     'super_home'      => ['label' => 'Dashboard',              'icon' => 'bi-speedometer2',         'group' => 'Utama'],
@@ -72,6 +75,9 @@ $pages = [
     'database_manager'    => ['label' => 'Database Manager',       'icon' => 'bi-database-fill',        'group' => 'Sistem'],
     'superadmin_profile'  => ['label' => 'Profil & Password',      'icon' => 'bi-person-circle',        'group' => 'Sistem'],
 ];
+
+// Database Manager hanya untuk Superadmin Utama (akun id=1)
+if (!is_primary_super()) unset($pages['database_manager']);
 
 if (!array_key_exists($page, $pages)) $page = 'super_home';
 $needs_chart = ($page === 'super_home');
@@ -244,7 +250,7 @@ foreach ($pages as $key => $info) {
         <div class="brand-text">
             <strong>SMKS Lab Jakarta</strong>
             <small>Panel SPMB</small>
-            <div class="super-badge"><i class="bi bi-star-fill me-1"></i>Super Admin</div>
+            <div class="super-badge"><i class="bi <?= is_primary_super() ? 'bi-star-fill' : 'bi-shield-fill-check' ?> me-1"></i><?= $super_label ?></div>
         </div>
     </div>
 
@@ -271,8 +277,8 @@ foreach ($pages as $key => $info) {
         <div class="user-card">
             <div class="user-avatar"><i class="bi bi-shield-fill-check"></i></div>
             <div class="user-info flex-grow-1">
-                <div class="name">Super Admin</div>
-                <div class="role"><i class="bi bi-star-fill me-1"></i>Full Access</div>
+                <div class="name"><?= htmlspecialchars($admin_name) ?></div>
+                <div class="role"><i class="bi bi-star-fill me-1"></i><?= $super_label ?></div>
             </div>
         </div>
         <a href="logout.php" class="btn-logout" onclick="return confirm('Yakin ingin keluar dari Super Admin?')"><i class="bi bi-box-arrow-right"></i> Logout</a>
@@ -290,7 +296,7 @@ foreach ($pages as $key => $info) {
         </div>
         <div class="topbar-right">
             <span class="badge-super d-none d-md-inline-flex align-items-center gap-2">
-                <i class="bi bi-shield-fill-check me-1"></i>Super Admin Mode
+                <i class="bi bi-shield-fill-check me-1"></i><?= $super_label ?> Mode
             </span>
             <span class="text-muted d-none d-md-inline small"><?= date('d M Y') ?></span>
         </div>

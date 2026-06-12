@@ -88,3 +88,9 @@ function log_admin_action(PDO $conn, string $action, string $details): void {
         $stmt->execute([$admin_id, $action, $details, $_SERVER['REMOTE_ADDR'] ?? '']);
     } catch (Throwable) { /* abaikan jika error log */ }
 }
+
+// Helper: superadmin utama (akun id=1, username 'superadmin') — level tertinggi.
+// Hanya dia yang boleh kelola akun superadmin lain & akses Database Manager.
+function is_primary_super(): bool {
+    return !empty($_SESSION['is_super']) && (int)($_SESSION['super_acc_id'] ?? 0) === 1;
+}

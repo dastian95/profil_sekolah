@@ -85,6 +85,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // ── Aksi kelola akun: hanya Superadmin Utama (akun id=1) ─────────────────
+    if (in_array($action, ['add_account', 'toggle_active', 'reset_password', 'delete_account'], true)
+        && !is_primary_super()) {
+        $msg = '<div class="alert alert-danger"><i class="bi bi-shield-x me-2"></i>Hanya <strong>Superadmin Utama</strong> yang dapat mengelola akun superadmin.</div>';
+        $action = ''; // batalkan aksi
+    }
+
     // Tambah akun baru
     if ($action === 'add_account') {
         $new_user = trim($_POST['new_username'] ?? '');
@@ -113,6 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             try {
                 $conn->prepare("UPDATE superadmin_accounts SET is_active = 1 - is_active WHERE id=?")->execute([$tid]);
+                log_admin_action($conn, 'SUPER_TOGGLE_ACCOUNT', "Toggle aktif akun superadmin id=$tid");
                 $msg = '<div class="alert alert-success">Status akun diperbarui.</div>';
             } catch (Throwable) {}
         }
@@ -183,7 +191,7 @@ try {
                 <h5 class="fw-bold mb-0"><?= htmlspecialchars($display_name) ?></h5>
                 <div class="text-muted small mb-2">@<?= htmlspecialchars($my_username) ?></div>
                 <span class="badge" style="background:linear-gradient(135deg,#7c3aed,#a855f7);font-size:.75rem;">
-                    <i class="bi bi-shield-fill-check me-1"></i>Superadmin
+                    <i class="bi <?= is_primary_super() ? 'bi-star-fill' : 'bi-shield-fill-check' ?> me-1"></i><?= is_primary_super() ? 'Superadmin Utama' : 'Superadmin' ?>
                 </span>
                 <hr class="my-3">
                 <div class="text-start small text-muted">
@@ -265,7 +273,8 @@ try {
     </div>
 </div>
 
-<!-- ══ Kelola Akun Superadmin ═══════════════════════════════════════════════ -->
+<?php if (is_primary_super()): ?>
+<!-- ══ Kelola Akun Superadmin (hanya Superadmin Utama) ══════════════════════ -->
 <div class="card mt-4">
     <div class="card-header d-flex align-items-center justify-content-between">
         <span class="fw-semibold"><i class="bi bi-people-fill me-2"></i>Kelola Akun Superadmin</span>
@@ -433,6 +442,7 @@ try {
     <span class="text-danger fw-semibold">Segera ganti password keduanya via tombol Reset di atas!</span>
 </div>
 <?php endif; ?>
+<?php endif; // is_primary_super — Kelola Akun ?>
 
 <script>
 function toggleEye(inputId, iconId) {

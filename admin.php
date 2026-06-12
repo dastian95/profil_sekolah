@@ -2,8 +2,8 @@
 require_once __DIR__ . '/conn.php';
 
 // Rate limit config
-const MAX_FAIL_ATTEMPTS = 999;
-const LOCKOUT_MINUTES   = 0;
+const MAX_FAIL_ATTEMPTS = 5;
+const LOCKOUT_MINUTES   = 10;
 
 // Secret link check — redirect ke index jika key salah/tidak ada
 $key = $_GET['k'] ?? '';
@@ -78,9 +78,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$locked) {
                 if ($sh) $super_hash = $sh;
             } catch (Throwable) {}
             if ($username === SUPER_ADMIN_USERNAME && password_verify($password, $super_hash)) {
-                $_SESSION['admin_id']   = 0;
-                $_SESSION['admin_name'] = SUPER_ADMIN_NAME;
-                $_SESSION['is_super']   = true;
+                $_SESSION['admin_id']     = 0;
+                $_SESSION['admin_name']   = SUPER_ADMIN_NAME;
+                $_SESSION['is_super']     = true;
+                $_SESSION['super_acc_id'] = 1; // jalur legacy hanya cocok untuk akun utama
                 try {
                     $conn->prepare("INSERT INTO admin_logs (admin_id, action, details, ip_address) VALUES (NULL, 'LOGIN_SUPER', 'Superadmin login berhasil', ?)")
                          ->execute([$ip]);

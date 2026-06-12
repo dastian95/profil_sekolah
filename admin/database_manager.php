@@ -1,7 +1,7 @@
 <?php
-// Guard eksplisit — jangan hanya mengandalkan pengecekan di dashboard
-if (empty($_SESSION['is_super'])) {
-    echo '<div class="alert alert-danger"><i class="bi bi-shield-x me-2"></i>Akses ditolak. Halaman ini hanya untuk Super Admin.</div>';
+// Guard eksplisit — Database Manager hanya untuk Superadmin Utama (akun id=1)
+if (empty($_SESSION['is_super']) || !is_primary_super()) {
+    echo '<div class="alert alert-danger"><i class="bi bi-shield-x me-2"></i>Akses ditolak. Halaman ini hanya untuk <strong>Superadmin Utama</strong>.</div>';
     return;
 }
 
