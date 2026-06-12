@@ -258,8 +258,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $id = (int)$conn->lastInsertId();
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
 
-                    log_admin_action($conn, 'TAMBAH_PENDAFTAR', "Tambah pendaftar: {$d['nama']} ({$no}) [{$new_status}]");
-                    $_SESSION['pend_flash_msg'] = "Pendaftar <strong>{$d['nama']}</strong> berhasil ditambahkan dengan nomor <strong>{$no}</strong>.";
+                    // Auto-link: jika admin sedang melayani nomor Fase 2 yang belum
+                    // terhubung pendaftar, hubungkan otomatis ke pendaftar baru ini
+                    $autolink_note = '';
+                    $alk_meja = (int)($_SESSION['antrian_meja_id'] ?? 0);
+                    if ($alk_meja && (int)($_SESSION['antrian_meja_fase'] ?? 0) === 2) {
+                        try {
+                            $aq = $conn->prepare("SELECT id, nomor FROM antrian
+                                WHERE tanggal=? AND meja_id=? AND fase=2 AND status='dipanggil' AND pendaftar_id IS NULL
+                                ORDER BY dipanggil_at DESC LIMIT 1");
+                            $aq->execute([date('Y-m-d'), $alk_meja]);
+                            if ($arow = $aq->fetch()) {
+                                $upd = $conn->prepare("UPDATE antrian SET pendaftar_id=? WHERE id=? AND pendaftar_id IS NULL");
+                                $upd->execute([$id, (int)$arow['id']]);
+                                if ($upd->rowCount() > 0) {
+                                    $autolink_note = ' Otomatis terhubung ke antrian <strong>SSG' . str_pad($arow['nomor'], 3, '0', STR_PAD_LEFT) . '</strong>.';
+                                }
+                            }
+                        } catch (Throwable) {}
+                    }
+
+                    log_admin_action($conn, 'TAMBAH_PENDAFTAR', "Tambah pendaftar: {$d['nama']} ({$no}) [{$new_status}]" . ($autolink_note ? ' +autolink antrian' : ''));
+                    $_SESSION['pend_flash_msg'] = "Pendaftar <strong>{$d['nama']}</strong> berhasil ditambahkan dengan nomor <strong>{$no}</strong>." . $autolink_note;
                     if (!empty($_POST['print_after_save'])) {
                         $_SESSION['pend_print_id'] = $id;
                     }
