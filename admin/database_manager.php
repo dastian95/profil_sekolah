@@ -8,9 +8,58 @@ if (empty($_SESSION['is_super']) || !is_primary_super()) {
 $DB_PROTECTED = ['admins', 'site_settings', 'gelombang', 'tahapan', 'meja'];
 $all_tables   = $conn->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
 
-// ── POST handler ───────────────────────────────────────────────────────────────
+// ── SQL Runner (tidak terikat tabel) ───────────────────────────────────────────
+$sql_result = null; $sql_cols = []; $sql_error = ''; $sql_text = ''; $sql_note = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'run_sql') {
+    $sql_text  = trim($_POST['sql'] ?? '');
+    $sql_clean = rtrim($sql_text, "; \t\r\n");
+
+    if ($sql_clean === '') {
+        $sql_error = 'Query kosong.';
+    } elseif (strpos($sql_clean, ';') !== false) {
+        $sql_error = 'Hanya satu statement per eksekusi (titik koma di tengah tidak didukung).';
+    } else {
+        $kw = strtoupper((string)strtok($sql_clean, " \t\n\r("));
+        $is_read = in_array($kw, ['SELECT', 'SHOW', 'DESCRIBE', 'DESC', 'EXPLAIN'], true);
+        log_admin_action($conn, 'DB_SQL', mb_substr($sql_clean, 0, 500));
+
+        if ($is_read) {
+            // Read query: render hasil inline (idempotent — aman tanpa PRG)
+            try {
+                $st  = $conn->query($sql_clean);
+                $all = $st->fetchAll(PDO::FETCH_ASSOC);
+                $sql_note = number_format(count($all)) . ' baris';
+                if (count($all) > 200) {
+                    $sql_note = 'menampilkan 200 dari ' . number_format(count($all)) . ' baris';
+                    $all = array_slice($all, 0, 200);
+                }
+                $sql_result = $all;
+                $sql_cols   = $all ? array_keys($all[0]) : [];
+            } catch (Throwable $e) {
+                $sql_error = $e->getMessage();
+            }
+        } elseif (empty($_POST['confirm_write'])) {
+            $sql_error = 'Query ini MENGUBAH data — centang konfirmasi terlebih dahulu.';
+        } else {
+            // Write query: PRG dengan flash
+            try {
+                $n = $conn->exec($sql_clean);
+                $_SESSION['dbm_flash'] = ['type' => 'success', 'msg' => 'Query berhasil dieksekusi — <strong>' . (int)$n . '</strong> baris terpengaruh.'];
+                while (ob_get_level() > 0) ob_end_clean();
+                $sq_tbl = $_POST['table'] ?? '';
+                header('Location: superadmin_dashboard.php?page=database_manager'
+                    . ($sq_tbl && in_array($sq_tbl, $all_tables, true) ? '&tbl=' . urlencode($sq_tbl) : ''));
+                exit;
+            } catch (Throwable $e) {
+                $sql_error = $e->getMessage();
+            }
+        }
+    }
+}
+
+// ── POST handler (aksi per tabel) ──────────────────────────────────────────────
 $flash = null;
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') !== 'run_sql') {
     $action  = $_POST['action'] ?? '';
     $tbl     = $_POST['table']  ?? '';
     $confirm = $_POST['confirm'] ?? '';
@@ -132,6 +181,21 @@ if (isset($_SESSION['dbm_flash'])) {
 }
 
 $active_table = isset($_GET['tbl']) && in_array($_GET['tbl'], $all_tables, true) ? $_GET['tbl'] : null;
+$view = ($_GET['view'] ?? 'data') === 'struktur' ? 'struktur' : 'data';
+
+// Index & foreign key info untuk view Struktur + badge FK
+$tbl_indexes = []; $tbl_fks = []; $fk_map = [];
+if ($active_table) {
+    try { $tbl_indexes = $conn->query("SHOW INDEX FROM `$active_table`")->fetchAll(PDO::FETCH_ASSOC); } catch (Throwable) {}
+    try {
+        $fkq = $conn->prepare("SELECT COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+            FROM information_schema.KEY_COLUMN_USAGE
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL");
+        $fkq->execute([$active_table]);
+        $tbl_fks = $fkq->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($tbl_fks as $fk) $fk_map[$fk['COLUMN_NAME']] = $fk;
+    } catch (Throwable) {}
+}
 
 $table_stats = [];
 foreach ($all_tables as $t) {
@@ -234,6 +298,71 @@ $total_pages = $total_rows ? (int)ceil($total_rows / $per_page) : 1;
 <?php endforeach; ?>
 </div>
 
+<!-- ══ SQL RUNNER ══════════════════════════════════════════════════════════ -->
+<div class="card mb-4">
+    <div class="card-header d-flex align-items-center gap-2" style="cursor:pointer;"
+         data-bs-toggle="collapse" data-bs-target="#sqlRunnerBody">
+        <i class="bi bi-terminal-fill text-purple"></i>
+        <span class="fw-bold">SQL Runner</span>
+        <small class="text-muted">— jalankan query langsung (1 statement, semua tercatat di audit log)</small>
+        <i class="bi bi-chevron-down ms-auto text-muted"></i>
+    </div>
+    <div class="collapse <?= ($sql_text !== '' || $sql_error || $sql_result !== null) ? 'show' : '' ?>" id="sqlRunnerBody">
+        <div class="card-body">
+            <form method="POST">
+                <input type="hidden" name="action" value="run_sql">
+                <input type="hidden" name="table" value="<?= htmlspecialchars($active_table ?? '') ?>">
+                <textarea name="sql" class="form-control font-monospace mb-2" rows="3" spellcheck="false"
+                          placeholder="SELECT * FROM pendaftar LIMIT 10"><?= htmlspecialchars($sql_text) ?></textarea>
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                    <button type="submit" class="btn btn-sm fw-semibold text-white" style="background:linear-gradient(135deg,#7c3aed,#a855f7);">
+                        <i class="bi bi-play-fill me-1"></i>Jalankan
+                    </button>
+                    <div class="form-check mb-0">
+                        <input class="form-check-input" type="checkbox" name="confirm_write" value="1" id="confirmWrite">
+                        <label class="form-check-label small" for="confirmWrite">
+                            Saya paham query ini <strong>mengubah data</strong> (wajib utk UPDATE/DELETE/INSERT/ALTER)
+                        </label>
+                    </div>
+                    <small class="text-muted ms-auto">SELECT/SHOW/DESCRIBE/EXPLAIN bebas · hasil dibatasi 200 baris</small>
+                </div>
+            </form>
+
+            <?php if ($sql_error): ?>
+            <div class="alert alert-danger mt-3 mb-0 py-2 small">
+                <i class="bi bi-x-circle-fill me-1"></i><?= htmlspecialchars($sql_error) ?>
+            </div>
+            <?php elseif ($sql_result !== null): ?>
+            <div class="mt-3">
+                <div class="small text-muted mb-1"><i class="bi bi-check-circle-fill text-success me-1"></i><?= htmlspecialchars($sql_note) ?></div>
+                <?php if (empty($sql_result)): ?>
+                <div class="text-muted small fst-italic">Tidak ada hasil.</div>
+                <?php else: ?>
+                <div class="table-responsive border rounded" style="max-height:360px;overflow-y:auto;">
+                    <table class="table table-sm table-hover data-table mb-0">
+                        <thead><tr>
+                            <?php foreach ($sql_cols as $sc): ?><th><?= htmlspecialchars($sc) ?></th><?php endforeach; ?>
+                        </tr></thead>
+                        <tbody>
+                        <?php foreach ($sql_result as $sr_row): ?>
+                        <tr>
+                            <?php foreach ($sql_cols as $sc): $sv = $sr_row[$sc]; ?>
+                            <td title="<?= htmlspecialchars((string)($sv ?? '')) ?>">
+                                <?= $sv === null ? '<span class="badge bg-light text-muted border">NULL</span>' : htmlspecialchars(mb_strlen((string)$sv) > 80 ? mb_substr((string)$sv, 0, 80) . '…' : (string)$sv) ?>
+                            </td>
+                            <?php endforeach; ?>
+                        </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <?php endif; ?>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+
 <?php if ($active_table):
     $isProtected = in_array($active_table, $DB_PROTECTED);
 ?>
@@ -261,8 +390,21 @@ $total_pages = $total_rows ? (int)ceil($total_rows / $per_page) : 1;
         <div class="d-flex align-items-center gap-2">
             <i class="bi bi-table text-purple"></i>
             <span class="fw-bold"><?= htmlspecialchars($active_table) ?></span>
-            <span class="badge bg-secondary"><?= number_format($total_rows) ?> baris</span>
+            <span class="badge bg-secondary">
+                <?= number_format($total_rows) ?> baris<?= $search !== '' ? ' (difilter dari ' . number_format($table_stats[$active_table] ?? 0) . ')' : '' ?>
+            </span>
             <?php if ($isProtected): ?><span class="protected-badge"><i class="bi bi-lock-fill me-1"></i>Protected</span><?php endif; ?>
+            <!-- Toggle Data / Struktur -->
+            <div class="btn-group btn-group-sm ms-2" role="group">
+                <a href="?page=database_manager&tbl=<?= urlencode($active_table) ?>"
+                   class="btn <?= $view === 'data' ? 'btn-primary' : 'btn-outline-primary' ?> py-0 px-2" style="font-size:.75rem;">
+                    <i class="bi bi-grid-3x3 me-1"></i>Data
+                </a>
+                <a href="?page=database_manager&tbl=<?= urlencode($active_table) ?>&view=struktur"
+                   class="btn <?= $view === 'struktur' ? 'btn-primary' : 'btn-outline-primary' ?> py-0 px-2" style="font-size:.75rem;">
+                    <i class="bi bi-diagram-3 me-1"></i>Struktur
+                </a>
+            </div>
         </div>
         <div class="d-flex gap-2 flex-wrap align-items-center">
             <!-- Form GET mandiri — tidak ada hubungannya dengan bulkForm -->
@@ -304,10 +446,70 @@ $total_pages = $total_rows ? (int)ceil($total_rows / $per_page) : 1;
                 <?= htmlspecialchars($col['Field']) ?>
                 <span class="opacity-60 ms-1" style="font-size:.65rem;"><?= htmlspecialchars(explode('(', $col['Type'])[0]) ?></span>
             </span>
+            <?php if (isset($fk_map[$col['Field']])): $fkr = $fk_map[$col['Field']]; ?>
+            <a href="?page=database_manager&tbl=<?= urlencode($fkr['REFERENCED_TABLE_NAME']) ?>"
+               class="col-badge text-decoration-none" style="background:#dbeafe;color:#1d4ed8;"
+               title="Foreign key → <?= htmlspecialchars($fkr['REFERENCED_TABLE_NAME'] . '.' . $fkr['REFERENCED_COLUMN_NAME']) ?>">
+                <i class="bi bi-link-45deg"></i>FK → <?= htmlspecialchars($fkr['REFERENCED_TABLE_NAME']) ?>
+            </a>
+            <?php endif; ?>
         <?php endforeach; ?>
         </div>
     </div>
 
+    <?php if ($view === 'struktur'): ?>
+    <!-- ══ VIEW STRUKTUR ══════════════════════════════════════════════════ -->
+    <div class="card-body">
+        <h6 class="fw-bold small text-uppercase text-muted mb-2"><i class="bi bi-list-columns me-1"></i>Kolom</h6>
+        <div class="table-responsive border rounded mb-4">
+            <table class="table table-sm table-hover data-table mb-0">
+                <thead><tr><th>Field</th><th>Type</th><th>Null</th><th>Key</th><th>Default</th><th>Extra</th><th>Relasi</th></tr></thead>
+                <tbody>
+                <?php foreach ($columns as $col): ?>
+                <tr>
+                    <td class="fw-semibold">
+                        <?php if ($col['Key'] === 'PRI'): ?><i class="bi bi-key-fill text-warning me-1"></i><?php endif; ?>
+                        <?= htmlspecialchars($col['Field']) ?>
+                    </td>
+                    <td><code style="font-size:.75rem;"><?= htmlspecialchars($col['Type']) ?></code></td>
+                    <td><?= $col['Null'] === 'YES' ? '<span class="badge bg-light text-muted border">YES</span>' : 'NO' ?></td>
+                    <td><?= htmlspecialchars($col['Key'] ?: '—') ?></td>
+                    <td><?= $col['Default'] === null ? '<span class="text-muted fst-italic">NULL</span>' : htmlspecialchars((string)$col['Default']) ?></td>
+                    <td class="text-muted"><?= htmlspecialchars($col['Extra'] ?: '—') ?></td>
+                    <td>
+                        <?php if (isset($fk_map[$col['Field']])): $fkr = $fk_map[$col['Field']]; ?>
+                        <a href="?page=database_manager&tbl=<?= urlencode($fkr['REFERENCED_TABLE_NAME']) ?>" class="badge text-decoration-none" style="background:#dbeafe;color:#1d4ed8;">
+                            FK → <?= htmlspecialchars($fkr['REFERENCED_TABLE_NAME'] . '.' . $fkr['REFERENCED_COLUMN_NAME']) ?>
+                        </a>
+                        <?php else: ?>—<?php endif; ?>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <?php if (!empty($tbl_indexes)): ?>
+        <h6 class="fw-bold small text-uppercase text-muted mb-2"><i class="bi bi-sort-alpha-down me-1"></i>Index</h6>
+        <div class="table-responsive border rounded">
+            <table class="table table-sm table-hover data-table mb-0">
+                <thead><tr><th>Nama Index</th><th>Kolom</th><th>Urutan</th><th>Unik?</th></tr></thead>
+                <tbody>
+                <?php foreach ($tbl_indexes as $ix): ?>
+                <tr>
+                    <td class="fw-semibold"><?= htmlspecialchars($ix['Key_name']) ?></td>
+                    <td><code style="font-size:.75rem;"><?= htmlspecialchars($ix['Column_name']) ?></code></td>
+                    <td><?= (int)$ix['Seq_in_index'] ?></td>
+                    <td><?= (int)$ix['Non_unique'] === 0 ? '<span class="badge bg-success">Unik</span>' : '<span class="badge bg-secondary">Tidak</span>' ?></td>
+                </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php endif; ?>
+    </div>
+
+    <?php else: ?>
     <!-- Data Rows — checkbox pakai form="bulkForm" agar terhubung ke bulkForm di luar card -->
     <div class="card-body p-0">
         <div class="table-responsive" style="max-height:480px; overflow-y:auto;">
@@ -326,13 +528,14 @@ $total_pages = $total_rows ? (int)ceil($total_rows / $per_page) : 1;
                                 . '&sort=' . urlencode($cn) . '&dir=' . $next_dir;
                         ?>
                         <th style="cursor:pointer;user-select:none;white-space:nowrap;"
-                            onclick="location='<?= htmlspecialchars($sort_url) ?>'">
+                            onclick="location='<?= htmlspecialchars($sort_url) ?>'" title="<?= htmlspecialchars($col['Type']) ?>">
                             <?= htmlspecialchars($cn) ?>
                             <?php if ($is_sort): ?>
                                 <i class="bi bi-caret-<?= $sort_dir === 'ASC' ? 'up' : 'down' ?>-fill text-purple ms-1" style="font-size:.6rem;"></i>
                             <?php else: ?>
                                 <i class="bi bi-arrow-down-up text-muted opacity-25 ms-1" style="font-size:.6rem;"></i>
                             <?php endif; ?>
+                            <div class="text-muted fw-normal" style="font-size:.6rem;line-height:1;"><?= htmlspecialchars(explode('(', $col['Type'])[0]) ?></div>
                         </th>
                         <?php endforeach; ?>
                         <th style="width:72px;">Aksi</th>
@@ -356,11 +559,24 @@ $total_pages = $total_rows ? (int)ceil($total_rows / $per_page) : 1;
                     </td>
                     <?php foreach ($columns as $col):
                         $val = $row[$col['Field']] ?? null;
-                        $display = $val === null
-                            ? '<span class="text-muted fst-italic" style="font-size:.75rem;">NULL</span>'
-                            : htmlspecialchars((string)$val);
+                        $is_long = $val !== null && mb_strlen((string)$val) > 80;
+                        if ($val === null) {
+                            $display = '<span class="badge bg-light text-muted border" style="font-size:.65rem;">NULL</span>';
+                        } elseif ($is_long) {
+                            $display = htmlspecialchars(mb_substr((string)$val, 0, 80)) . '…';
+                        } else {
+                            $display = htmlspecialchars((string)$val);
+                        }
                     ?>
-                    <td title="<?= htmlspecialchars((string)($val ?? '')) ?>"><?= $display ?></td>
+                    <td>
+                        <?= $display ?>
+                        <?php if ($is_long): ?>
+                        <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" style="font-size:.7rem;"
+                                data-full="<?= htmlspecialchars((string)$val) ?>"
+                                data-col="<?= htmlspecialchars($col['Field']) ?>"
+                                onclick="showCellValue(this)">lihat</button>
+                        <?php endif; ?>
+                    </td>
                     <?php endforeach; ?>
                     <td>
                         <?php if ($row_pk_val !== null): ?>
@@ -398,6 +614,7 @@ $total_pages = $total_rows ? (int)ceil($total_rows / $per_page) : 1;
         </nav>
     </div>
     <?php endif; ?>
+    <?php endif; // view data/struktur ?>
 </div><!-- /card -->
 
 <!-- Modal: Tambah Baris -->
@@ -558,12 +775,28 @@ $total_pages = $total_rows ? (int)ceil($total_rows / $per_page) : 1;
 </div>
 <?php endif; ?>
 
+<!-- Modal: lihat nilai sel penuh -->
+<div class="modal fade" id="cellViewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title"><i class="bi bi-textarea-t me-2 text-purple"></i>Isi Kolom: <code id="cellViewCol"></code></h6>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <pre id="cellViewBody" class="mb-0 small" style="white-space:pre-wrap;word-break:break-word;max-height:60vh;overflow-y:auto;"></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 const checkAll  = document.getElementById('checkAll');
 const bulkBar   = document.getElementById('bulkBar');
 const bulkCount = document.getElementById('bulkCount');
 
 function updateBulkBar() {
+    if (!checkAll || !bulkBar) return;
     const checked = document.querySelectorAll('.row-check:checked');
     bulkCount.textContent = checked.length + ' dipilih';
     bulkBar.classList.toggle('show', checked.length > 0);
@@ -571,12 +804,20 @@ function updateBulkBar() {
     checkAll.checked = checked.length > 0 && checked.length === document.querySelectorAll('.row-check').length;
 }
 
-checkAll.addEventListener('change', () => {
-    document.querySelectorAll('.row-check').forEach(cb => cb.checked = checkAll.checked);
-    updateBulkBar();
-});
+if (checkAll) {
+    checkAll.addEventListener('change', () => {
+        document.querySelectorAll('.row-check').forEach(cb => cb.checked = checkAll.checked);
+        updateBulkBar();
+    });
+}
 
 document.querySelectorAll('.row-check').forEach(cb => cb.addEventListener('change', updateBulkBar));
+
+function showCellValue(btn) {
+    document.getElementById('cellViewCol').textContent  = btn.dataset.col || '';
+    document.getElementById('cellViewBody').textContent = btn.dataset.full || '';
+    new bootstrap.Modal(document.getElementById('cellViewModal')).show();
+}
 
 function clearSelection() {
     document.querySelectorAll('.row-check').forEach(cb => cb.checked = false);
