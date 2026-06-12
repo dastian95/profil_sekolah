@@ -41,8 +41,56 @@ $defaults = [
     ['seo_description',  '', 'textarea', 'Meta Description (maks 160 karakter)', 'SEO'],
     ['seo_keywords',     '', 'text',     'Meta Keywords (pisah koma)',    'SEO'],
     // Logo
-    ['logo_url',     '', 'image_url', 'Logo Sekolah (path/URL)',         'Logo'],
-    ['favicon_url',  '', 'image_url', 'Favicon (path/URL .ico/.png)',    'Logo'],
+    ['logo_url',     'assets/img/smk.png', 'image_url', 'Logo Sekolah (path/URL)',      'Logo'],
+    ['favicon_url',  'assets/img/smk.png', 'image_url', 'Favicon (path/URL .ico/.png)', 'Logo'],
+    // Navbar (label menu — anchor tetap)
+    ['nav_home',       '🏠 Home',           'text', 'Menu: Home',           'Navbar'],
+    ['nav_tentang',    'ℹ️ Tentang Kami',   'text', 'Menu: Tentang Kami',   'Navbar'],
+    ['nav_jurusan',    '📚 Jurusan',        'text', 'Menu: Jurusan',        'Navbar'],
+    ['nav_daftar',     '📝 Cara Mendaftar', 'text', 'Menu: Cara Mendaftar', 'Navbar'],
+    ['nav_pengumuman', '📋 Pengumuman',     'text', 'Menu: Pengumuman',     'Navbar'],
+    // Judul Section
+    ['sec_about_title',      'About',                  'text', 'Judul Section Tentang',        'Judul Section'],
+    ['sec_about_sub',        'Sekolah Kami',           'text', 'Sub-judul Section Tentang',    'Judul Section'],
+    ['sec_jurusan_title',    'Produktif',              'text', 'Judul Section Jurusan',        'Judul Section'],
+    ['sec_jurusan_sub',      'Program Keahlian',       'text', 'Sub-judul Section Jurusan',    'Judul Section'],
+    ['sec_lokasi_title',     'Lokasi',                 'text', 'Judul Section Lokasi',         'Judul Section'],
+    ['sec_lokasi_sub',       'Sekolah Laboratorium Jakarta', 'text', 'Sub-judul Section Lokasi', 'Judul Section'],
+    ['sec_daftar_title',     'Cara Mendaftar',         'text', 'Judul Section Cara Mendaftar', 'Judul Section'],
+    ['sec_daftar_sub',       'Informasi Lengkap SPMB SMKS Laboratorium Jakarta', 'text', 'Sub-judul Cara Mendaftar', 'Judul Section'],
+    ['sec_daftar_sub2',      'Datang Langsung Ke SMKS Laboratorium Jakarta', 'text', 'Sub-judul 2 Cara Mendaftar', 'Judul Section'],
+    ['sec_pengumuman_title', 'Pengumuman Penerimaan',  'text', 'Judul Section Pengumuman',     'Judul Section'],
+    ['sec_pengumuman_sub',   'Hasil Seleksi SPMB SMKS Laboratorium Jakarta', 'text', 'Sub-judul Pengumuman', 'Judul Section'],
+    // Jurusan: RPL
+    ['jur_rpl_judul',    'Rekayasa Perangkat Lunak (RPL)', 'text', 'Judul Jurusan', 'Jurusan: RPL'],
+    ['jur_rpl_intro',    'Program keahlian yang membekali siswa dengan kemampuan merancang, membangun, dan mengelola perangkat lunak sesuai kebutuhan dunia industri teknologi informasi yang terus berkembang.', 'textarea', 'Paragraf Intro', 'Jurusan: RPL'],
+    ['jur_rpl_keahlian', "Pemrograman web: HTML, CSS, JavaScript, PHP, Python\nPengembangan aplikasi mobile Android & iOS\nBasis data, sistem informasi, dan UI/UX Design\nAlgoritma, struktur data, dan pemrograman berorientasi objek", 'textarea', 'Daftar Keahlian (1 per baris)', 'Jurusan: RPL'],
+    ['jur_rpl_karir',    'Lulusan RPL siap berkarir sebagai software developer, web programmer, atau entrepreneur di bidang teknologi dengan bekal sertifikasi kompetensi nasional dan pengalaman proyek nyata.', 'textarea', 'Paragraf Prospek Karir', 'Jurusan: RPL'],
+    ['jur_rpl_foto',     'assets/img/logo-rpl-1.webp', 'image_url', 'Logo/Foto Utama', 'Jurusan: RPL'],
+    // Jurusan: TKJ
+    ['jur_tkj_judul',    'Teknik Komputer dan Jaringan (TKJ)', 'text', 'Judul Jurusan', 'Jurusan: TKJ'],
+    ['jur_tkj_intro',    'Program keahlian yang mempersiapkan tenaga ahli instalasi, konfigurasi, dan pemeliharaan infrastruktur jaringan komputer serta sistem keamanan informasi di berbagai skala organisasi.', 'textarea', 'Paragraf Intro', 'Jurusan: TKJ'],
+    ['jur_tkj_keahlian', "Instalasi & konfigurasi jaringan LAN, WAN, dan WLAN\nKeamanan siber, firewall, VPN, dan proteksi data\nCloud computing, virtualisasi server, dan troubleshooting\nRouting & switching (Cisco), administrasi jaringan", 'textarea', 'Daftar Keahlian (1 per baris)', 'Jurusan: TKJ'],
+    ['jur_tkj_karir',    'Lulusan TKJ siap bekerja sebagai network engineer, IT support, sistem administrator, atau melanjutkan ke perguruan tinggi bidang informatika.', 'textarea', 'Paragraf Prospek Karir', 'Jurusan: TKJ'],
+    ['jur_tkj_foto',     'assets/img/tkj-lab-2.webp', 'image_url', 'Foto Utama', 'Jurusan: TKJ'],
+    // Jurusan: AP
+    ['jur_ap_judul',    'Asisten Keperawatan (AP)', 'text', 'Judul Jurusan', 'Jurusan: AP'],
+    ['jur_ap_intro',    'Program keahlian yang mencetak tenaga asisten perawat profesional dan berkarakter, siap memberikan pelayanan kesehatan terbaik di rumah sakit, puskesmas, klinik, dan berbagai fasilitas kesehatan lainnya.', 'textarea', 'Paragraf Intro', 'Jurusan: AP'],
+    ['jur_ap_keahlian', "Perawatan dasar pasien & pemantauan tanda-tanda vital\nProsedur keperawatan klinis dan kegawatdaruratan\nFarmakologi dasar, dokumentasi medis & rekam medis\nEtika profesi keperawatan & komunikasi terapeutik", 'textarea', 'Daftar Keahlian (1 per baris)', 'Jurusan: AP'],
+    ['jur_ap_karir',    'Lulusan AP siap bekerja sebagai asisten tenaga kesehatan yang kompeten dengan peluang karir luas di seluruh fasilitas pelayanan kesehatan Indonesia.', 'textarea', 'Paragraf Prospek Karir', 'Jurusan: AP'],
+    ['jur_ap_foto',     'assets/img/ap-lab-1.webp', 'image_url', 'Foto Utama', 'Jurusan: AP'],
+    // Jurusan: TKKR
+    ['jur_tkkr_judul',    'Tata Kecantikan Kulit dan Rambut (TKKR)', 'text', 'Judul Jurusan', 'Jurusan: TKKR'],
+    ['jur_tkkr_intro',    'Program keahlian yang mencetak tenaga profesional kecantikan kreatif dan terampil, siap bersaing di industri kecantikan nasional maupun internasional dengan bekal teknik terkini.', 'textarea', 'Paragraf Intro', 'Jurusan: TKKR'],
+    ['jur_tkkr_keahlian', "Perawatan & treatment kulit wajah, leher, dan tubuh\nTeknik styling, coloring, dan perawatan rambut\nTata rias pengantin, karakter, dan make-up artistik\nKosmetologi, manajemen salon & kewirausahaan kecantikan", 'textarea', 'Daftar Keahlian (1 per baris)', 'Jurusan: TKKR'],
+    ['jur_tkkr_karir',    '', 'textarea', 'Paragraf Prospek Karir (kosong = tidak tampil)', 'Jurusan: TKKR'],
+    ['jur_tkkr_foto',     'assets/img/tkkr-siswa-1.webp', 'image_url', 'Foto Utama', 'Jurusan: TKKR'],
+    // Cara Mendaftar
+    ['syarat_intro', 'Calon siswa datang langsung ke sekolah dengan membawa fotocopy:', 'text', 'Kalimat Pembuka Syarat', 'Cara Mendaftar'],
+    ['syarat_list',  "Kartu Keluarga (KK) DKI Jakarta (cut off 15 Juni 2025)\nNilai Raport semester 1 - 5\nNISN (Nomor Induk Siswa Nasional)\nAkte Kelahiran\nKTP Orang Tua\nWajib Membawa Surat Keterangan Tidak Buta warna(Puskesmas/Klinik)\nMap Kertas TKJ (Hijau), RPL (Merah), Asisten Keperawatan (Biru), Tata Kecantikan (Kuning)", 'textarea', 'Daftar Syarat Berkas (1 per baris)', 'Cara Mendaftar'],
+    // Tema Warna
+    ['theme_accent', '#2f8258', 'color', 'Warna Aksen (tombol, ikon, link)', 'Tema Warna'],
+    ['theme_link',   '#667eea', 'color', 'Warna Hover & Garis Aktif Menu Navbar', 'Tema Warna'],
 ];
 $ins_default = $conn->prepare("INSERT IGNORE INTO site_settings (setting_key, setting_value, type, label, group_name) VALUES (?,?,?,?,?)");
 foreach ($defaults as $d) $ins_default->execute($d);

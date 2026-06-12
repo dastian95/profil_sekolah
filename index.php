@@ -10,6 +10,8 @@ try {
 } catch (Exception $e) { /* tabel belum dibuat, pakai default */ }
 $s = fn($k, $d = '') => htmlspecialchars($_ss[$k] ?? $d);
 $sr = fn($k, $d = '') => $_ss[$k] ?? $d; // raw (unescaped), untuk URL/src
+// List: textarea 1 item per baris → array (untuk daftar keahlian, syarat, dll)
+$slist = fn($k, $d = '') => array_values(array_filter(array_map('trim', explode("\n", $_ss[$k] ?? $d)), fn($x) => $x !== ''));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -18,11 +20,11 @@ $sr = fn($k, $d = '') => $_ss[$k] ?? $d; // raw (unescaped), untuk URL/src
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
   <title><?= $s('sekolah_nama', 'SMKS Laboratorium Jakarta') ?> — SPMB</title>
-  <meta name="description" content="">
-  <meta name="keywords" content="">
+  <meta name="description" content="<?= $s('seo_description') ?>">
+  <meta name="keywords" content="<?= $s('seo_keywords') ?>">
 
   <!-- Favicons -->
-  <link href="assets/img/smk.png" rel="icon">
+  <link href="<?= htmlspecialchars($sr('favicon_url', 'assets/img/smk.png') ?: 'assets/img/smk.png') ?>" rel="icon">
   <link href="assets/img/apple-touch-icon.png" rel="apple-touch-icon">
 
   <!-- Fonts -->
@@ -43,6 +45,13 @@ $sr = fn($k, $d = '') => $_ss[$k] ?? $d; // raw (unescaped), untuk URL/src
   <link href="assets/css/main.css?v=20260522" rel="stylesheet">
 
   <style>
+    /* TEMA WARNA — dari panel Konten Website (override main.css) */
+    :root {
+      --accent-color: <?= htmlspecialchars($sr('theme_accent', '#2f8258') ?: '#2f8258') ?>;
+      --nav-hover-color: <?= htmlspecialchars($sr('theme_accent', '#2f8258') ?: '#2f8258') ?>;
+      --nav-dropdown-hover-color: <?= htmlspecialchars($sr('theme_accent', '#2f8258') ?: '#2f8258') ?>;
+    }
+
     /* MOBILE RESPONSIVENESS */
     @media (max-width: 768px) {
 
@@ -135,12 +144,12 @@ $sr = fn($k, $d = '') => $_ss[$k] ?? $d; // raw (unescaped), untuk URL/src
     }
 
     .nav-link:hover {
-      color: #667eea !important;
+      color: <?= htmlspecialchars($sr('theme_link', '#667eea') ?: '#667eea') ?> !important;
     }
 
     .nav-link.active {
       color: #fff !important;
-      border-bottom: 3px solid #667eea;
+      border-bottom: 3px solid <?= htmlspecialchars($sr('theme_link', '#667eea') ?: '#667eea') ?>;
       padding-bottom: 5px;
     }
 
@@ -246,17 +255,17 @@ $sr = fn($k, $d = '') => $_ss[$k] ?? $d; // raw (unescaped), untuk URL/src
     <div class="container-fluid container-xl position-relative d-flex align-items-center justify-content-between">
 
       <a href="index.php" class="logo d-flex align-items-center">
-        <img class="sitename" src="assets/img/smk.png" style="max-height: 50px;">
+        <img class="sitename" src="<?= htmlspecialchars($sr('logo_url', 'assets/img/smk.png') ?: 'assets/img/smk.png') ?>" style="max-height: 50px;">
         <h1><?= $s('sekolah_nama', 'SMKS Laboratorium Jakarta') ?></h1>
       </a>
 
       <nav id="navmenu" class="navmenu">
         <ul>
-          <li><a href="#home" class="nav-link">🏠 Home</a></li>
-          <li><a href="#about" class="nav-link">ℹ️ Tentang Kami</a></li>
-          <li><a href="#jurusan" class="nav-link">📚 Jurusan</a></li>
-          <li><a href="#cara-mendaftar" class="nav-link">📝 Cara Mendaftar</a></li>
-          <li><a href="#pengumuman" class="nav-link">📋 Pengumuman</a></li>
+          <li><a href="#home" class="nav-link"><?= $s('nav_home', '🏠 Home') ?></a></li>
+          <li><a href="#about" class="nav-link"><?= $s('nav_tentang', 'ℹ️ Tentang Kami') ?></a></li>
+          <li><a href="#jurusan" class="nav-link"><?= $s('nav_jurusan', '📚 Jurusan') ?></a></li>
+          <li><a href="#cara-mendaftar" class="nav-link"><?= $s('nav_daftar', '📝 Cara Mendaftar') ?></a></li>
+          <li><a href="#pengumuman" class="nav-link"><?= $s('nav_pengumuman', '📋 Pengumuman') ?></a></li>
         </ul>
         <i class="mobile-nav-toggle d-xl-none bi bi-list"></i>
       </nav>
@@ -310,8 +319,8 @@ $sr = fn($k, $d = '') => $_ss[$k] ?? $d; // raw (unescaped), untuk URL/src
 
       <!-- Section Title -->
       <div class="container section-title" data-aos="fade-up">
-        <h2>About</h2>
-        <p>Sekolah Kami</p>
+        <h2><?= $s('sec_about_title', 'About') ?></h2>
+        <p><?= $s('sec_about_sub', 'Sekolah Kami') ?></p>
       </div><!-- End Section Title -->
 
       <div class="container">
@@ -349,8 +358,8 @@ $sr = fn($k, $d = '') => $_ss[$k] ?? $d; // raw (unescaped), untuk URL/src
 
       <!-- Section Title -->
       <div class="container section-title" data-aos="fade-up">
-        <h2>Produktif</h2>
-        <p>Program Keahlian</p>
+        <h2><?= $s('sec_jurusan_title', 'Produktif') ?></h2>
+        <p><?= $s('sec_jurusan_sub', 'Program Keahlian') ?></p>
       </div><!-- End Section Title -->
 
 
@@ -390,25 +399,26 @@ $sr = fn($k, $d = '') => $_ss[$k] ?? $d; // raw (unescaped), untuk URL/src
             <div class="row align-items-start mb-4">
               <div class="col-lg-7 order-2 order-lg-1 mt-3 mt-lg-0">
                 <div class="d-flex align-items-center gap-3 mb-3">
-                  <img src="assets/img/logo-rpl-1.webp" alt="Logo RPL" style="width:70px;height:70px;object-fit:contain;border-radius:50%;border:3px solid #e0e7ff;background:#fff;">
-                  <h3 class="mb-0">Rekayasa Perangkat Lunak (RPL)</h3>
+                  <img src="<?= htmlspecialchars($sr('jur_rpl_foto', 'assets/img/logo-rpl-1.webp')) ?>" alt="Logo RPL" style="width:70px;height:70px;object-fit:contain;border-radius:50%;border:3px solid #e0e7ff;background:#fff;">
+                  <h3 class="mb-0"><?= $s('jur_rpl_judul', 'Rekayasa Perangkat Lunak (RPL)') ?></h3>
                 </div>
                 <p class="fst-italic">
-                  Program keahlian yang membekali siswa dengan kemampuan merancang, membangun, dan mengelola perangkat lunak sesuai kebutuhan dunia industri teknologi informasi yang terus berkembang.
+                  <?= $s('jur_rpl_intro', 'Program keahlian yang membekali siswa dengan kemampuan merancang, membangun, dan mengelola perangkat lunak sesuai kebutuhan dunia industri teknologi informasi yang terus berkembang.') ?>
                 </p>
                 <ul>
-                  <li><i class="bi bi-check2-all"></i><span>Pemrograman web: HTML, CSS, JavaScript, PHP, Python</span></li>
-                  <li><i class="bi bi-check2-all"></i><span>Pengembangan aplikasi mobile Android &amp; iOS</span></li>
-                  <li><i class="bi bi-check2-all"></i><span>Basis data, sistem informasi, dan UI/UX Design</span></li>
-                  <li><i class="bi bi-check2-all"></i><span>Algoritma, struktur data, dan pemrograman berorientasi objek</span></li>
+                  <?php foreach ($slist('jur_rpl_keahlian', "Pemrograman web: HTML, CSS, JavaScript, PHP, Python\nPengembangan aplikasi mobile Android & iOS\nBasis data, sistem informasi, dan UI/UX Design\nAlgoritma, struktur data, dan pemrograman berorientasi objek") as $ka): ?>
+                  <li><i class="bi bi-check2-all"></i><span><?= htmlspecialchars($ka) ?></span></li>
+                  <?php endforeach; ?>
                 </ul>
-                <p>Lulusan RPL siap berkarir sebagai software developer, web programmer, atau entrepreneur di bidang teknologi dengan bekal sertifikasi kompetensi nasional dan pengalaman proyek nyata.</p>
+                <?php if (trim($sr('jur_rpl_karir', 'Lulusan RPL siap berkarir sebagai software developer, web programmer, atau entrepreneur di bidang teknologi dengan bekal sertifikasi kompetensi nasional dan pengalaman proyek nyata.')) !== ''): ?>
+                <p><?= $s('jur_rpl_karir', 'Lulusan RPL siap berkarir sebagai software developer, web programmer, atau entrepreneur di bidang teknologi dengan bekal sertifikasi kompetensi nasional dan pengalaman proyek nyata.') ?></p>
+                <?php endif; ?>
               </div>
               <div class="col-lg-5 order-1 order-lg-2">
                 <div class="row g-2">
                   <div class="col-12">
                     <div class="jurusan-logo-box" style="height:200px;">
-                      <img src="assets/img/logo-rpl-1.webp" alt="Logo RPL">
+                      <img src="<?= htmlspecialchars($sr('jur_rpl_foto', 'assets/img/logo-rpl-1.webp')) ?>" alt="Logo RPL">
                     </div>
                   </div>
                   <div class="col-6">
@@ -534,20 +544,21 @@ $sr = fn($k, $d = '') => $_ss[$k] ?? $d; // raw (unescaped), untuk URL/src
           <div class="tab-pane fade" id="features-tab-2">
             <div class="row align-items-start mb-4">
               <div class="col-lg-7 order-2 order-lg-1 mt-3 mt-lg-0">
-                <h3>Teknik Komputer dan Jaringan (TKJ)</h3>
+                <h3><?= $s('jur_tkj_judul', 'Teknik Komputer dan Jaringan (TKJ)') ?></h3>
                 <p class="fst-italic">
-                  Program keahlian yang mempersiapkan tenaga ahli instalasi, konfigurasi, dan pemeliharaan infrastruktur jaringan komputer serta sistem keamanan informasi di berbagai skala organisasi.
+                  <?= $s('jur_tkj_intro', 'Program keahlian yang mempersiapkan tenaga ahli instalasi, konfigurasi, dan pemeliharaan infrastruktur jaringan komputer serta sistem keamanan informasi di berbagai skala organisasi.') ?>
                 </p>
                 <ul>
-                  <li><i class="bi bi-check2-all"></i><span>Instalasi &amp; konfigurasi jaringan LAN, WAN, dan WLAN</span></li>
-                  <li><i class="bi bi-check2-all"></i><span>Keamanan siber, firewall, VPN, dan proteksi data</span></li>
-                  <li><i class="bi bi-check2-all"></i><span>Cloud computing, virtualisasi server, dan troubleshooting</span></li>
-                  <li><i class="bi bi-check2-all"></i><span>Routing &amp; switching (Cisco), administrasi jaringan</span></li>
+                  <?php foreach ($slist('jur_tkj_keahlian', "Instalasi & konfigurasi jaringan LAN, WAN, dan WLAN\nKeamanan siber, firewall, VPN, dan proteksi data\nCloud computing, virtualisasi server, dan troubleshooting\nRouting & switching (Cisco), administrasi jaringan") as $ka): ?>
+                  <li><i class="bi bi-check2-all"></i><span><?= htmlspecialchars($ka) ?></span></li>
+                  <?php endforeach; ?>
                 </ul>
-                <p>Lulusan TKJ siap bekerja sebagai network engineer, IT support, sistem administrator, atau melanjutkan ke perguruan tinggi bidang informatika.</p>
+                <?php if (trim($sr('jur_tkj_karir', 'Lulusan TKJ siap bekerja sebagai network engineer, IT support, sistem administrator, atau melanjutkan ke perguruan tinggi bidang informatika.')) !== ''): ?>
+                <p><?= $s('jur_tkj_karir', 'Lulusan TKJ siap bekerja sebagai network engineer, IT support, sistem administrator, atau melanjutkan ke perguruan tinggi bidang informatika.') ?></p>
+                <?php endif; ?>
               </div>
               <div class="col-lg-5 order-1 order-lg-2">
-                <img src="assets/img/tkj-lab-2.webp" alt="Laboratorium Jaringan TKJ"
+                <img src="<?= htmlspecialchars($sr('jur_tkj_foto', 'assets/img/tkj-lab-2.webp')) ?>" alt="Laboratorium Jaringan TKJ"
                   class="img-fluid rounded" style="width:100%;height:280px;object-fit:cover;object-position:center;">
               </div>
             </div>
@@ -556,20 +567,21 @@ $sr = fn($k, $d = '') => $_ss[$k] ?? $d; // raw (unescaped), untuk URL/src
           <div class="tab-pane fade" id="features-tab-3">
             <div class="row align-items-start mb-4">
               <div class="col-lg-7 order-2 order-lg-1 mt-3 mt-lg-0">
-                <h3>Asisten Keperawatan (AP)</h3>
+                <h3><?= $s('jur_ap_judul', 'Asisten Keperawatan (AP)') ?></h3>
                 <p class="fst-italic">
-                  Program keahlian yang mencetak tenaga asisten perawat profesional dan berkarakter, siap memberikan pelayanan kesehatan terbaik di rumah sakit, puskesmas, klinik, dan berbagai fasilitas kesehatan lainnya.
+                  <?= $s('jur_ap_intro', 'Program keahlian yang mencetak tenaga asisten perawat profesional dan berkarakter, siap memberikan pelayanan kesehatan terbaik di rumah sakit, puskesmas, klinik, dan berbagai fasilitas kesehatan lainnya.') ?>
                 </p>
                 <ul>
-                  <li><i class="bi bi-check2-all"></i><span>Perawatan dasar pasien &amp; pemantauan tanda-tanda vital</span></li>
-                  <li><i class="bi bi-check2-all"></i><span>Prosedur keperawatan klinis dan kegawatdaruratan</span></li>
-                  <li><i class="bi bi-check2-all"></i><span>Farmakologi dasar, dokumentasi medis &amp; rekam medis</span></li>
-                  <li><i class="bi bi-check2-all"></i><span>Etika profesi keperawatan &amp; komunikasi terapeutik</span></li>
+                  <?php foreach ($slist('jur_ap_keahlian', "Perawatan dasar pasien & pemantauan tanda-tanda vital\nProsedur keperawatan klinis dan kegawatdaruratan\nFarmakologi dasar, dokumentasi medis & rekam medis\nEtika profesi keperawatan & komunikasi terapeutik") as $ka): ?>
+                  <li><i class="bi bi-check2-all"></i><span><?= htmlspecialchars($ka) ?></span></li>
+                  <?php endforeach; ?>
                 </ul>
-                <p>Lulusan AP siap bekerja sebagai asisten tenaga kesehatan yang kompeten dengan peluang karir luas di seluruh fasilitas pelayanan kesehatan Indonesia.</p>
+                <?php if (trim($sr('jur_ap_karir', 'Lulusan AP siap bekerja sebagai asisten tenaga kesehatan yang kompeten dengan peluang karir luas di seluruh fasilitas pelayanan kesehatan Indonesia.')) !== ''): ?>
+                <p><?= $s('jur_ap_karir', 'Lulusan AP siap bekerja sebagai asisten tenaga kesehatan yang kompeten dengan peluang karir luas di seluruh fasilitas pelayanan kesehatan Indonesia.') ?></p>
+                <?php endif; ?>
               </div>
               <div class="col-lg-5 order-1 order-lg-2">
-                <img src="assets/img/ap-lab-1.webp" alt="Siswa Asisten Keperawatan" class="img-fluid rounded shadow-sm" style="width:100%;height:280px;object-fit:cover;object-position:center;">
+                <img src="<?= htmlspecialchars($sr('jur_ap_foto', 'assets/img/ap-lab-1.webp')) ?>" alt="Siswa Asisten Keperawatan" class="img-fluid rounded shadow-sm" style="width:100%;height:280px;object-fit:cover;object-position:center;">
               </div>
             </div>
           </div><!-- End Tab Content Item -->
@@ -580,20 +592,22 @@ $sr = fn($k, $d = '') => $_ss[$k] ?? $d; // raw (unescaped), untuk URL/src
             <div class="row g-4 align-items-center mb-4">
               <div class="col-lg-7">
                 <div class="d-flex align-items-center gap-3 mb-3">
-                  <h3 class="mb-0">Tata Kecantikan Kulit dan Rambut (TKKR)</h3>
+                  <h3 class="mb-0"><?= $s('jur_tkkr_judul', 'Tata Kecantikan Kulit dan Rambut (TKKR)') ?></h3>
                 </div>
                 <p class="fst-italic text-muted">
-                  Program keahlian yang mencetak tenaga profesional kecantikan kreatif dan terampil, siap bersaing di industri kecantikan nasional maupun internasional dengan bekal teknik terkini.
+                  <?= $s('jur_tkkr_intro', 'Program keahlian yang mencetak tenaga profesional kecantikan kreatif dan terampil, siap bersaing di industri kecantikan nasional maupun internasional dengan bekal teknik terkini.') ?>
                 </p>
                 <ul class="mb-0">
-                  <li><i class="bi bi-check2-all"></i><span>Perawatan &amp; treatment kulit wajah, leher, dan tubuh</span></li>
-                  <li><i class="bi bi-check2-all"></i><span>Teknik styling, coloring, dan perawatan rambut</span></li>
-                  <li><i class="bi bi-check2-all"></i><span>Tata rias pengantin, karakter, dan make-up artistik</span></li>
-                  <li><i class="bi bi-check2-all"></i><span>Kosmetologi, manajemen salon &amp; kewirausahaan kecantikan</span></li>
+                  <?php foreach ($slist('jur_tkkr_keahlian', "Perawatan & treatment kulit wajah, leher, dan tubuh\nTeknik styling, coloring, dan perawatan rambut\nTata rias pengantin, karakter, dan make-up artistik\nKosmetologi, manajemen salon & kewirausahaan kecantikan") as $ka): ?>
+                  <li><i class="bi bi-check2-all"></i><span><?= htmlspecialchars($ka) ?></span></li>
+                  <?php endforeach; ?>
                 </ul>
+                <?php if (trim($sr('jur_tkkr_karir', '')) !== ''): ?>
+                <p class="mt-3"><?= $s('jur_tkkr_karir') ?></p>
+                <?php endif; ?>
               </div>
               <div class="col-lg-5">
-                <img src="assets/img/tkkr-siswa-1.webp" alt="Siswa TKKR"
+                <img src="<?= htmlspecialchars($sr('jur_tkkr_foto', 'assets/img/tkkr-siswa-1.webp')) ?>" alt="Siswa TKKR"
                   class="img-fluid rounded shadow"
                   style="width:100%;height:300px;object-fit:cover;object-position:center top;">
               </div>
@@ -641,8 +655,8 @@ $sr = fn($k, $d = '') => $_ss[$k] ?? $d; // raw (unescaped), untuk URL/src
     <section id="lokasi" class="section dark-background">
       <div class="container" data-aos="fade-up">
         <div class="section-title">
-          <h2 class="text-white">Lokasi</h2>
-          <p class="text-white">Sekolah Laboratorium Jakarta</p>
+          <h2 class="text-white"><?= $s('sec_lokasi_title', 'Lokasi') ?></h2>
+          <p class="text-white"><?= $s('sec_lokasi_sub', 'Sekolah Laboratorium Jakarta') ?></p>
         </div>
         <div class="map-container" data-aos="zoom-in" data-aos-delay="200" style="width: 100%; height: 450px; border-radius: 10px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
           <iframe src="<?= htmlspecialchars($sr('maps_embed_url', 'https://maps.google.com/maps?q=-6.2350331,106.9439031&z=17&output=embed')) ?>" width="100%" height="100%" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
@@ -656,9 +670,9 @@ $sr = fn($k, $d = '') => $_ss[$k] ?? $d; // raw (unescaped), untuk URL/src
     <!-- Cara Mendaftar Section -->
     <section id="cara-mendaftar" class="section" style="background: #f8f9fa;">
       <div class="container section-title" data-aos="fade-up">
-        <h2>Cara Mendaftar</h2>
-        <p>Informasi Lengkap SPMB SMKS Laboratorium Jakarta</p>
-        <p class="section-subtitle">Datang Langsung Ke SMKS Laboratorium Jakarta</p>
+        <h2><?= $s('sec_daftar_title', 'Cara Mendaftar') ?></h2>
+        <p><?= $s('sec_daftar_sub', 'Informasi Lengkap SPMB SMKS Laboratorium Jakarta') ?></p>
+        <p class="section-subtitle"><?= $s('sec_daftar_sub2', 'Datang Langsung Ke SMKS Laboratorium Jakarta') ?></p>
       </div>
 
       <div class="container" data-aos="fade-up" data-aos-delay="100">
@@ -732,15 +746,11 @@ $sr = fn($k, $d = '') => $_ss[$k] ?? $d; // raw (unescaped), untuk URL/src
             <div class="card shadow-sm border-0">
               <div class="card-body p-4">
                 <h4 class="fw-bold mb-3"><i class="bi bi-folder2-open text-success me-2"></i>Berkas Photocopy yang Dibawa</h4>
-                <p class="text-muted small">Calon siswa datang langsung ke sekolah dengan membawa fotocopy:</p>
+                <p class="text-muted small"><?= $s('syarat_intro', 'Calon siswa datang langsung ke sekolah dengan membawa fotocopy:') ?></p>
                 <ul class="list-group list-group-flush">
-                  <li class="list-group-item border-0 ps-0"><i class="bi bi-check-circle-fill text-success me-2"></i>Kartu Keluarga (KK) DKI Jakarta <small class="text-muted">(cut off 15 Juni 2025)</small></li>
-                  <li class="list-group-item border-0 ps-0"><i class="bi bi-check-circle-fill text-success me-2"></i>Nilai Raport semester 1 - 5</li>
-                  <li class="list-group-item border-0 ps-0"><i class="bi bi-check-circle-fill text-success me-2"></i>NISN (Nomor Induk Siswa Nasional)</li>
-                  <li class="list-group-item border-0 ps-0"><i class="bi bi-check-circle-fill text-success me-2"></i>Akte Kelahiran</li>
-                  <li class="list-group-item border-0 ps-0"><i class="bi bi-check-circle-fill text-success me-2"></i>KTP Orang Tua</li>
-                  <li class="list-group-item border-0 ps-0"><i class="bi bi-check-circle-fill text-success me-2"></i>Wajib Membawa Surat Keterangan Tidak Buta warna(Puskesmas/Klinik)</li>
-                  <li class="list-group-item border-0 ps-0"><i class="bi bi-check-circle-fill text-success me-2"></i>Map Kertas TKJ (Hijau), RPL (Merah), Asisten Keperawatan (Biru), Tata Kecantikan (Kuning)</li>
+                  <?php foreach ($slist('syarat_list', "Kartu Keluarga (KK) DKI Jakarta (cut off 15 Juni 2025)\nNilai Raport semester 1 - 5\nNISN (Nomor Induk Siswa Nasional)\nAkte Kelahiran\nKTP Orang Tua\nWajib Membawa Surat Keterangan Tidak Buta warna(Puskesmas/Klinik)\nMap Kertas TKJ (Hijau), RPL (Merah), Asisten Keperawatan (Biru), Tata Kecantikan (Kuning)") as $syr): ?>
+                  <li class="list-group-item border-0 ps-0"><i class="bi bi-check-circle-fill text-success me-2"></i><?= htmlspecialchars($syr) ?></li>
+                  <?php endforeach; ?>
                 </ul>
               </div>
             </div>
@@ -754,8 +764,8 @@ $sr = fn($k, $d = '') => $_ss[$k] ?? $d; // raw (unescaped), untuk URL/src
     <section id="pengumuman" class="contact section">
 
       <div class="container section-title" data-aos="fade-up">
-        <h2>Pengumuman Penerimaan</h2>
-        <p>Hasil Seleksi SPMB SMKS Laboratorium Jakarta</p>
+        <h2><?= $s('sec_pengumuman_title', 'Pengumuman Penerimaan') ?></h2>
+        <p><?= $s('sec_pengumuman_sub', 'Hasil Seleksi SPMB SMKS Laboratorium Jakarta') ?></p>
       </div>
 
       <div class="container" data-aos="fade" data-aos-delay="100">
@@ -928,6 +938,39 @@ $sr = fn($k, $d = '') => $_ss[$k] ?? $d; // raw (unescaped), untuk URL/src
 
   <footer id="footer" class="footer dark-background">
     <div class="container">
+      <?php
+      // Kontak & sosmed — hanya tampil jika minimal satu diisi (default kosong = footer seperti semula)
+      $ft_telp  = trim($sr('sekolah_telp'));
+      $ft_email = trim($sr('sekolah_email'));
+      $ft_sosmed = array_filter([
+          'instagram' => trim($sr('sosmed_instagram')),
+          'facebook'  => trim($sr('sosmed_facebook')),
+          'youtube'   => trim($sr('sosmed_youtube')),
+          'tiktok'    => trim($sr('sosmed_tiktok')),
+      ]);
+      if ($ft_telp || $ft_email || $ft_sosmed): ?>
+      <div class="d-flex flex-wrap justify-content-center align-items-center gap-3 mb-3" style="font-size:.9rem;">
+        <?php if ($ft_telp): ?>
+        <a href="tel:<?= htmlspecialchars(preg_replace('/[^0-9+]/', '', $ft_telp)) ?>" class="text-decoration-none" style="color:inherit;">
+          <i class="bi bi-telephone-fill me-1"></i><?= htmlspecialchars($ft_telp) ?>
+        </a>
+        <?php endif; ?>
+        <?php if ($ft_email): ?>
+        <a href="mailto:<?= htmlspecialchars($ft_email) ?>" class="text-decoration-none" style="color:inherit;">
+          <i class="bi bi-envelope-fill me-1"></i><?= htmlspecialchars($ft_email) ?>
+        </a>
+        <?php endif; ?>
+        <?php if ($ft_sosmed): ?>
+        <span class="d-inline-flex gap-3 fs-5">
+          <?php foreach ($ft_sosmed as $sm_name => $sm_url): ?>
+          <a href="<?= htmlspecialchars($sm_url) ?>" target="_blank" rel="noopener" style="color:inherit;" title="<?= ucfirst($sm_name) ?>">
+            <i class="bi bi-<?= $sm_name ?>"></i>
+          </a>
+          <?php endforeach; ?>
+        </span>
+        <?php endif; ?>
+      </div>
+      <?php endif; ?>
       <div class="copyright">
         <span>&copy; <?= date('Y') ?></span> <strong class="px-1 sitename"><?= $s('sekolah_nama', 'SMKS Laboratorium Jakarta') ?></strong> <span>All Rights Reserved</span>
       </div>
