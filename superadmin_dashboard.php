@@ -24,11 +24,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'f2_li
     exit;
 }
 
-// ── Sidebar Fase 2 global: muncul saat meja Fase 2 aktif ─────────────────────
+// ── Sidebar meja global: muncul saat superadmin memegang meja ────────────────
 $float_widget = null;
 $fw_meja_id   = (int)($_SESSION['antrian_meja_id'] ?? 0);
-$fw_meja_fase = (int)($_SESSION['antrian_meja_fase'] ?? 0);
-if ($fw_meja_id && $fw_meja_fase === 2) {
+if ($fw_meja_id) {
     $today = date('Y-m-d');
     try {
         $fwm = $conn->prepare("SELECT * FROM meja WHERE id=?");
@@ -38,7 +37,7 @@ if ($fw_meja_id && $fw_meja_fase === 2) {
             unset($_SESSION['antrian_meja_id'], $_SESSION['antrian_meja_fase']);
             throw new RuntimeException('meja_not_found');
         }
-        $fwc = $conn->prepare("SELECT * FROM antrian WHERE tanggal=? AND meja_id=? AND fase=2 AND status='dipanggil' ORDER BY dipanggil_at DESC LIMIT 1");
+        $fwc = $conn->prepare("SELECT * FROM antrian WHERE tanggal=? AND meja_id=? AND status='dipanggil' ORDER BY dipanggil_at DESC LIMIT 1");
         $fwc->execute([$today, $fw_meja_id]);
         $fw_current = $fwc->fetch() ?: null;
         $fw_pendaftar = null;
@@ -47,8 +46,7 @@ if ($fw_meja_id && $fw_meja_fase === 2) {
             $fwp->execute([$fw_current['pendaftar_id']]);
             $fw_pendaftar = $fwp->fetch() ?: null;
         }
-        // Antrian Fase 2 menunggu belum punya meja_id (NULL) — hitung tanpa filter meja
-        $fws = $conn->prepare("SELECT COUNT(*) FROM antrian WHERE tanggal=? AND fase=2 AND status='menunggu'");
+        $fws = $conn->prepare("SELECT COUNT(*) FROM antrian WHERE tanggal=? AND status='menunggu'");
         $fws->execute([$today]);
         $fw_sisa = (int)$fws->fetchColumn();
         // Aturan buta warna ikut setting gelombang aktif
@@ -346,13 +344,13 @@ foreach ($pages as $key => $info) {
 <!-- Skeleton offcanvas — selalu ada di DOM agar tombol Fase 2 selalu bisa dibuka -->
 <div class="offcanvas offcanvas-end" style="width:400px !important;" tabindex="-1" id="f2Sidebar">
     <div class="offcanvas-header" style="background:#ede9fe;border-bottom:1.5px solid #c4b5fd;">
-        <h6 class="offcanvas-title mb-0 fw-bold" style="color:#6d28d9;"><i class="bi bi-grid-3x2-gap-fill me-2"></i>Panel Fase 2</h6>
+        <h6 class="offcanvas-title mb-0 fw-bold" style="color:#6d28d9;"><i class="bi bi-grid-3x2-gap-fill me-2"></i>Panel Meja Antrian</h6>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
     </div>
     <div class="offcanvas-body p-3" style="background:#faf5ff;">
         <div class="text-center py-5 px-2">
             <i class="bi bi-info-circle d-block mb-2" style="font-size:2rem;color:#c4b5fd;"></i>
-            <div class="small text-muted mb-3">Tidak ada meja Fase 2 aktif.<br>Pilih meja terlebih dahulu.</div>
+            <div class="small text-muted mb-3">Tidak ada meja aktif.<br>Pilih meja terlebih dahulu.</div>
             <a href="?page=antrian" class="btn btn-sm btn-outline-primary">Ke Halaman Antrian</a>
         </div>
     </div>
@@ -393,7 +391,7 @@ foreach ($pages as $key => $info) {
         data-bs-toggle="offcanvas" data-bs-target="#f2Sidebar">
     <i class="bi <?= $float_widget['pendaftar'] ? 'bi-person-check-fill' : 'bi-person-lines-fill' ?>"></i>
     <span>
-        Fase 2 · Meja <?= $float_widget['meja']['nomor_meja'] ?>
+        Meja <?= $float_widget['meja']['nomor_meja'] ?>
         <?php if ($float_widget['meja']['nama']): ?>
         <span class="fw-normal opacity-75">— <?= htmlspecialchars($float_widget['meja']['nama']) ?></span>
         <?php endif; ?>
@@ -411,7 +409,7 @@ foreach ($pages as $key => $info) {
     <div class="offcanvas-header" style="background:#ede9fe;border-bottom:1.5px solid #c4b5fd;">
         <div>
             <h6 class="offcanvas-title mb-0 fw-bold" style="color:#6d28d9;">
-                <i class="bi bi-grid-3x2-gap-fill me-2"></i>Meja <?= $float_widget['meja']['nomor_meja'] ?> — Fase 2
+                <i class="bi bi-grid-3x2-gap-fill me-2"></i>Meja <?= $float_widget['meja']['nomor_meja'] ?> — Antrian
                 <?php if ($float_widget['meja']['nama']): ?>
                 <small class="fw-normal text-muted"><?= htmlspecialchars($float_widget['meja']['nama']) ?></small>
                 <?php endif; ?>
@@ -517,8 +515,8 @@ foreach ($pages as $key => $info) {
             <input type="hidden" name="redirect_to" value="<?= htmlspecialchars($page) ?>">
             <button type="submit" class="btn btn-sm w-100 fw-semibold text-white"
                     style="background:linear-gradient(135deg,#7c3aed,#a855f7);"
-                    onclick="f2ClearBerkas(<?= $fw_cur['id'] ?>); return confirm('Selesai? Surat Tanda Daftar diterbitkan untuk nomor <?= $fw_cur['nomor'] ?>.')">
-                <i class="bi bi-file-earmark-check me-1"></i>Selesai &amp; Terbitkan Surat
+                    onclick="f2ClearBerkas(<?= $fw_cur['id'] ?>); return confirm('Selesai? Bukti pendaftaran akan dicetak dari Data Pendaftar.')">
+                <i class="bi bi-file-earmark-check me-1"></i>Selesai &amp; Cetak Bukti
             </button>
         </form>
         <form method="POST" action="superadmin_dashboard.php?page=antrian">
@@ -553,8 +551,8 @@ foreach ($pages as $key => $info) {
     <!-- Antrian kosong -->
     <div class="text-center py-5 px-3">
         <i class="bi bi-inbox d-block mb-3" style="font-size:2.5rem;color:#c4b5fd;"></i>
-        <div class="small text-muted">Belum ada pendaftar di Fase 2.</div>
-        <div class="small text-muted">Tunggu hasil Cek Berkas dari Fase 1.</div>
+        <div class="small text-muted">Belum ada antrian menunggu.</div>
+        <div class="small text-muted">Semua nomor hari ini sudah dilayani.</div>
     </div>
     <?php endif; ?>
 

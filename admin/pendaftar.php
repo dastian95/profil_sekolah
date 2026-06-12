@@ -127,6 +127,9 @@ try {
 try {
     $conn->exec("ALTER TABLE pendaftar MODIFY COLUMN sistem_pendidikan ENUM('reguler','pkbm','khusus') NOT NULL DEFAULT 'reguler'");
 } catch (PDOException $e) {}
+// Auto-migrate: TKA dipecah 2 mapel (MTK & B.Indonesia) — nilai_tka = rata-rata keduanya
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN tka_mtk DECIMAL(5,2) NULL AFTER nilai_tka"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN tka_bindo DECIMAL(5,2) NULL AFTER tka_mtk"); } catch (PDOException $e) {}
 
 // ─── POST: Tambah / Edit / Hapus ────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -177,10 +180,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $has_raport = $rata > 0;
 
+            // TKA 2 mapel: Matematika & Bahasa Indonesia → nilai_tka = rata-rata
+            $tka_mtk   = ($_POST['tka_mtk']   ?? '') !== '' ? min(100, max(0, (float)$_POST['tka_mtk']))   : null;
+            $tka_bindo = ($_POST['tka_bindo'] ?? '') !== '' ? min(100, max(0, (float)$_POST['tka_bindo'])) : null;
+            $nilai_tka_in = ($tka_mtk !== null && $tka_bindo !== null)
+                ? round(($tka_mtk + $tka_bindo) / 2, 2) : 0;
+
             // Jika raport diisi, TKA wajib — hanya untuk Reguler (Khusus & PKBM tanpa TKA)
-            if ($has_raport && $sistem === 'reguler' && empty($_POST['nilai_tka']) && ($_POST['nilai_tka'] ?? '') !== '0') {
-                $err = 'Nilai TKA wajib diisi jika raport sudah dilengkapi.';
+            if ($has_raport && $sistem === 'reguler' && ($tka_mtk === null || $tka_bindo === null)) {
+                $err = 'Nilai TKA (Matematika & Bahasa Indonesia) wajib diisi jika raport sudah dilengkapi.';
             }
+
+            // Nilai TKA per mapel yang disimpan — NULL untuk Khusus/PKBM
+            $tka_mtk_sv   = $sistem === 'reguler' ? $tka_mtk   : null;
+            $tka_bindo_sv = $sistem === 'reguler' ? $tka_bindo : null;
 
             $gel = 0;
             $existing_status = 'diproses';
@@ -205,7 +218,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Hitung data pendaftar
                 if ($has_raport) {
                     $d = hitungPendaftar([
-                        'nama'          => trim($_POST['nama']),
+                        'nama'          => mb_strtoupper(trim($_POST['nama'])),
                         'nisn'          => trim($_POST['nisn']),
                         'tanggal_lahir' => $_POST['tanggal_lahir'],
                         'jenis_kelamin' => $_POST['jenis_kelamin'],
@@ -215,7 +228,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'alamat'        => trim($_POST['alamat'] ?? ''),
                         'jurusan'       => $_POST['jurusan'],
                         'gelombang'     => $gel,
-                        'nilai_tka'     => $sistem === 'reguler' ? (float)($_POST['nilai_tka'] ?? 0) : 0,
+                        'nilai_tka'     => $sistem === 'reguler' ? $nilai_tka_in : 0,
                     ], $rata, $sistem);
                     // Jangan downgrade hasil seleksi: terima/gugur dipertahankan saat edit
                     $new_status = ($action === 'edit' && in_array($existing_status, ['terima','gugur'], true))
@@ -227,7 +240,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $lahir      = new DateTime($_POST['tanggal_lahir']);
                     $usia       = (int)$lahir->diff(new DateTime())->y;
                     $d = [
-                        'nama'          => trim($_POST['nama']),
+                        'nama'          => mb_strtoupper(trim($_POST['nama'])),
                         'nisn'          => trim($_POST['nisn']),
                         'tanggal_lahir' => $_POST['tanggal_lahir'],
                         'usia'          => $usia,
@@ -250,11 +263,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($action === 'add') {
                     $no = generateNoPendaftaran($conn, $d['gelombang']);
                     $stmt = $conn->prepare("INSERT INTO pendaftar
-                        (no_pendaftaran,gelombang,nama,nisn,tanggal_lahir,usia,jenis_kelamin,asal_sekolah,no_telp,tgl_kk,alamat,jurusan,sistem_pendidikan,nilai_raport,nilai_tka,nilai_akhir,lolos_usia,status)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+                        (no_pendaftaran,gelombang,nama,nisn,tanggal_lahir,usia,jenis_kelamin,asal_sekolah,no_telp,tgl_kk,alamat,jurusan,sistem_pendidikan,nilai_raport,nilai_tka,tka_mtk,tka_bindo,nilai_akhir,lolos_usia,status)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
                     $stmt->execute([$no,$d['gelombang'],$d['nama'],$d['nisn'],$d['tanggal_lahir'],$d['usia'],
                         $d['jenis_kelamin'],$d['asal_sekolah'],$d['no_telp'],$tgl_kk,$d['alamat'],$d['jurusan'],
-                        $sistem,$d['nilai_raport'],$d['nilai_tka'],$d['nilai_akhir'],$d['lolos_usia'],$new_status]);
+                        $sistem,$d['nilai_raport'],$d['nilai_tka'],$tka_mtk_sv,$tka_bindo_sv,$d['nilai_akhir'],$d['lolos_usia'],$new_status]);
                     $id = (int)$conn->lastInsertId();
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
 
@@ -291,11 +304,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $id = (int)$_POST['id'];
                     $stmt = $conn->prepare("UPDATE pendaftar SET
                         gelombang=?,nama=?,nisn=?,tanggal_lahir=?,usia=?,jenis_kelamin=?,asal_sekolah=?,
-                        no_telp=?,tgl_kk=?,alamat=?,jurusan=?,sistem_pendidikan=?,nilai_raport=?,nilai_tka=?,nilai_akhir=?,lolos_usia=?,status=?
+                        no_telp=?,tgl_kk=?,alamat=?,jurusan=?,sistem_pendidikan=?,nilai_raport=?,nilai_tka=?,tka_mtk=?,tka_bindo=?,nilai_akhir=?,lolos_usia=?,status=?
                         WHERE id=?");
                     $stmt->execute([$d['gelombang'],$d['nama'],$d['nisn'],$d['tanggal_lahir'],$d['usia'],
                         $d['jenis_kelamin'],$d['asal_sekolah'],$d['no_telp'],$tgl_kk,$d['alamat'],$d['jurusan'],
-                        $sistem,$d['nilai_raport'],$d['nilai_tka'],$d['nilai_akhir'],$d['lolos_usia'],$new_status,$id]);
+                        $sistem,$d['nilai_raport'],$d['nilai_tka'],$tka_mtk_sv,$tka_bindo_sv,$d['nilai_akhir'],$d['lolos_usia'],$new_status,$id]);
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
 
                     log_admin_action($conn, 'EDIT_PENDAFTAR', "Edit pendaftar ID:{$id} — {$d['nama']} [{$new_status}]");
@@ -581,7 +594,9 @@ if ($edit_id_get > 0) {
             <div class="row g-3">
               <div class="col-md-7">
                 <label class="form-label fw-semibold">Nama Lengkap <span class="text-danger">*</span></label>
-                <input type="text" name="nama" id="fNama" class="form-control" value="<?= htmlspecialchars($formData['nama'] ?? '') ?>" required>
+                <input type="text" name="nama" id="fNama" class="form-control text-uppercase"
+                       value="<?= htmlspecialchars($formData['nama'] ?? '') ?>" required
+                       oninput="this.value = this.value.toUpperCase()">
               </div>
               <div class="col-md-3">
                 <label class="form-label fw-semibold">NISN <span class="text-danger">*</span></label>
@@ -722,11 +737,25 @@ if ($edit_id_get > 0) {
               <strong>Usia ≥ <?= KHUSUS_MIN_USIA ?> tahun</strong> — Disarankan pilih <strong>Daftar Khusus</strong>, namun Anda masih bisa memilih Reguler atau PKBM jika sesuai.
             </div>
 
-            <!-- Nilai TKA -->
-            <div class="row g-3 mb-3">
-              <div class="col-md-4" id="wrapTka">
-                <label class="form-label fw-semibold">Nilai TKA <span class="text-danger" id="tkaStar">*</span></label>
-                <input type="number" name="nilai_tka" id="fTka" class="form-control" value="<?= htmlspecialchars($formData['nilai_tka'] ?? '') ?>" min="0" max="100" step="0.01" placeholder="0-100" onchange="updatePreviewNilai()" oninput="updatePreviewNilai()">
+            <!-- Nilai TKA — 2 mata pelajaran (MTK & B. Indonesia), nilai akhir = rata-rata -->
+            <div class="row g-3 mb-3" id="wrapTka">
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">TKA — Matematika <span class="text-danger" id="tkaStar">*</span></label>
+                <input type="number" name="tka_mtk" id="fTkaMtk" class="form-control"
+                       value="<?= htmlspecialchars($formData['tka_mtk'] ?? '') ?>"
+                       min="0" max="100" step="0.01" placeholder="0-100"
+                       onchange="updatePreviewNilai()" oninput="updatePreviewNilai()">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">TKA — Bahasa Indonesia <span class="text-danger">*</span></label>
+                <input type="number" name="tka_bindo" id="fTkaBindo" class="form-control"
+                       value="<?= htmlspecialchars($formData['tka_bindo'] ?? '') ?>"
+                       min="0" max="100" step="0.01" placeholder="0-100"
+                       onchange="updatePreviewNilai()" oninput="updatePreviewNilai()">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">Rata-rata TKA</label>
+                <input type="text" id="fTkaAvg" class="form-control bg-light" readonly placeholder="—">
                 <small class="text-muted" id="tkaNote">Bobot 30% pada Nilai Akhir</small>
               </div>
             </div>
@@ -986,8 +1015,11 @@ function switchSistem(sistem) {
     const wrapTka = document.getElementById('wrapTka');
     if (wrapTka) {
         wrapTka.style.display = noTka ? 'none' : '';
-        document.getElementById('fTka').required = !noTka;
-        if (noTka) document.getElementById('fTka').value = '';
+        ['fTkaMtk', 'fTkaBindo'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.required = !noTka; if (noTka) el.value = ''; }
+        });
+        if (noTka) { const avg = document.getElementById('fTkaAvg'); if (avg) avg.value = ''; }
     }
 
     // Notif: aktif jika Khusus; warn jika bukan Khusus tapi usia >= batas
@@ -1392,10 +1424,21 @@ function updateRataRata() {
     updatePreviewNilai();
 }
 
+// Rata-rata TKA dari 2 mapel (MTK & B.Indonesia) + update field readonly
+function getTkaAvg() {
+    const m = parseFloat(document.getElementById('fTkaMtk')?.value);
+    const b = parseFloat(document.getElementById('fTkaBindo')?.value);
+    const vals = [m, b].filter(v => !isNaN(v));
+    const avg  = vals.length === 2 ? (m + b) / 2 : 0;
+    const el = document.getElementById('fTkaAvg');
+    if (el) el.value = vals.length === 2 ? avg.toFixed(2) : '';
+    return avg;
+}
+
 function updatePreviewNilai() {
     const rataText = document.getElementById('displayRata').textContent;
     const rata     = parseFloat(rataText) || 0;
-    const tka      = parseFloat(document.getElementById('fTka').value) || 0;
+    const tka      = getTkaAvg();
     const sistem   = getSistem();
     const noTka    = (sistem === 'khusus') || (sistem === 'pkbm');
 
@@ -1483,7 +1526,9 @@ function resetForm() {
     document.getElementById('fAlamat').value  = '';
     document.getElementById('fTgl').value     = '';
     document.getElementById('fAsal').value    = '';
-    document.getElementById('fTka').value     = '';
+    document.getElementById('fTkaMtk').value   = '';
+    document.getElementById('fTkaBindo').value = '';
+    document.getElementById('fTkaAvg').value   = '';
     document.getElementById('previewUsia').value = '';
     document.getElementById('previewUsia').className = 'form-control bg-light';
     document.querySelectorAll('.raport-cell').forEach(c => c.value = '');
@@ -1562,7 +1607,13 @@ function editForm(d) {
     document.getElementById('fTelp').value    = d.no_telp || '';
     document.getElementById('fAlamat').value  = d.alamat || '';
     document.getElementById('fJurusan').value = d.jurusan;
-    document.getElementById('fTka').value     = d.nilai_tka;
+    // TKA 2 mapel — fallback data lama (hanya punya nilai_tka): isi keduanya dengan nilai itu
+    const tkaM = (d.tka_mtk !== null && d.tka_mtk !== undefined && d.tka_mtk !== '') ? d.tka_mtk
+               : (parseFloat(d.nilai_tka) > 0 ? d.nilai_tka : '');
+    const tkaB = (d.tka_bindo !== null && d.tka_bindo !== undefined && d.tka_bindo !== '') ? d.tka_bindo
+               : (parseFloat(d.nilai_tka) > 0 ? d.nilai_tka : '');
+    document.getElementById('fTkaMtk').value   = tkaM;
+    document.getElementById('fTkaBindo').value = tkaB;
     const fTglKk = document.getElementById('fTglKk');
     if (fTglKk) { fTglKk.value = d.tgl_kk || ''; cekCutoffKk(d.tgl_kk || ''); }
 

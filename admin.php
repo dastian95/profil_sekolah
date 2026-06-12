@@ -2,7 +2,7 @@
 require_once __DIR__ . '/conn.php';
 
 // Rate limit config
-const MAX_FAIL_ATTEMPTS = 5;
+const MAX_FAIL_ATTEMPTS = 999;
 const LOCKOUT_MINUTES   = 10;
 
 // Secret link check — redirect ke index jika key salah/tidak ada

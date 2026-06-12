@@ -343,6 +343,10 @@ if (isset($_GET['json'])) {
             50%      { box-shadow: 0 0 0 12px rgba(124,58,237,.0); }
         }
 
+        /* Tombol Suara & Pilih Bahasa disembunyikan (mengganggu tampilan) —
+           suara tetap aktif otomatis dengan voice default */
+        #tts-toggle, #voice-picker-btn, #voice-picker-panel { display: none !important; }
+
         /* ── TTS TOGGLE BUTTON ── */
         #tts-toggle {
             position: fixed; bottom: 48px; right: 16px; z-index: 990;
@@ -456,7 +460,7 @@ if (isset($_GET['json'])) {
             <?= htmlspecialchars($latest['nama_meja'] ?: 'Loket ' . $latest['nomor_meja']) ?>
         </div>
         <div class="current-fase" id="current-fase">
-            Fase <?= $latest['fase'] === 1 ? '1 — Cek Berkas' : '2 — Input Data' ?>
+            Silakan Menuju Loket
         </div>
         <?php else: ?>
         <div class="no-call"><i class="bi bi-hourglass-split me-2"></i>Menunggu antrian...</div>
@@ -465,6 +469,23 @@ if (isset($_GET['json'])) {
 
     <!-- Right Panel -->
     <div class="right-panel">
+
+        <!-- Stats Pendaftar per Jurusan (paling atas agar selalu kelihatan) -->
+        <div class="stats-section">
+            <div class="section-label"><i class="bi bi-bar-chart-fill"></i> Pendaftar per Jurusan</div>
+            <div class="stats-grid" id="stats-grid">
+            <?php foreach ($stats_jur as $kode => $cnt): ?>
+                <div class="stat-jur-item">
+                    <span class="stat-jur-kode"><?= htmlspecialchars($kode) ?></span>
+                    <span class="stat-jur-count"><?= (int)$cnt ?></span>
+                </div>
+            <?php endforeach; ?>
+            </div>
+            <div class="stat-total-row" id="stat-total-row">
+                <span class="stat-total-label">Total Pendaftar</span>
+                <span class="stat-total-num" id="stat-total"><?= $stats_total ?></span>
+            </div>
+        </div>
 
         <!-- Selanjutnya -->
         <div class="next-section">
@@ -480,7 +501,7 @@ if (isset($_GET['json'])) {
                     <div class="next-card-num">SSG<?= str_pad($n['nomor'],3,'0',STR_PAD_LEFT) ?></div>
                     <div class="next-card-info">
                         <div class="next-card-meja"><?= $ml ?></div>
-                        <div class="next-card-fase">Fase 1</div>
+                        <div class="next-card-fase">Antrian</div>
                     </div>
                 </div>
             <?php endforeach; foreach ($next_f2 as $n):
@@ -489,29 +510,12 @@ if (isset($_GET['json'])) {
                     <div class="next-card-num">SSG<?= str_pad($n['nomor'],3,'0',STR_PAD_LEFT) ?></div>
                     <div class="next-card-info">
                         <div class="next-card-meja"><?= $ml ?></div>
-                        <div class="next-card-fase">Fase 2</div>
+                        <div class="next-card-fase">Antrian</div>
                     </div>
                 </div>
             <?php endforeach; else: ?>
                 <span class="next-empty">Semua antrian sudah selesai</span>
             <?php endif; ?>
-            </div>
-        </div>
-
-        <!-- Stats Pendaftar per Jurusan -->
-        <div class="stats-section">
-            <div class="section-label"><i class="bi bi-bar-chart-fill"></i> Pendaftar per Jurusan</div>
-            <div class="stats-grid" id="stats-grid">
-            <?php foreach (JURUSAN_LIST as $kode => $nama): ?>
-                <div class="stat-jur-item">
-                    <span class="stat-jur-kode"><?= htmlspecialchars($kode) ?></span>
-                    <span class="stat-jur-count"><?= $stats_jur[$kode] ?></span>
-                </div>
-            <?php endforeach; ?>
-            </div>
-            <div class="stat-total-row" id="stat-total-row">
-                <span class="stat-total-label">Total Pendaftar</span>
-                <span class="stat-total-num" id="stat-total"><?= $stats_total ?></span>
             </div>
         </div>
 
@@ -577,7 +581,7 @@ if (isset($_GET['json'])) {
     <span>SPMB SMKS Laboratorium Jakarta <?= date('Y') ?>/<?= date('Y')+1 ?> &nbsp;•&nbsp;
     Harap menunggu dengan tertib &nbsp;•&nbsp;
     Siapkan berkas sebelum dipanggil &nbsp;•&nbsp;
-    Fase 1: Cek Berkas &nbsp;•&nbsp; Fase 2: Input Data & Surat Tanda Daftar &nbsp;•&nbsp;
+    Cek berkas & input data dilayani di satu loket &nbsp;•&nbsp;
     Terima kasih atas kehadiran Anda &nbsp;•&nbsp;</span>
 </div>
 
@@ -763,7 +767,7 @@ function showBeepIndicator() {
 // ── State ──────────────────────────────────────────────────────────────────────
 let lastNumber = <?= $latest ? $latest['nomor'] : 'null' ?>;
 let lastMejaId = <?= $latest ? ($latest['meja_id'] ?? 0) : 'null' ?>;
-const FASE_LABEL = {1: 'Fase 1 — Cek Berkas', 2: 'Fase 2 — Input Data'};
+const FASE_LABEL = {1: 'Silakan Menuju Loket', 2: 'Silakan Menuju Loket'};
 function pad3(n)   { return String(n).padStart(3,'0'); }
 function fmtNum(n) { return 'SSG' + pad3(n); }
 
@@ -783,7 +787,7 @@ function renderNextCards(f1, f2) {
             <div class="next-card-num">${fmtNum(n.nomor)}</div>
             <div class="next-card-info">
                 <div class="next-card-meja">${meja}</div>
-                <div class="next-card-fase">Fase 1</div>
+                <div class="next-card-fase">Antrian</div>
             </div>
         </div>`;
     });
@@ -793,7 +797,7 @@ function renderNextCards(f1, f2) {
             <div class="next-card-num">${fmtNum(n.nomor)}</div>
             <div class="next-card-info">
                 <div class="next-card-meja">${meja}</div>
-                <div class="next-card-fase">Fase 2</div>
+                <div class="next-card-fase">Antrian</div>
             </div>
         </div>`;
     });
