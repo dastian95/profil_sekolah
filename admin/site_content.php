@@ -75,10 +75,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $msg = '<div class="alert alert-success alert-dismissible"><i class="bi bi-check-circle me-2"></i>Konten <strong>' . htmlspecialchars($group) . '</strong> berhasil disimpan. <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
     }
 
-    // PRG: redirect setelah POST agar refresh tidak mengulang aksi
+    // PRG: redirect setelah POST agar refresh tidak mengulang aksi (tab aktif dipertahankan)
     $_SESSION['flash_site_content'] = $msg;
     while (ob_get_level() > 0) ob_end_clean();
-    header('Location: ' . (!empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php') . '?page=site_content');
+    header('Location: ' . (!empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php')
+        . '?page=site_content' . ($group ? '&tab=' . urlencode($group) : ''));
     exit;
 }
 
@@ -90,16 +91,38 @@ foreach ($conn->query("SELECT * FROM site_settings ORDER BY group_name, setting_
     $groups[$r['group_name']][]  = $r;
 }
 
-$group_icons = [
-    'Identitas'    => 'bi-building',
-    'Hero'         => 'bi-image',
-    'Tentang'      => 'bi-info-circle',
-    'Lokasi'       => 'bi-geo-alt',
-    'Footer'       => 'bi-layout-text-window',
-    'Sosial Media' => 'bi-share-fill',
-    'SEO'          => 'bi-search',
-    'Logo'         => 'bi-badge-hd',
+// Urutan & ikon grup di sidebar pills
+$group_order = [
+    'Identitas', 'Logo', 'Hero', 'Tentang', 'Navbar', 'Judul Section',
+    'Jurusan: RPL', 'Jurusan: TKJ', 'Jurusan: AP', 'Jurusan: TKKR',
+    'Cara Mendaftar', 'Lokasi', 'Footer', 'Sosial Media', 'Tema Warna', 'SEO',
 ];
+$ordered_groups = [];
+foreach ($group_order as $g) { if (isset($groups[$g])) $ordered_groups[$g] = $groups[$g]; }
+foreach ($groups as $g => $items) { if (!isset($ordered_groups[$g])) $ordered_groups[$g] = $items; }
+$groups = $ordered_groups;
+
+$group_icons = [
+    'Identitas'      => 'bi-building',
+    'Hero'           => 'bi-image',
+    'Tentang'        => 'bi-info-circle',
+    'Navbar'         => 'bi-list',
+    'Judul Section'  => 'bi-type-h2',
+    'Jurusan: RPL'   => 'bi-code-slash',
+    'Jurusan: TKJ'   => 'bi-hdd-network',
+    'Jurusan: AP'    => 'bi-heart-pulse',
+    'Jurusan: TKKR'  => 'bi-stars',
+    'Cara Mendaftar' => 'bi-card-checklist',
+    'Lokasi'         => 'bi-geo-alt',
+    'Footer'         => 'bi-layout-text-window',
+    'Sosial Media'   => 'bi-share-fill',
+    'Tema Warna'     => 'bi-palette',
+    'SEO'            => 'bi-search',
+    'Logo'           => 'bi-badge-hd',
+];
+
+// Tab aktif: dari ?tab= (persist setelah simpan) atau grup pertama
+$active_group = isset($_GET['tab']) && isset($groups[$_GET['tab']]) ? $_GET['tab'] : array_key_first($groups);
 ?>
 
 <?= $msg ?>
@@ -107,81 +130,134 @@ $group_icons = [
 <div class="d-flex align-items-center mb-4 gap-3">
     <div>
         <h4 class="mb-0 fw-bold"><i class="bi bi-layout-text-window-reverse me-2 text-primary"></i>Konten & Tampilan Website</h4>
-        <p class="text-muted small mb-0">Kelola teks dan konten yang ditampilkan di halaman publik</p>
+        <p class="text-muted small mb-0">Kelola teks, gambar, dan tampilan halaman publik — tanpa menyentuh kode</p>
     </div>
-    <a href="/" target="_blank" class="btn btn-outline-secondary btn-sm ms-auto">
+    <a href="index.php" target="_blank" class="btn btn-outline-secondary btn-sm ms-auto">
         <i class="bi bi-box-arrow-up-right me-1"></i>Lihat Website
     </a>
 </div>
 
-<!-- Tab navigation -->
-<ul class="nav nav-tabs mb-4" id="contentTabs">
-    <?php $first = true; foreach ($groups as $group_name => $items): ?>
-    <li class="nav-item">
-        <a class="nav-link <?= $first ? 'active' : '' ?>" data-bs-toggle="tab" href="#tab-<?= htmlspecialchars($group_name) ?>">
-            <i class="bi <?= $group_icons[$group_name] ?? 'bi-gear' ?> me-1"></i><?= htmlspecialchars($group_name) ?>
-        </a>
-    </li>
-    <?php $first = false; endforeach; ?>
-</ul>
-
-<div class="tab-content">
-<?php $first = true; foreach ($groups as $group_name => $items): ?>
-<div class="tab-pane fade <?= $first ? 'show active' : '' ?>" id="tab-<?= htmlspecialchars($group_name) ?>">
-    <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white border-bottom d-flex align-items-center gap-2">
-            <i class="bi <?= $group_icons[$group_name] ?? 'bi-gear' ?> text-primary"></i>
-            <strong><?= htmlspecialchars($group_name) ?></strong>
+<div class="row g-4">
+    <!-- Pills navigasi grup (kiri) -->
+    <div class="col-md-3">
+        <div class="nav flex-column nav-pills sticky-top" style="top:80px;max-height:calc(100vh - 110px);overflow-y:auto;" id="contentTabs" role="tablist">
+            <?php foreach ($groups as $group_name => $items): ?>
+            <a class="nav-link text-start mb-1 <?= $group_name === $active_group ? 'active' : '' ?>"
+               data-bs-toggle="pill" href="#tab-<?= md5($group_name) ?>" role="tab">
+                <i class="bi <?= $group_icons[$group_name] ?? 'bi-gear' ?> me-2"></i><?= htmlspecialchars($group_name) ?>
+            </a>
+            <?php endforeach; ?>
         </div>
-        <div class="card-body">
-            <form method="POST">
-                <input type="hidden" name="group" value="<?= htmlspecialchars($group_name) ?>">
-                <?php foreach ($items as $item): ?>
-                <div class="mb-4">
-                    <label class="form-label fw-semibold">
-                        <?= htmlspecialchars($item['label']) ?>
-                        <small class="text-muted fw-normal ms-1">(<?= $item['type'] ?>)</small>
-                    </label>
+    </div>
 
-                    <?php if ($item['type'] === 'textarea'): ?>
-                    <textarea name="fields[<?= htmlspecialchars($item['setting_key']) ?>]"
-                              class="form-control" rows="4"><?= htmlspecialchars($item['setting_value'] ?? '') ?></textarea>
-
-                    <?php elseif ($item['type'] === 'image_url'): ?>
-                    <input type="text" name="fields[<?= htmlspecialchars($item['setting_key']) ?>]"
-                           class="form-control" value="<?= htmlspecialchars($item['setting_value'] ?? '') ?>"
-                           placeholder="Contoh: assets/img/foto.webp">
-                    <?php if (!empty($item['setting_value'])): ?>
-                    <div class="mt-2">
-                        <img src="<?= htmlspecialchars('../' . $item['setting_value']) ?>"
-                             style="max-height:120px;max-width:320px;object-fit:cover;border-radius:8px;border:1px solid #dee2e6;"
-                             onerror="this.style.display='none'">
-                    </div>
-                    <?php endif; ?>
-
-                    <?php elseif ($item['type'] === 'url'): ?>
-                    <input type="text" name="fields[<?= htmlspecialchars($item['setting_key']) ?>]"
-                           class="form-control" value="<?= htmlspecialchars($item['setting_value'] ?? '') ?>"
-                           placeholder="https://...">
-                    <?php if ($item['setting_key'] === 'maps_embed_url' && !empty($item['setting_value'])): ?>
-                    <div class="mt-2 text-muted small"><i class="bi bi-info-circle me-1"></i>Salin URL dari Google Maps → Bagikan → Sematkan peta → salin src="..." saja</div>
-                    <?php endif; ?>
-
-                    <?php else: ?>
-                    <input type="text" name="fields[<?= htmlspecialchars($item['setting_key']) ?>]"
-                           class="form-control" value="<?= htmlspecialchars($item['setting_value'] ?? '') ?>">
-                    <?php endif; ?>
+    <!-- Konten grup (kanan) -->
+    <div class="col-md-9">
+        <div class="tab-content">
+        <?php foreach ($groups as $group_name => $items): ?>
+        <div class="tab-pane fade <?= $group_name === $active_group ? 'show active' : '' ?>" id="tab-<?= md5($group_name) ?>">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom d-flex align-items-center gap-2">
+                    <i class="bi <?= $group_icons[$group_name] ?? 'bi-gear' ?> text-primary"></i>
+                    <strong><?= htmlspecialchars($group_name) ?></strong>
                 </div>
-                <?php endforeach; ?>
+                <div class="card-body">
+                    <form method="POST">
+                        <input type="hidden" name="group" value="<?= htmlspecialchars($group_name) ?>">
+                        <?php foreach ($items as $item): $skey = $item['setting_key']; ?>
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">
+                                <?= htmlspecialchars($item['label']) ?>
+                                <small class="text-muted fw-normal ms-1">(<?= $item['type'] ?>)</small>
+                            </label>
 
-                <div class="d-flex justify-content-end border-top pt-3">
-                    <button type="submit" class="btn btn-primary px-4">
-                        <i class="bi bi-save me-2"></i>Simpan <?= htmlspecialchars($group_name) ?>
-                    </button>
+                            <?php if ($item['type'] === 'textarea'): ?>
+                            <textarea name="fields[<?= htmlspecialchars($skey) ?>]"
+                                      class="form-control" rows="4"><?= htmlspecialchars($item['setting_value'] ?? '') ?></textarea>
+
+                            <?php elseif ($item['type'] === 'image_url'): ?>
+                            <div class="input-group">
+                                <input type="text" name="fields[<?= htmlspecialchars($skey) ?>]"
+                                       id="inp_<?= htmlspecialchars($skey) ?>"
+                                       class="form-control" value="<?= htmlspecialchars($item['setting_value'] ?? '') ?>"
+                                       placeholder="Contoh: assets/img/foto.webp">
+                                <button type="button" class="btn btn-outline-primary"
+                                        onclick="document.getElementById('file_<?= htmlspecialchars($skey) ?>').click()">
+                                    <i class="bi bi-upload me-1"></i>Upload
+                                </button>
+                                <input type="file" id="file_<?= htmlspecialchars($skey) ?>" accept="image/*" class="d-none"
+                                       onchange="uploadImg(this, 'inp_<?= htmlspecialchars($skey) ?>', 'prev_<?= htmlspecialchars($skey) ?>')">
+                            </div>
+                            <div class="mt-2" id="prevwrap_<?= htmlspecialchars($skey) ?>">
+                                <img id="prev_<?= htmlspecialchars($skey) ?>"
+                                     src="<?= !empty($item['setting_value']) ? htmlspecialchars($item['setting_value']) : '' ?>"
+                                     style="max-height:120px;max-width:320px;object-fit:cover;border-radius:8px;border:1px solid #dee2e6;<?= empty($item['setting_value']) ? 'display:none;' : '' ?>"
+                                     onerror="this.style.display='none'">
+                            </div>
+
+                            <?php elseif ($item['type'] === 'url'): ?>
+                            <input type="text" name="fields[<?= htmlspecialchars($skey) ?>]"
+                                   class="form-control" value="<?= htmlspecialchars($item['setting_value'] ?? '') ?>"
+                                   placeholder="https://...">
+                            <?php if ($skey === 'maps_embed_url' && !empty($item['setting_value'])): ?>
+                            <div class="mt-2 text-muted small"><i class="bi bi-info-circle me-1"></i>Salin URL dari Google Maps → Bagikan → Sematkan peta → salin src="..." saja</div>
+                            <?php endif; ?>
+
+                            <?php elseif ($item['type'] === 'color'): ?>
+                            <?php $cval = $item['setting_value'] ?: '#000000'; ?>
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="color" class="form-control form-control-color"
+                                       id="color_<?= htmlspecialchars($skey) ?>"
+                                       value="<?= htmlspecialchars(preg_match('/^#[0-9a-fA-F]{6}$/', $cval) ? $cval : '#000000') ?>"
+                                       oninput="document.getElementById('ctext_<?= htmlspecialchars($skey) ?>').value = this.value">
+                                <input type="text" name="fields[<?= htmlspecialchars($skey) ?>]"
+                                       id="ctext_<?= htmlspecialchars($skey) ?>"
+                                       class="form-control font-monospace" style="max-width:140px;"
+                                       value="<?= htmlspecialchars($item['setting_value'] ?? '') ?>"
+                                       pattern="#[0-9a-fA-F]{6}" placeholder="#22aa55"
+                                       oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)) document.getElementById('color_<?= htmlspecialchars($skey) ?>').value = this.value">
+                            </div>
+
+                            <?php else: ?>
+                            <input type="text" name="fields[<?= htmlspecialchars($skey) ?>]"
+                                   class="form-control" value="<?= htmlspecialchars($item['setting_value'] ?? '') ?>">
+                            <?php endif; ?>
+                        </div>
+                        <?php endforeach; ?>
+
+                        <div class="d-flex justify-content-end border-top pt-3">
+                            <button type="submit" class="btn btn-primary px-4">
+                                <i class="bi bi-save me-2"></i>Simpan <?= htmlspecialchars($group_name) ?>
+                            </button>
+                        </div>
+                    </form>
                 </div>
-            </form>
+            </div>
+        </div>
+        <?php endforeach; ?>
         </div>
     </div>
 </div>
-<?php $first = false; endforeach; ?>
-</div>
+
+<script>
+async function uploadImg(fileInput, targetId, previewId) {
+    if (!fileInput.files || !fileInput.files[0]) return;
+    const btn = fileInput.previousElementSibling;
+    const oldHtml = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
+    try {
+        const fd = new FormData();
+        fd.append('image', fileInput.files[0]);
+        const r = await fetch('admin/upload_image.php', { method: 'POST', body: fd });
+        const j = await r.json();
+        if (!j.ok) { alert(j.error || 'Upload gagal.'); return; }
+        document.getElementById(targetId).value = j.path;
+        const prev = document.getElementById(previewId);
+        if (prev) { prev.src = j.path; prev.style.display = ''; }
+    } catch (e) {
+        alert('Upload gagal: ' + e.message);
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = oldHtml; }
+        fileInput.value = '';
+    }
+}
+</script>
