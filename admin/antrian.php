@@ -152,6 +152,7 @@ $my_meja_fase = (int)($_SESSION['antrian_meja_fase'] ?? 1);
 $my_meja      = null;
 $current      = null;
 $current_pendaftar = null;
+$berkas_auto  = ['kk' => false, 'tka' => false, 'akta' => false, 'buta_warna' => false];
 $sisa_fase1 = 0; $sisa_fase2 = 0;
 $selesai_fase1 = 0; $selesai_fase2 = 0;
 $total_hari = 0;
@@ -184,6 +185,13 @@ try {
         $ps = $conn->prepare("SELECT * FROM pendaftar WHERE id=?");
         $ps->execute([$current['pendaftar_id']]);
         $current_pendaftar = $ps->fetch() ?: null;
+        // Auto-centang checklist berkas dari data pendaftar yang sudah terisi
+        if ($current_pendaftar) {
+            $berkas_auto['kk']         = !empty($current_pendaftar['tgl_kk']) && $current_pendaftar['tgl_kk'] <= '2025-06-15';
+            $berkas_auto['tka']        = (float)($current_pendaftar['nilai_tka'] ?? 0) > 0;
+            $berkas_auto['buta_warna'] = in_array($current_pendaftar['buta_warna'] ?? 'belum', ['normal','buta_warna'], true);
+            // 'akta' tidak punya sumber data → tetap manual
+        }
     }
 
     $s1 = $conn->prepare("SELECT COUNT(*) FROM antrian WHERE tanggal=? AND status='menunggu'");  $s1->execute([$today]); $sisa_fase1    = (int)$s1->fetchColumn();
@@ -691,9 +699,15 @@ function applyBerkasRow(key, checked) {
     if (row) row.classList.toggle('checked', !!checked);
     if (ico) { ico.className = checked ? 'bi bi-check-circle-fill text-success' : 'bi bi-circle'; ico.style.color = checked ? '' : '#d1d5db'; }
 }
+// Default tercentang dari data pendaftar (KK/TKA/Buta Warna). localStorage menang
+// agar petugas tetap bisa meng-uncheck secara manual.
+const BERKAS_AUTO = <?= json_encode($berkas_auto) ?>;
 function initBerkas(antrianId) {
     const data = loadBerkas(antrianId);
-    ['kk','tka','akta','buta_warna'].forEach(k => applyBerkasRow(k, !!data[k]));
+    ['kk','tka','akta','buta_warna'].forEach(k => {
+        const checked = (data[k] !== undefined) ? !!data[k] : !!BERKAS_AUTO[k];
+        applyBerkasRow(k, checked);
+    });
 }
 function clearBerkas(antrianId) {
     localStorage.removeItem(berkasKey(antrianId));

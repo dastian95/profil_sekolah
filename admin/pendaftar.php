@@ -134,6 +134,9 @@ try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN tka_bindo DECIMAL(5,2) NULL 
 try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN kelurahan VARCHAR(100) NULL AFTER alamat"); } catch (PDOException $e) {}
 try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN jarak_km DECIMAL(5,2) NULL AFTER kelurahan"); } catch (PDOException $e) {}
 try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN status_ortu ENUM('tidak','yatim','piatu','yatim_piatu') NOT NULL DEFAULT 'tidak' AFTER jarak_km"); } catch (PDOException $e) {}
+// Auto-migrate: hasil tes buta warna & jalur seleksi Gelombang 2
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN buta_warna ENUM('belum','normal','buta_warna') NOT NULL DEFAULT 'belum' AFTER status_ortu"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN jalur ENUM('zonasi','afirmasi','prestasi') NOT NULL DEFAULT 'prestasi' AFTER buta_warna"); } catch (PDOException $e) {}
 
 // ─── POST: Tambah / Edit / Hapus ────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -203,6 +206,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $kelurahan_in = trim($_POST['kelurahan'] ?? '');
             $status_ortu  = in_array($_POST['status_ortu'] ?? '', ['tidak','yatim','piatu','yatim_piatu'], true)
                 ? $_POST['status_ortu'] : 'tidak';
+            $buta_warna   = in_array($_POST['buta_warna'] ?? '', ['belum','normal','buta_warna'], true)
+                ? $_POST['buta_warna'] : 'belum';
+            $jalur        = in_array($_POST['jalur'] ?? '', ['zonasi','afirmasi','prestasi'], true)
+                ? $_POST['jalur'] : 'prestasi';
             $zon          = $kelurahan_in !== '' ? zonasi_lookup($kelurahan_in) : null;
             $kelurahan_sv = $zon ? $kelurahan_in : null;
             $jarak_sv     = $zon ? $zon['jarak'] : null;
@@ -282,10 +289,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($action === 'add') {
                     $no = generateNoPendaftaran($conn, $d['gelombang']);
                     $stmt = $conn->prepare("INSERT INTO pendaftar
-                        (no_pendaftaran,gelombang,nama,nisn,tanggal_lahir,usia,jenis_kelamin,asal_sekolah,no_telp,tgl_kk,alamat,kelurahan,jarak_km,status_ortu,jurusan,sistem_pendidikan,nilai_raport,nilai_tka,tka_mtk,tka_bindo,nilai_akhir,lolos_usia,status)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+                        (no_pendaftaran,gelombang,nama,nisn,tanggal_lahir,usia,jenis_kelamin,asal_sekolah,no_telp,tgl_kk,alamat,kelurahan,jarak_km,status_ortu,buta_warna,jalur,jurusan,sistem_pendidikan,nilai_raport,nilai_tka,tka_mtk,tka_bindo,nilai_akhir,lolos_usia,status)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
                     $stmt->execute([$no,$d['gelombang'],$d['nama'],$d['nisn'],$d['tanggal_lahir'],$d['usia'],
-                        $d['jenis_kelamin'],$d['asal_sekolah'],$d['no_telp'],$tgl_kk,$d['alamat'],$kelurahan_sv,$jarak_sv,$status_ortu,$d['jurusan'],
+                        $d['jenis_kelamin'],$d['asal_sekolah'],$d['no_telp'],$tgl_kk,$d['alamat'],$kelurahan_sv,$jarak_sv,$status_ortu,$buta_warna,$jalur,$d['jurusan'],
                         $sistem,$d['nilai_raport'],$d['nilai_tka'],$tka_mtk_sv,$tka_bindo_sv,$d['nilai_akhir'],$d['lolos_usia'],$new_status]);
                     $id = (int)$conn->lastInsertId();
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
@@ -323,10 +330,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $id = (int)$_POST['id'];
                     $stmt = $conn->prepare("UPDATE pendaftar SET
                         gelombang=?,nama=?,nisn=?,tanggal_lahir=?,usia=?,jenis_kelamin=?,asal_sekolah=?,
-                        no_telp=?,tgl_kk=?,alamat=?,kelurahan=?,jarak_km=?,status_ortu=?,jurusan=?,sistem_pendidikan=?,nilai_raport=?,nilai_tka=?,tka_mtk=?,tka_bindo=?,nilai_akhir=?,lolos_usia=?,status=?
+                        no_telp=?,tgl_kk=?,alamat=?,kelurahan=?,jarak_km=?,status_ortu=?,buta_warna=?,jalur=?,jurusan=?,sistem_pendidikan=?,nilai_raport=?,nilai_tka=?,tka_mtk=?,tka_bindo=?,nilai_akhir=?,lolos_usia=?,status=?
                         WHERE id=?");
                     $stmt->execute([$d['gelombang'],$d['nama'],$d['nisn'],$d['tanggal_lahir'],$d['usia'],
-                        $d['jenis_kelamin'],$d['asal_sekolah'],$d['no_telp'],$tgl_kk,$d['alamat'],$kelurahan_sv,$jarak_sv,$status_ortu,$d['jurusan'],
+                        $d['jenis_kelamin'],$d['asal_sekolah'],$d['no_telp'],$tgl_kk,$d['alamat'],$kelurahan_sv,$jarak_sv,$status_ortu,$buta_warna,$jalur,$d['jurusan'],
                         $sistem,$d['nilai_raport'],$d['nilai_tka'],$tka_mtk_sv,$tka_bindo_sv,$d['nilai_akhir'],$d['lolos_usia'],$new_status,$id]);
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
 
@@ -642,7 +649,28 @@ if ($edit_id_get > 0) {
         <div id="sectionG2" class="px-3 pt-3" style="<?= $g2_aktif ? '' : 'display:none;' ?>">
           <div class="border rounded-3 p-3" style="background:#fffbeb;border-color:#fcd34d !important;">
             <div class="fw-bold small text-uppercase mb-2" style="color:#92400e;letter-spacing:.4px;">
-              <i class="bi bi-geo-alt-fill me-1"></i>Gelombang 2 — Zonasi &amp; Status Orang Tua
+              <i class="bi bi-signpost-split-fill me-1"></i>Gelombang 2 — Jalur Seleksi, Zonasi &amp; Status Orang Tua
+            </div>
+            <div class="row g-3 mb-1">
+              <div class="col-md-12">
+                <label class="form-label fw-semibold small mb-1">Jalur Seleksi <span class="text-danger">*</span></label>
+                <div class="btn-group w-100" role="group" id="jalurGroup">
+                  <?php
+                  $jalur_opts = [
+                    'zonasi'   => ['Zonasi', 'bi-geo-alt-fill', 'Berdasarkan jarak terdekat'],
+                    'afirmasi' => ['Afirmasi', 'bi-heart-fill', 'Yatim / Piatu'],
+                    'prestasi' => ['Prestasi', 'bi-trophy-fill', 'Berdasarkan nilai'],
+                  ];
+                  $jalur_cur = $formData['jalur'] ?? 'prestasi';
+                  foreach ($jalur_opts as $jl_k => [$jl_l, $jl_i, $jl_d]): ?>
+                  <input type="radio" class="btn-check" name="jalur" id="jalur_<?= $jl_k ?>" value="<?= $jl_k ?>" <?= $jalur_cur === $jl_k ? 'checked' : '' ?>>
+                  <label class="btn btn-outline-warning btn-sm" for="jalur_<?= $jl_k ?>" title="<?= $jl_d ?>">
+                    <i class="bi <?= $jl_i ?> me-1"></i><?= $jl_l ?>
+                  </label>
+                  <?php endforeach; ?>
+                </div>
+                <small class="text-muted">Pilih jalur penerimaan pendaftar ini. Tiap jalur punya kuota sendiri (dibagi rata).</small>
+              </div>
             </div>
             <div class="row g-3">
               <div class="col-md-5">
@@ -756,6 +784,19 @@ if ($edit_id_get > 0) {
                 <input type="date" name="tgl_kk" id="fTglKk" class="form-control" value="<?= htmlspecialchars($formData['tgl_kk'] ?? '') ?>" onchange="cekCutoffKk(this.value)">
                 <div id="kkWarning" class="text-danger small mt-1 d-none"><i class="bi bi-x-circle me-1"></i>KK melebihi cut-off 15 Juni 2025.</div>
                 <small class="text-muted">Cut-off: 15 Juni 2025</small>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">
+                  Tes Buta Warna
+                  <i class="bi bi-eye text-muted ms-1" title="Hasil tes buta warna pendaftar." style="cursor:help;font-style:normal;"></i>
+                </label>
+                <select name="buta_warna" id="fButaWarna" class="form-select">
+                  <?php
+                  $bw_opts = ['belum' => 'Belum Dites', 'normal' => 'Normal (Tidak Buta Warna)', 'buta_warna' => 'Buta Warna'];
+                  foreach ($bw_opts as $bw_k => $bw_l): ?>
+                  <option value="<?= $bw_k ?>" <?= ($formData['buta_warna'] ?? 'belum') === $bw_k ? 'selected' : '' ?>><?= $bw_l ?></option>
+                  <?php endforeach; ?>
+                </select>
               </div>
               <div class="col-12">
                 <label class="form-label fw-semibold">Alamat</label>
@@ -1679,6 +1720,10 @@ function resetForm() {
     if (_kel) _kel.value = '';
     const _so = document.getElementById('fStatusOrtu');
     if (_so) _so.value = 'tidak';
+    const _jl = document.getElementById('jalur_prestasi');
+    if (_jl) _jl.checked = true;
+    const _bw = document.getElementById('fButaWarna');
+    if (_bw) _bw.value = 'belum';
     updateJarakZonasi();
     // Tampilkan section G2 bila gelombang aktif = 2 ATAU admin sedang melihat tab Gelombang 2
     setG2Section(<?= ($active_glm === '2' || ($gelombang_aktif && (int)$gelombang_aktif['gelombang'] === 2)) ? 2 : 0 ?>);
@@ -1757,6 +1802,10 @@ function editForm(d) {
     if (_kel) _kel.value = d.kelurahan || '';
     const _so = document.getElementById('fStatusOrtu');
     if (_so) _so.value = d.status_ortu || 'tidak';
+    const _jl = document.getElementById('jalur_' + (d.jalur || 'prestasi'));
+    if (_jl) _jl.checked = true;
+    const _bw = document.getElementById('fButaWarna');
+    if (_bw) _bw.value = d.buta_warna || 'belum';
     updateJarakZonasi();
     setG2Section(d.gelombang);
 
@@ -1834,6 +1883,8 @@ function printBukti(r) {
     const boxOn   = '<div class="berkas-box on">&#10003;</div>';
     const boxOff  = '<div class="berkas-box"></div>';
     const nilaiTkaTxt = tkaOk ? Number(r.nilai_tka).toFixed(2) : '';
+    // Buta warna: 'normal' | 'buta_warna' | 'belum'
+    const bw      = r.buta_warna || 'belum';
     const html = `<!DOCTYPE html>
 <html lang="id"><head><meta charset="UTF-8">
 <style>
@@ -1925,6 +1976,15 @@ function printBukti(r) {
       <td class="centang">${boxOff}</td>
       <td><strong>Akta Kelahiran</strong><br><small>Fotokopi</small></td>
       <td><small style="color:#888;">Diperiksa petugas</small></td>
+    </tr>
+    <tr>
+      <td class="centang">${bw === 'normal' ? boxOn : boxOff}</td>
+      <td><strong>Tes Buta Warna</strong></td>
+      <td>${bw === 'normal'
+          ? '<span class="status-ok">&#10003; Normal (tidak buta warna)</span>'
+          : (bw === 'buta_warna'
+              ? '<span class="status-fail">&#10007; Positif Buta Warna</span>'
+              : '<small style="color:#888;">Belum dites</small>')}</td>
     </tr>
   </tbody>
 </table>
