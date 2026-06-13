@@ -45,6 +45,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'prose
         $conn->prepare("UPDATE pendaftar SET status='gugur', catatan='Gugur: usia melebihi 21 tahun'
                         WHERE gelombang=? AND lolos_usia=0")->execute([$gelombang]);
 
+        // Gugur KK Cut-Off: tgl_kk melebihi 15 Juni 2025 (pas 15 Juni masih lolos; kosong tidak digugurkan)
+        // pin = override admin
+        $conn->prepare("UPDATE pendaftar SET status='gugur', catatan='Gugur: tanggal KK melebihi cut-off 15 Juni 2025'
+            WHERE gelombang=? AND tgl_kk IS NOT NULL AND tgl_kk > '2025-06-15'
+            AND is_pinned=0 AND status='diproses'")->execute([$gelombang]);
+
         // Gugur TKA di bawah minimum (hanya Reguler — Khusus & PKBM tanpa TKA; pin = override admin)
         $min_tka = (int)($g['min_tka'] ?? 0);
         if ($min_tka > 0) {
@@ -54,27 +60,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'prose
                 ->execute(["Gugur: nilai TKA di bawah minimum ({$min_tka})", $gelombang, $min_tka]);
         }
 
+        // Urutan seleksi per jalur (string konstan — aman dipakai di ORDER BY)
+        $order_by = [
+            'g1'       => 'usia DESC, nilai_akhir DESC',   // Gelombang 1: umur dulu, skor penentu seri
+            'zonasi'   => 'jarak_km ASC, usia DESC, nilai_akhir DESC',
+            'afirmasi' => 'usia DESC, nilai_akhir DESC',
+            'prestasi' => 'nilai_akhir DESC, usia DESC',
+        ];
+
+        // Helper: ambil ID terima untuk satu segmen (pinned dijamin lolos lebih dulu)
+        $ambilTerima = function ($jurusan, $kuota, $orderKey, $jalur = null)
+                        use ($conn, $gelombang, $order_by) {
+            $jcond = $jalur ? ' AND jalur=?' : '';
+            $pp = $jalur ? [$gelombang, $jurusan, $jalur] : [$gelombang, $jurusan];
+
+            $stPin = $conn->prepare("SELECT id FROM pendaftar
+                WHERE gelombang=? AND jurusan=? AND lolos_usia=1 AND is_pinned=1 AND status='diproses'{$jcond}");
+            $stPin->execute($pp);
+            $pinned = $stPin->fetchAll(PDO::FETCH_COLUMN);
+
+            $sisa = max(0, $kuota - count($pinned));
+            $stNorm = $conn->prepare("SELECT id FROM pendaftar
+                WHERE gelombang=? AND jurusan=? AND lolos_usia=1 AND is_pinned=0 AND status='diproses'{$jcond}
+                ORDER BY {$order_by[$orderKey]}");
+            $stNorm->execute($pp);
+            $normal = $stNorm->fetchAll(PDO::FETCH_COLUMN);
+
+            $terima = array_merge($pinned, array_slice($normal, 0, $sisa));
+            // unfilled = sisa kuota yang tidak terpakai (slot kosong)
+            $unfilled = max(0, $kuota - count($terima));
+            return ['terima' => $terima, 'unfilled' => $unfilled];
+        };
+
         $total_diterima = 0;
         foreach ($jurusan_list as $jurusan) {
-            // Ambil pinned dulu (pasti diterima)
-            $stmtPin = $conn->prepare("SELECT id FROM pendaftar
-                WHERE gelombang=? AND jurusan=? AND lolos_usia=1 AND is_pinned=1");
-            $stmtPin->execute([$gelombang, $jurusan]);
-            $pinned_ids = $stmtPin->fetchAll(PDO::FETCH_COLUMN);
+            $all_terima = [];
 
-            $sisa_kuota = max(0, $kuota_glm - count($pinned_ids));
-
-            // Sisanya (tidak pinned & belum gugur), urut nilai_akhir DESC
-            $stmtNorm = $conn->prepare("SELECT id FROM pendaftar
-                WHERE gelombang=? AND jurusan=? AND lolos_usia=1 AND is_pinned=0 AND status='diproses'
-                ORDER BY nilai_akhir DESC, usia DESC");
-            $stmtNorm->execute([$gelombang, $jurusan]);
-            $normal_ids = $stmtNorm->fetchAll(PDO::FETCH_COLUMN);
-
-            $terima_normal = array_slice($normal_ids, 0, $sisa_kuota);
-            $tolak_ids     = array_slice($normal_ids, $sisa_kuota);
-
-            $all_terima = array_merge($pinned_ids, $terima_normal);
+            if ($gelombang == 1) {
+                // Gelombang 1: satu daftar, umur dulu lalu skor
+                $res = $ambilTerima($jurusan, $kuota_glm, 'g1');
+                $all_terima = $res['terima'];
+            } else {
+                // Gelombang 2: multi-jalur, kuota dibagi rata 3
+                $base = intdiv($kuota_glm, 3);
+                $leftover = $kuota_glm - ($base * 3); // sisa pembagian → ke Prestasi
+                // Zonasi & Afirmasi dulu; slot kosong dialihkan ke Prestasi
+                $rz = $ambilTerima($jurusan, $base, 'zonasi',   'zonasi');
+                $ra = $ambilTerima($jurusan, $base, 'afirmasi', 'afirmasi');
+                $kuota_prestasi = $base + $leftover + $rz['unfilled'] + $ra['unfilled'];
+                $rp = $ambilTerima($jurusan, $kuota_prestasi, 'prestasi', 'prestasi');
+                $all_terima = array_merge($rz['terima'], $ra['terima'], $rp['terima']);
+            }
 
             if ($all_terima) {
                 $in = implode(',', array_fill(0, count($all_terima), '?'));
@@ -82,11 +118,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'prose
                      ->execute($all_terima);
                 $total_diterima += count($all_terima);
             }
-            if ($tolak_ids) {
-                $in = implode(',', array_fill(0, count($tolak_ids), '?'));
-                $conn->prepare("UPDATE pendaftar SET status='gugur', catatan='Nilai tidak mencapai kuota' WHERE id IN ($in)")
-                     ->execute($tolak_ids);
-            }
+            // Sisa yang masih 'diproses' (tidak lolos kuota jalur) → gugur
+            $conn->prepare("UPDATE pendaftar SET status='gugur', catatan='Tidak mencapai kuota'
+                WHERE gelombang=? AND jurusan=? AND lolos_usia=1 AND status='diproses'")
+                 ->execute([$gelombang, $jurusan]);
         }
 
         log_admin_action($conn, 'PROSES_RANKING',
@@ -119,7 +154,7 @@ $db_error = null;
 try {
     foreach ($target_jurusan as $jurusan) {
         $stmt = $conn->prepare("SELECT * FROM pendaftar WHERE gelombang=? AND jurusan=?
-                                ORDER BY is_pinned DESC, nilai_akhir DESC, usia DESC");
+                                ORDER BY is_pinned DESC, nilai_akhir DESC");
         $stmt->execute([$fGel, $jurusan]);
         $list = $stmt->fetchAll();
 
@@ -138,6 +173,117 @@ try {
     }
 } catch (PDOException $e) {
     $db_error = $e->getMessage();
+}
+
+// ── Helper seleksi (mirror logika proses) ────────────────────────────────────
+$KK_CUTOFF = '2025-06-15';
+// Gugur bila usia > 21 ATAU tanggal KK melebihi cut-off
+function rank_is_gugur(array $r, string $cutoff): bool {
+    if (!$r['lolos_usia']) return true;
+    if (!empty($r['tgl_kk']) && $r['tgl_kk'] > $cutoff) return true;
+    return false;
+}
+function rank_gugur_reason(array $r, string $cutoff): string {
+    if (!$r['lolos_usia']) return 'Usia > 21 tahun';
+    if (!empty($r['tgl_kk']) && $r['tgl_kk'] > $cutoff) return 'KK melebihi cut-off';
+    return 'Gugur';
+}
+// Urutkan kandidat (pinned selalu di atas), lalu metrik per jalur/segmen
+function rank_sort(array $list, string $key): array {
+    usort($list, function ($a, $b) use ($key) {
+        if ($a['is_pinned'] != $b['is_pinned']) return ($b['is_pinned'] <=> $a['is_pinned']);
+        if ($key === 'zonasi') {
+            $ja = isset($a['jarak_km']) ? (float)$a['jarak_km'] : 9999;
+            $jb = isset($b['jarak_km']) ? (float)$b['jarak_km'] : 9999;
+            if ($ja != $jb) return $ja <=> $jb;                       // terdekat menang
+            if ($a['usia'] != $b['usia']) return $b['usia'] <=> $a['usia'];
+            return (float)$b['nilai_akhir'] <=> (float)$a['nilai_akhir'];
+        }
+        if ($key === 'prestasi') {
+            if ((float)$a['nilai_akhir'] != (float)$b['nilai_akhir'])
+                return (float)$b['nilai_akhir'] <=> (float)$a['nilai_akhir']; // skor tertinggi
+            return $b['usia'] <=> $a['usia'];
+        }
+        // 'g1' & 'afirmasi' → umur dulu (tertua), skor penentu seri
+        if ($a['usia'] != $b['usia']) return $b['usia'] <=> $a['usia'];
+        return (float)$b['nilai_akhir'] <=> (float)$a['nilai_akhir'];
+    });
+    return $list;
+}
+// JSON data baris untuk modal detail (termasuk field jalur/jarak/status ortu/buta warna)
+function rank_row_json(array $r, array $raport_map): string {
+    return json_encode([
+        'id'=>$r['id'],'no_pendaftaran'=>$r['no_pendaftaran'],'nama'=>$r['nama'],'nisn'=>$r['nisn'],
+        'tanggal_lahir'=>$r['tanggal_lahir'],'usia'=>$r['usia'],'jenis_kelamin'=>$r['jenis_kelamin'],
+        'asal_sekolah'=>$r['asal_sekolah'],'no_telp'=>$r['no_telp'],'alamat'=>$r['alamat'],
+        'sistem_pendidikan'=>$r['sistem_pendidikan'],'jurusan'=>$r['jurusan'],
+        'nilai_raport'=>$r['nilai_raport'],'nilai_tka'=>$r['nilai_tka'],'nilai_akhir'=>$r['nilai_akhir'],
+        'lolos_usia'=>$r['lolos_usia'],'is_pinned'=>$r['is_pinned'],'status'=>$r['status'],
+        'catatan'=>$r['catatan'],'gelombang'=>$r['gelombang'],
+        'jalur'=>$r['jalur'] ?? 'prestasi','jarak_km'=>$r['jarak_km'] ?? null,
+        'status_ortu'=>$r['status_ortu'] ?? 'tidak','buta_warna'=>$r['buta_warna'] ?? 'belum',
+        'kelurahan'=>$r['kelurahan'] ?? null,
+        'raport'=>$raport_map[$r['id']] ?? [],
+    ], JSON_UNESCAPED_UNICODE);
+}
+// Render satu baris <tr>. $variant: 'top' | 'below' | 'gugur'. $hiddenClass dipakai utk toggle.
+function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, string $fJurusan,
+                         string $variant, string $hiddenClass = '', string $infoHtml = '', string $gugurReason = ''): void {
+    $is_pinned = (bool)$r['is_pinned'];
+    $badge = STATUS_BADGE[$r['status']] ?? 'bg-secondary';
+    $label = STATUS_LABEL[$r['status']] ?? $r['status'];
+    $rj = htmlspecialchars(rank_row_json($r, $raport_map), ENT_QUOTES);
+    if ($variant === 'gugur') {
+        $trClass = $hiddenClass; $style = 'display:none; background:#fff5f5;';
+    } elseif ($variant === 'below') {
+        $trClass = trim($hiddenClass . ' text-muted'); $style = 'display:none; background:#f8f9fa;';
+    } else {
+        $trClass = $is_pinned ? 'table-warning'
+                 : ($r['status']==='terima' ? 'table-success'
+                 : ($r['status']==='gugur' ? 'table-danger opacity-75' : ''));
+        $style = '';
+    }
+    $td = $variant === 'gugur' ? 'text-danger' : '';
+    ?>
+    <tr class="<?= $trClass ?>" style="<?= $style ?>">
+        <td class="text-center small <?= $td ?>"><?= $variant==='gugur' ? '—' : $rank ?></td>
+        <td class="small <?= $td ?>"><?= htmlspecialchars($r['no_pendaftaran']) ?></td>
+        <td class="<?= $td ?>">
+            <?= htmlspecialchars($r['nama']) ?>
+            <?php if ($is_pinned): ?><i class="bi bi-pin-fill text-warning ms-1" title="Pinned"></i><?php endif; ?>
+            <?php if ($variant==='gugur'): ?><i class="bi bi-exclamation-triangle-fill text-danger ms-1"></i><?php endif; ?>
+            <?php if ($infoHtml): ?><div class="mt-1"><?= $infoHtml ?></div><?php endif; ?>
+            <?php if ($variant==='gugur' && $gugurReason): ?><div class="small text-danger"><?= htmlspecialchars($gugurReason) ?></div><?php endif; ?>
+        </td>
+        <td class="small <?= $td ?>"><?= htmlspecialchars($r['nisn']) ?></td>
+        <td class="text-center <?= $td ?>"><?= $r['jenis_kelamin'] ?></td>
+        <td class="text-center <?= $td ?>"><?= number_format($r['nilai_raport'], 2) ?></td>
+        <td class="text-center <?= $td ?>"><?= number_format($r['nilai_tka'], 2) ?></td>
+        <td class="text-center fw-bold <?= $td ?>"><?= number_format($r['nilai_akhir'], 2) ?></td>
+        <td class="text-center small <?= $td ?> <?= $variant==='gugur'?'fw-bold':'' ?>"><?= $r['usia'] ?> thn</td>
+        <td><span class="badge <?= $variant==='gugur'?'bg-danger':$badge ?>"><?= $variant==='gugur'?'Gugur':$label ?></span></td>
+        <td class="text-center">
+            <div class="d-flex gap-1 justify-content-center">
+                <button class="btn btn-xs btn-outline-<?= $variant==='gugur'?'danger':'primary' ?> py-0 px-1" style="font-size:0.75rem"
+                        onclick='openViewModal(<?= $rj ?>)'><i class="bi bi-eye"></i></button>
+                <?php if ($variant !== 'gugur'): ?>
+                <form method="POST" class="d-inline">
+                    <input type="hidden" name="action" value="pin">
+                    <input type="hidden" name="pendaftar_id" value="<?= $r['id'] ?>">
+                    <input type="hidden" name="pin_val" value="<?= $is_pinned ? 0 : 1 ?>">
+                    <input type="hidden" name="gelombang" value="<?= $fGel ?>">
+                    <input type="hidden" name="jurusan" value="<?= htmlspecialchars($fJurusan) ?>">
+                    <button type="submit" class="btn btn-xs py-0 px-1 <?= $is_pinned ? 'btn-warning' : 'btn-outline-secondary' ?>"
+                            style="font-size:0.75rem" title="<?= $is_pinned ? 'Lepas PIN' : 'PIN (jamin diterima)' ?>"
+                            onclick="return confirm('<?= $is_pinned ? 'Lepas PIN siswa ini?' : 'PIN siswa ini? Dijamin diterima & tidak tampil di publik.' ?>')">
+                        <i class="bi bi-pin<?= $is_pinned ? '-fill' : '' ?>"></i>
+                    </button>
+                </form>
+                <?php endif; ?>
+            </div>
+        </td>
+    </tr>
+    <?php
 }
 ?>
 
@@ -187,6 +333,11 @@ try {
     Ambil <strong><?= $kuota_glm ?> terbaik</strong> per jurusan |
     Status publish: <?= $g['is_published'] ? '<span class="badge bg-success">Published</span>' : '<span class="badge bg-secondary">Belum</span>' ?>
     <span class="ms-3 text-warning fw-semibold"><i class="bi bi-pin-fill me-1"></i>Siswa ber-PIN dijamin diterima & tidak tampil di publik</span>
+    <?php if ((int)$fGel === 1): ?>
+    <div class="mt-1"><i class="bi bi-info-circle me-1"></i>Urutan: <strong>umur tertua</strong> (≤21) menang, nilai akhir penentu seri. KK &gt; 15 Juni 2025 = gugur.</div>
+    <?php else: ?>
+    <div class="mt-1"><i class="bi bi-info-circle me-1"></i>Kuota dibagi rata 3 jalur: <strong>Zonasi</strong> (jarak terdekat), <strong>Afirmasi</strong> (umur tertua), <strong>Prestasi</strong> (nilai tertinggi). Sisa kuota jalur dialihkan ke Prestasi. KK &gt; 15 Juni 2025 = gugur.</div>
+    <?php endif; ?>
 </div>
 <?php endif; ?>
 
@@ -209,31 +360,47 @@ try {
     $diterima_j = count(array_filter($list, fn($r) => $r['status']==='terima'));
     $pinned_count = count(array_filter($list, fn($r) => $r['is_pinned']));
 
-    // Pisahkan: lolos_usia vs gugur_usia
-    $lolos  = array_filter($list, fn($r) => $r['lolos_usia']);
-    $gugur  = array_filter($list, fn($r) => !$r['lolos_usia']);
-
-    // Dalam lolos: pinned dulu, lalu urut nilai — sudah terurut dari query (is_pinned DESC, nilai_akhir DESC)
-    // Top = dalam kuota, below = di luar kuota
-    $lolos_arr  = array_values($lolos);
-    $top_arr    = [];
-    $below_arr  = [];
-    $pin_count_so_far = 0;
-    $normal_count = 0;
-    foreach ($lolos_arr as $r) {
-        if ($r['is_pinned']) {
-            $top_arr[] = $r;
-            $pin_count_so_far++;
-        } else {
-            $normal_count++;
-            if ($pin_count_so_far + $normal_count <= $kuota_glm) {
-                $top_arr[] = $r;
-            } else {
-                $below_arr[] = $r;
-            }
-        }
-    }
+    // Eligible (lolos usia & KK) vs gugur
+    $eligible  = array_values(array_filter($list, fn($r) => !rank_is_gugur($r, $KK_CUTOFF)));
+    $gugur_arr = array_values(array_filter($list, fn($r) =>  rank_is_gugur($r, $KK_CUTOFF)));
     $jurusan_id = preg_replace('/[^a-z0-9]/', '', strtolower($short[$jurusan]));
+
+    // Susun segmen: G1 = satu daftar; G2 = tiga jalur dgn kuota dibagi rata (sisa → Prestasi)
+    if ((int)$fGel === 2) {
+        $byJalur = ['zonasi' => [], 'afirmasi' => [], 'prestasi' => []];
+        foreach ($eligible as $r) {
+            $jl = $r['jalur'] ?? 'prestasi';
+            if (!isset($byJalur[$jl])) $jl = 'prestasi';
+            $byJalur[$jl][] = $r;
+        }
+        $base = intdiv($kuota_glm, 3);
+        $leftover = $kuota_glm - $base * 3;
+        $unfilledZ = max(0, $base - count($byJalur['zonasi']));
+        $unfilledA = max(0, $base - count($byJalur['afirmasi']));
+        $kuotaP = $base + $leftover + $unfilledZ + $unfilledA;
+        $segments = [
+            ['key'=>'zonasi','label'=>'Jalur Zonasi','icon'=>'bi-geo-alt-fill','color'=>'primary','info'=>'jarak','list'=>rank_sort($byJalur['zonasi'],'zonasi'),'kuota'=>$base],
+            ['key'=>'afirmasi','label'=>'Jalur Afirmasi (Yatim/Piatu)','icon'=>'bi-heart-fill','color'=>'danger','info'=>'ortu','list'=>rank_sort($byJalur['afirmasi'],'afirmasi'),'kuota'=>$base],
+            ['key'=>'prestasi','label'=>'Jalur Prestasi','icon'=>'bi-trophy-fill','color'=>'success','info'=>'','list'=>rank_sort($byJalur['prestasi'],'prestasi'),'kuota'=>$kuotaP],
+        ];
+    } else {
+        $segments = [
+            ['key'=>'g1','label'=>'','icon'=>'','color'=>'success','info'=>'','list'=>rank_sort($eligible,'g1'),'kuota'=>$kuota_glm],
+        ];
+    }
+
+    // Builder badge info (jarak / status ortu) untuk kolom Nama
+    $mkInfo = function (array $r, string $type): string {
+        if ($type === 'jarak') {
+            $j = isset($r['jarak_km']) && $r['jarak_km'] !== null ? number_format($r['jarak_km'], 2) . ' km' : '—';
+            return '<span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle"><i class="bi bi-geo-alt me-1"></i>' . $j . '</span>';
+        }
+        if ($type === 'ortu') {
+            $lbl = STATUS_ORTU_LABEL[$r['status_ortu'] ?? 'tidak'] ?? '-';
+            return '<span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle"><i class="bi bi-heart me-1"></i>' . htmlspecialchars($lbl) . '</span>';
+        }
+        return '';
+    };
 ?>
 <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
@@ -264,219 +431,67 @@ try {
             </tr>
         </thead>
         <tbody>
-        <?php if (empty($lolos_arr) && empty($gugur)): ?>
+        <?php if (empty($eligible) && empty($gugur_arr)): ?>
             <tr><td colspan="11" class="text-center py-3 text-muted">Belum ada pendaftar untuk jurusan ini.</td></tr>
         <?php else:
-            $rank = 0;
-            // ── Baris DALAM kuota ──────────────────────────────────────────
-            foreach ($top_arr as $r):
-                $rank++;
-                $is_pinned = (bool)$r['is_pinned'];
-                $badge = STATUS_BADGE[$r['status']] ?? 'bg-secondary';
-                $label = STATUS_LABEL[$r['status']] ?? $r['status'];
-                $rowClass = $is_pinned ? 'table-warning' :
-                            ($r['status']==='terima' ? 'table-success' :
-                            ($r['status']==='gugur' ? 'table-danger opacity-75' : ''));
-                $raport_json = json_encode($raport_map[$r['id']] ?? [], JSON_UNESCAPED_UNICODE);
-                $row_json = json_encode([
-                    'id'                => $r['id'],
-                    'no_pendaftaran'    => $r['no_pendaftaran'],
-                    'nama'              => $r['nama'],
-                    'nisn'              => $r['nisn'],
-                    'tanggal_lahir'     => $r['tanggal_lahir'],
-                    'usia'              => $r['usia'],
-                    'jenis_kelamin'     => $r['jenis_kelamin'],
-                    'asal_sekolah'      => $r['asal_sekolah'],
-                    'no_telp'           => $r['no_telp'],
-                    'alamat'            => $r['alamat'],
-                    'sistem_pendidikan' => $r['sistem_pendidikan'],
-                    'jurusan'           => $r['jurusan'],
-                    'nilai_raport'      => $r['nilai_raport'],
-                    'nilai_tka'         => $r['nilai_tka'],
-                    'nilai_akhir'       => $r['nilai_akhir'],
-                    'lolos_usia'        => $r['lolos_usia'],
-                    'is_pinned'         => $r['is_pinned'],
-                    'status'            => $r['status'],
-                    'catatan'           => $r['catatan'],
-                    'gelombang'         => $r['gelombang'],
-                    'raport'            => $raport_map[$r['id']] ?? [],
-                ], JSON_UNESCAPED_UNICODE);
-            ?>
-            <tr class="<?= $rowClass ?>">
-                <td class="text-center text-muted small"><?= $rank ?></td>
-                <td class="small"><?= htmlspecialchars($r['no_pendaftaran']) ?></td>
-                <td>
-                    <?= htmlspecialchars($r['nama']) ?>
-                    <?php if ($is_pinned): ?><i class="bi bi-pin-fill text-warning ms-1" title="Pinned — dijamin diterima"></i><?php endif; ?>
-                </td>
-                <td class="small"><?= htmlspecialchars($r['nisn']) ?></td>
-                <td class="text-center"><?= $r['jenis_kelamin'] ?></td>
-                <td class="text-center"><?= number_format($r['nilai_raport'], 2) ?></td>
-                <td class="text-center"><?= number_format($r['nilai_tka'], 2) ?></td>
-                <td class="text-center fw-bold"><?= number_format($r['nilai_akhir'], 2) ?></td>
-                <td class="text-center small"><?= $r['usia'] ?> thn</td>
-                <td><span class="badge <?= $badge ?>"><?= $label ?></span></td>
-                <td class="text-center">
-                    <div class="d-flex gap-1 justify-content-center">
-                        <button class="btn btn-xs btn-outline-primary py-0 px-1" style="font-size:0.75rem"
-                                onclick='openViewModal(<?= htmlspecialchars($row_json, ENT_QUOTES) ?>)'>
-                            <i class="bi bi-eye"></i>
-                        </button>
-                        <form method="POST" class="d-inline">
-                            <input type="hidden" name="action" value="pin">
-                            <input type="hidden" name="pendaftar_id" value="<?= $r['id'] ?>">
-                            <input type="hidden" name="pin_val" value="<?= $is_pinned ? 0 : 1 ?>">
-                            <input type="hidden" name="gelombang" value="<?= $fGel ?>">
-                            <input type="hidden" name="jurusan" value="<?= htmlspecialchars($fJurusan) ?>">
-                            <button type="submit" class="btn btn-xs py-0 px-1 <?= $is_pinned ? 'btn-warning' : 'btn-outline-secondary' ?>"
-                                    style="font-size:0.75rem"
-                                    title="<?= $is_pinned ? 'Lepas PIN' : 'PIN (jamin diterima)' ?>"
-                                    onclick="return confirm('<?= $is_pinned ? 'Lepas PIN siswa ini?' : 'PIN siswa ini? Siswa ber-PIN dijamin diterima dan tidak tampil di publik.' ?>')">
-                                <i class="bi bi-pin<?= $is_pinned ? '-fill' : '' ?>"></i>
+            foreach ($segments as $seg):
+                // Split top/below per kuota segmen (pinned selalu masuk top)
+                $top = []; $below = []; $pin_so = 0; $norm = 0;
+                foreach ($seg['list'] as $r) {
+                    if ($r['is_pinned']) { $top[] = $r; $pin_so++; }
+                    else { $norm++; if ($pin_so + $norm <= $seg['kuota']) $top[] = $r; else $below[] = $r; }
+                }
+                $segId = $jurusan_id . '-' . $seg['key'];
+                if ($seg['label']): ?>
+                <tr class="table-<?= $seg['color'] ?>">
+                    <td colspan="11" class="py-1">
+                        <span class="fw-semibold"><i class="bi <?= $seg['icon'] ?> me-1"></i><?= htmlspecialchars($seg['label']) ?></span>
+                        <span class="small text-muted ms-2">Kuota <?= $seg['kuota'] ?> · <?= count($seg['list']) ?> pendaftar</span>
+                    </td>
+                </tr>
+                <?php endif;
+                if (empty($seg['list'])): ?>
+                    <tr><td colspan="11" class="text-center small text-muted py-2">— tidak ada pendaftar —</td></tr>
+                <?php else:
+                    $rank = 0;
+                    foreach ($top as $r): $rank++;
+                        rank_render_row($r, $rank, $raport_map, $fGel, $fJurusan, 'top', '', $mkInfo($r, $seg['info']));
+                    endforeach;
+                    if (!empty($below)): ?>
+                    <tr>
+                        <td colspan="11" class="p-0">
+                            <button class="btn btn-sm w-100 rounded-0 py-1 text-muted bg-light border-0 border-top border-bottom"
+                                    style="font-size:0.8rem" onclick="toggleRows('below-<?= $segId ?>','chev-<?= $segId ?>')">
+                                <i class="bi bi-chevron-down me-1" id="chev-<?= $segId ?>"></i>
+                                ── Batas Kuota (<?= $seg['kuota'] ?> terbaik) ──
+                                <span class="text-danger fw-semibold"><?= count($below) ?> tidak lolos</span> — klik untuk tampilkan
                             </button>
-                        </form>
-                    </div>
-                </td>
-            </tr>
-            <?php endforeach;
+                        </td>
+                    </tr>
+                    <?php foreach ($below as $r): $rank++;
+                        rank_render_row($r, $rank, $raport_map, $fGel, $fJurusan, 'below', 'below-'.$segId, $mkInfo($r, $seg['info']));
+                    endforeach;
+                    endif;
+                endif;
+            endforeach;
 
-            // ── Garis batas kuota ──────────────────────────────────────────
-            if (!empty($below_arr)): ?>
-            <tr>
-                <td colspan="11" class="p-0">
-                    <button class="btn btn-sm w-100 rounded-0 py-1 text-muted bg-light border-0 border-top border-bottom"
-                            style="font-size:0.8rem"
-                            onclick="toggleBelowKuota('<?= $jurusan_id ?>')">
-                        <i class="bi bi-chevron-down me-1" id="chevron-<?= $jurusan_id ?>"></i>
-                        ── Batas Kuota (<?= $kuota_glm ?> terbaik) ──
-                        <span class="text-danger fw-semibold"><?= count($below_arr) ?> tidak lolos</span>
-                        — klik untuk tampilkan
-                    </button>
-                </td>
-            </tr>
-            <?php
-            // ── Baris DI LUAR kuota (collapsed, abu-abu) ──────────────────
-            foreach ($below_arr as $r):
-                $rank++;
-                $badge = STATUS_BADGE[$r['status']] ?? 'bg-secondary';
-                $label = STATUS_LABEL[$r['status']] ?? $r['status'];
-                $row_json = json_encode([
-                    'id'                => $r['id'],
-                    'no_pendaftaran'    => $r['no_pendaftaran'],
-                    'nama'              => $r['nama'],
-                    'nisn'              => $r['nisn'],
-                    'tanggal_lahir'     => $r['tanggal_lahir'],
-                    'usia'              => $r['usia'],
-                    'jenis_kelamin'     => $r['jenis_kelamin'],
-                    'asal_sekolah'      => $r['asal_sekolah'],
-                    'no_telp'           => $r['no_telp'],
-                    'alamat'            => $r['alamat'],
-                    'sistem_pendidikan' => $r['sistem_pendidikan'],
-                    'jurusan'           => $r['jurusan'],
-                    'nilai_raport'      => $r['nilai_raport'],
-                    'nilai_tka'         => $r['nilai_tka'],
-                    'nilai_akhir'       => $r['nilai_akhir'],
-                    'lolos_usia'        => $r['lolos_usia'],
-                    'is_pinned'         => $r['is_pinned'],
-                    'status'            => $r['status'],
-                    'catatan'           => $r['catatan'],
-                    'gelombang'         => $r['gelombang'],
-                    'raport'            => $raport_map[$r['id']] ?? [],
-                ], JSON_UNESCAPED_UNICODE);
-            ?>
-            <tr class="below-kuota-<?= $jurusan_id ?> text-muted" style="display:none; background:#f8f9fa;">
-                <td class="text-center small"><?= $rank ?></td>
-                <td class="small"><?= htmlspecialchars($r['no_pendaftaran']) ?></td>
-                <td><?= htmlspecialchars($r['nama']) ?></td>
-                <td class="small"><?= htmlspecialchars($r['nisn']) ?></td>
-                <td class="text-center"><?= $r['jenis_kelamin'] ?></td>
-                <td class="text-center"><?= number_format($r['nilai_raport'], 2) ?></td>
-                <td class="text-center"><?= number_format($r['nilai_tka'], 2) ?></td>
-                <td class="text-center fw-bold"><?= number_format($r['nilai_akhir'], 2) ?></td>
-                <td class="text-center small"><?= $r['usia'] ?> thn</td>
-                <td><span class="badge <?= $badge ?>"><?= $label ?></span></td>
-                <td class="text-center">
-                    <div class="d-flex gap-1 justify-content-center">
-                        <button class="btn btn-xs btn-outline-secondary py-0 px-1" style="font-size:0.75rem"
-                                onclick='openViewModal(<?= htmlspecialchars($row_json, ENT_QUOTES) ?>)'>
-                            <i class="bi bi-eye"></i>
-                        </button>
-                        <form method="POST" class="d-inline">
-                            <input type="hidden" name="action" value="pin">
-                            <input type="hidden" name="pendaftar_id" value="<?= $r['id'] ?>">
-                            <input type="hidden" name="pin_val" value="1">
-                            <input type="hidden" name="gelombang" value="<?= $fGel ?>">
-                            <input type="hidden" name="jurusan" value="<?= htmlspecialchars($fJurusan) ?>">
-                            <button type="submit" class="btn btn-xs btn-outline-secondary py-0 px-1"
-                                    style="font-size:0.75rem" title="PIN (jamin diterima)"
-                                    onclick="return confirm('PIN siswa ini? Siswa ber-PIN dijamin diterima dan tidak tampil di publik.')">
-                                <i class="bi bi-pin"></i>
-                            </button>
-                        </form>
-                    </div>
-                </td>
-            </tr>
-            <?php endforeach; endif;
-
-            // ── Gugur Usia (collapsed, merah pucat) ───────────────────────
-            $gugur_arr = array_values($gugur);
+            // ── Gugur (Usia / KK) — collapsed, per jurusan ──────────────────
             if (!empty($gugur_arr)): ?>
             <tr>
                 <td colspan="11" class="p-0">
                     <button class="btn btn-sm w-100 rounded-0 py-1 text-danger bg-danger bg-opacity-10 border-0 border-top"
-                            style="font-size:0.8rem"
-                            onclick="toggleGugur('<?= $jurusan_id ?>')">
-                        <i class="bi bi-chevron-down me-1" id="chevron-gugur-<?= $jurusan_id ?>"></i>
+                            style="font-size:0.8rem" onclick="toggleRows('gugur-<?= $jurusan_id ?>','chev-gugur-<?= $jurusan_id ?>')">
+                        <i class="bi bi-chevron-down me-1" id="chev-gugur-<?= $jurusan_id ?>"></i>
                         <i class="bi bi-exclamation-triangle me-1"></i>
-                        <?= count($gugur_arr) ?> Pendaftar Gugur (Usia &gt; 21 Tahun) — klik untuk tampilkan
+                        <?= count($gugur_arr) ?> Pendaftar Gugur (Usia / KK) — klik untuk tampilkan
                     </button>
                 </td>
             </tr>
             <?php foreach ($gugur_arr as $r):
-                $row_json = json_encode([
-                    'id'             => $r['id'],
-                    'no_pendaftaran' => $r['no_pendaftaran'],
-                    'nama'           => $r['nama'],
-                    'nisn'           => $r['nisn'],
-                    'tanggal_lahir'  => $r['tanggal_lahir'],
-                    'usia'           => $r['usia'],
-                    'jenis_kelamin'  => $r['jenis_kelamin'],
-                    'asal_sekolah'   => $r['asal_sekolah'],
-                    'no_telp'        => $r['no_telp'],
-                    'alamat'         => $r['alamat'],
-                    'sistem_pendidikan' => $r['sistem_pendidikan'],
-                    'jurusan'        => $r['jurusan'],
-                    'nilai_raport'   => $r['nilai_raport'],
-                    'nilai_tka'      => $r['nilai_tka'],
-                    'nilai_akhir'    => $r['nilai_akhir'],
-                    'lolos_usia'     => $r['lolos_usia'],
-                    'is_pinned'      => $r['is_pinned'],
-                    'status'         => $r['status'],
-                    'catatan'        => $r['catatan'],
-                    'gelombang'      => $r['gelombang'],
-                    'raport'         => $raport_map[$r['id']] ?? [],
-                ], JSON_UNESCAPED_UNICODE);
-            ?>
-            <tr class="gugur-usia-<?= $jurusan_id ?>" style="display:none; background:#fff5f5;">
-                <td class="text-center small text-danger">—</td>
-                <td class="small text-danger"><?= htmlspecialchars($r['no_pendaftaran']) ?></td>
-                <td class="text-danger"><?= htmlspecialchars($r['nama']) ?> <i class="bi bi-exclamation-triangle-fill text-danger ms-1"></i></td>
-                <td class="small"><?= htmlspecialchars($r['nisn']) ?></td>
-                <td class="text-center"><?= $r['jenis_kelamin'] ?></td>
-                <td class="text-center"><?= number_format($r['nilai_raport'], 2) ?></td>
-                <td class="text-center"><?= number_format($r['nilai_tka'], 2) ?></td>
-                <td class="text-center fw-bold text-danger"><?= number_format($r['nilai_akhir'], 2) ?></td>
-                <td class="text-center small text-danger fw-bold"><?= $r['usia'] ?> thn</td>
-                <td><span class="badge bg-danger">Gugur</span></td>
-                <td class="text-center">
-                    <button class="btn btn-xs btn-outline-danger py-0 px-1" style="font-size:0.75rem"
-                            onclick='openViewModal(<?= htmlspecialchars($row_json, ENT_QUOTES) ?>)'>
-                        <i class="bi bi-eye"></i>
-                    </button>
-                </td>
-            </tr>
-            <?php endforeach; endif; ?>
-        <?php endif; ?>
+                rank_render_row($r, 0, $raport_map, $fGel, $fJurusan, 'gugur', 'gugur-'.$jurusan_id, '', rank_gugur_reason($r, $KK_CUTOFF));
+            endforeach;
+            endif;
+        endif; ?>
         </tbody>
     </table>
     </div>
@@ -506,18 +521,10 @@ try {
 </div>
 
 <script>
-// ── Toggle collapsed rows ────────────────────────────────────────────────────
-function toggleBelowKuota(id) {
-    const rows = document.querySelectorAll('.below-kuota-' + id);
-    const chevron = document.getElementById('chevron-' + id);
-    const hidden = rows[0] && rows[0].style.display === 'none';
-    rows.forEach(r => r.style.display = hidden ? '' : 'none');
-    if (chevron) chevron.className = 'bi me-1 ' + (hidden ? 'bi-chevron-up' : 'bi-chevron-down');
-}
-
-function toggleGugur(id) {
-    const rows = document.querySelectorAll('.gugur-usia-' + id);
-    const chevron = document.getElementById('chevron-gugur-' + id);
+// ── Toggle collapsed rows (generik: by class + chevron id) ───────────────────
+function toggleRows(rowClass, chevId) {
+    const rows = document.querySelectorAll('.' + rowClass);
+    const chevron = document.getElementById(chevId);
     const hidden = rows[0] && rows[0].style.display === 'none';
     rows.forEach(r => r.style.display = hidden ? '' : 'none');
     if (chevron) chevron.className = 'bi me-1 ' + (hidden ? 'bi-chevron-up' : 'bi-chevron-down');
@@ -554,6 +561,10 @@ function openViewModal(d) {
                 <tr><th class="text-muted fw-normal">No. Telp</th><td>${esc(d.no_telp) || '-'}</td></tr>
                 <tr><th class="text-muted fw-normal">Alamat</th><td>${esc(d.alamat) || '-'}</td></tr>
                 <tr><th class="text-muted fw-normal">Status</th><td><span class="badge ${badge}">${d.status}</span></td></tr>
+                ${d.gelombang == 2 ? `<tr><th class="text-muted fw-normal">Jalur</th><td>${jalurLabel(d.jalur)}</td></tr>` : ''}
+                ${d.gelombang == 2 ? `<tr><th class="text-muted fw-normal">Jarak Zonasi</th><td>${d.jarak_km != null && d.jarak_km !== '' ? parseFloat(d.jarak_km).toFixed(2) + ' km' : '-'}</td></tr>` : ''}
+                ${d.gelombang == 2 ? `<tr><th class="text-muted fw-normal">Status Ortu</th><td>${ortuLabel(d.status_ortu)}</td></tr>` : ''}
+                <tr><th class="text-muted fw-normal">Tes Buta Warna</th><td>${bwLabel(d.buta_warna)}</td></tr>
             </table>
         </div>
     </div>
@@ -594,6 +605,19 @@ function openViewModal(d) {
 function esc(s) {
     if (!s) return '';
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function jalurLabel(j) {
+    const m = { zonasi: '<span class="badge bg-primary">Zonasi</span>', afirmasi: '<span class="badge bg-danger">Afirmasi</span>', prestasi: '<span class="badge bg-success">Prestasi</span>' };
+    return m[j] || '<span class="badge bg-success">Prestasi</span>';
+}
+function ortuLabel(s) {
+    const m = { tidak: 'Lengkap', yatim: 'Yatim', piatu: 'Piatu', yatim_piatu: 'Yatim & Piatu' };
+    return m[s] || 'Lengkap';
+}
+function bwLabel(b) {
+    if (b === 'normal') return '<span class="text-success">Normal</span>';
+    if (b === 'buta_warna') return '<span class="text-danger">Buta Warna</span>';
+    return '<span class="text-muted">Belum dites</span>';
 }
 
 function buildRaportTableRegular(raport) {
