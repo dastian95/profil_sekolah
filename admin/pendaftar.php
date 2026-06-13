@@ -414,11 +414,50 @@ if ($rows) {
         $raport_per_pendaftar[$r['pendaftar_id']][$r['mata_pelajaran']][(int)$r['semester']] = (float)$r['nilai'];
     }
 }
+
+// Map antrian/loket per pendaftar — nomor antrian + nama loket dari meja yang mengisi data.
+// Prioritaskan fase 2 (input data); fallback ke entri terbaru bila hanya fase 1.
+$antrian_per_pendaftar = [];
+if ($rows) {
+    $ids = array_column($rows, 'id');
+    $in = implode(',', array_fill(0, count($ids), '?'));
+    try {
+        $aq = $conn->prepare("SELECT a.pendaftar_id, a.nomor, a.fase, m.nomor_meja, m.nama AS meja_nama
+            FROM antrian a LEFT JOIN meja m ON m.id = a.meja_id
+            WHERE a.pendaftar_id IN ($in)
+            ORDER BY a.fase DESC, a.id DESC");
+        $aq->execute($ids);
+        foreach ($aq as $a) {
+            $pid = (int)$a['pendaftar_id'];
+            if (isset($antrian_per_pendaftar[$pid])) continue; // ambil yang fase tertinggi/terbaru saja
+            $antrian_per_pendaftar[$pid] = [
+                'nomor'     => 'SSG' . str_pad($a['nomor'], 3, '0', STR_PAD_LEFT),
+                'meja'      => $a['meja_nama'] ?: ($a['nomor_meja'] ? 'Loket ' . $a['nomor_meja'] : null),
+                'nomor_meja'=> $a['nomor_meja'] !== null ? (int)$a['nomor_meja'] : null,
+            ];
+        }
+    } catch (PDOException $e) { /* tabel antrian belum ada — abaikan */ }
+}
 // Load print data jika ada flash print_id dari PRG
 if ($pend_print_id > 0) {
     $ps = $conn->prepare("SELECT * FROM pendaftar WHERE id=?");
     $ps->execute([$pend_print_id]);
     $printAfterSave = $ps->fetch(PDO::FETCH_ASSOC) ?: null;
+    if ($printAfterSave) {
+        try {
+            $aq = $conn->prepare("SELECT a.nomor, m.nomor_meja, m.nama AS meja_nama
+                FROM antrian a LEFT JOIN meja m ON m.id = a.meja_id
+                WHERE a.pendaftar_id = ? ORDER BY a.fase DESC, a.id DESC LIMIT 1");
+            $aq->execute([$pend_print_id]);
+            if ($ar = $aq->fetch(PDO::FETCH_ASSOC)) {
+                $printAfterSave['_antrian'] = [
+                    'nomor'      => 'SSG' . str_pad($ar['nomor'], 3, '0', STR_PAD_LEFT),
+                    'meja'       => $ar['meja_nama'] ?: ($ar['nomor_meja'] ? 'Loket ' . $ar['nomor_meja'] : null),
+                    'nomor_meja' => $ar['nomor_meja'] !== null ? (int)$ar['nomor_meja'] : null,
+                ];
+            }
+        } catch (PDOException $e) { /* abaikan */ }
+    }
 }
 
 // Auto-open modal Tambah (dari tombol "Daftarkan Sekarang" panel meja antrian)
@@ -511,7 +550,7 @@ if ($edit_id_get > 0) {
     <table class="table table-hover mb-0">
         <thead>
             <tr>
-                <th>No. Daftar</th><th>Nama</th><th>NISN</th><th class="text-center">L/P</th>
+                <th>No. Daftar</th><th>Nama</th><th class="text-center">Loket / Antrian</th><th>NISN</th><th class="text-center">L/P</th>
                 <th>Jurusan</th><th class="text-center">Glm</th>
                 <th class="text-center">Raport</th><th class="text-center">TKA</th>
                 <th class="text-center">Nilai Akhir</th><th class="text-center">Usia</th>
@@ -520,7 +559,7 @@ if ($edit_id_get > 0) {
         </thead>
         <tbody>
         <?php if (empty($rows)): ?>
-            <tr><td colspan="12" class="text-center py-4 text-muted">Tidak ada data.</td></tr>
+            <tr><td colspan="13" class="text-center py-4 text-muted">Tidak ada data.</td></tr>
         <?php else: foreach ($rows as $r):
             $badge = match($r['status']) { 'terima'=>'bg-success', 'gugur'=>'bg-danger', default=>'bg-warning text-dark' };
             $gugur = !$r['lolos_usia'];
@@ -539,6 +578,15 @@ if ($edit_id_get > 0) {
                       <span class="badge bg-info text-dark ms-1">PKBM</span>
                     <?php endif; ?>
                 </td>
+                <td class="text-center">
+                    <?php $ainfo = $antrian_per_pendaftar[$r['id']] ?? null; ?>
+                    <?php if ($ainfo): ?>
+                        <?php if ($ainfo['meja']): ?><span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle"><i class="bi bi-shop-window me-1"></i><?= htmlspecialchars($ainfo['meja']) ?></span><br><?php endif; ?>
+                        <span class="badge bg-secondary-subtle text-secondary-emphasis mt-1"><?= htmlspecialchars($ainfo['nomor']) ?></span>
+                    <?php else: ?>
+                        <span class="text-muted small">&mdash;</span>
+                    <?php endif; ?>
+                </td>
                 <td><?= htmlspecialchars($r['nisn']) ?></td>
                 <td class="text-center"><?= $r['jenis_kelamin'] ?></td>
                 <td><?= $short[$r['jurusan']] ?? $r['jurusan'] ?></td>
@@ -549,7 +597,8 @@ if ($edit_id_get > 0) {
                 <td class="text-center"><?= $r['usia'] ?></td>
                 <td><span class="badge <?= $badge ?>"><?= ucfirst($r['status']) ?></span></td>
                 <td class="text-end">
-                    <button class="btn btn-sm btn-outline-info me-1" onclick='printBukti(<?= json_encode($r, JSON_HEX_APOS|JSON_HEX_QUOT) ?>)' title="Cetak Bukti"><i class="bi bi-printer"></i></button>
+                    <?php $r_print = $r; $r_print['_antrian'] = $antrian_per_pendaftar[$r['id']] ?? null; ?>
+                    <button class="btn btn-sm btn-outline-info me-1" onclick='printBukti(<?= json_encode($r_print, JSON_HEX_APOS|JSON_HEX_QUOT) ?>)' title="Cetak Bukti"><i class="bi bi-printer"></i></button>
                     <button class="btn btn-sm btn-outline-primary" onclick='editForm(<?= json_encode($r_with_raport, JSON_HEX_APOS|JSON_HEX_QUOT) ?>)' title="Edit"><i class="bi bi-pencil"></i></button>
                     <form method="POST" class="d-inline" onsubmit="return confirm('Hapus pendaftar ini? Detail raport akan ikut terhapus.')">
                         <input type="hidden" name="action" value="delete">
@@ -589,7 +638,7 @@ if ($edit_id_get > 0) {
         <input type="hidden" name="form_token" id="formToken" value="<?= htmlspecialchars($form_token) ?>">
 
         <!-- ── Section Gelombang 2: Zonasi & Yatim/Piatu (di atas Data Diri) ── -->
-        <?php $g2_aktif = $gelombang_aktif && (int)$gelombang_aktif['gelombang'] === 2; ?>
+        <?php $g2_aktif = ($gelombang_aktif && (int)$gelombang_aktif['gelombang'] === 2) || $active_glm === '2'; ?>
         <div id="sectionG2" class="px-3 pt-3" style="<?= $g2_aktif ? '' : 'display:none;' ?>">
           <div class="border rounded-3 p-3" style="background:#fffbeb;border-color:#fcd34d !important;">
             <div class="fw-bold small text-uppercase mb-2" style="color:#92400e;letter-spacing:.4px;">
@@ -1631,7 +1680,8 @@ function resetForm() {
     const _so = document.getElementById('fStatusOrtu');
     if (_so) _so.value = 'tidak';
     updateJarakZonasi();
-    setG2Section(<?= $gelombang_aktif ? (int)$gelombang_aktif['gelombang'] : 0 ?>);
+    // Tampilkan section G2 bila gelombang aktif = 2 ATAU admin sedang melihat tab Gelombang 2
+    setG2Section(<?= ($active_glm === '2' || ($gelombang_aktif && (int)$gelombang_aktif['gelombang'] === 2)) ? 2 : 0 ?>);
     // Reset field KK
     const fTglKk = document.getElementById('fTglKk');
     if (fTglKk) fTglKk.value = '';
@@ -1776,13 +1826,25 @@ function printBukti(r) {
     const tglKk= r.tgl_kk ? new Date(r.tgl_kk).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}) : '-';
     const daft = r.tanggal_daftar ? new Date(r.tanggal_daftar).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}) : new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
     const sistemLabel = r.sistem_pendidikan === 'pkbm' ? 'PKBM (85% Raport)' : r.sistem_pendidikan === 'khusus' ? 'Daftar Khusus (85% Raport)' : 'Reguler (SMP)';
+    // Info antrian/loket (dari meja yang mengisi data) — opsional
+    const antri = r._antrian || null;
+    // Auto-centang berkas berdasarkan data yang sudah terisi
+    const kkOk    = r.tgl_kk && r.tgl_kk <= '2025-06-15';
+    const tkaOk   = parseFloat(r.nilai_tka) > 0;
+    const boxOn   = '<div class="berkas-box on">&#10003;</div>';
+    const boxOff  = '<div class="berkas-box"></div>';
+    const nilaiTkaTxt = tkaOk ? Number(r.nilai_tka).toFixed(2) : '';
     const html = `<!DOCTYPE html>
 <html lang="id"><head><meta charset="UTF-8">
 <style>
   body{font-family:Arial,sans-serif;font-size:13px;margin:0;padding:24px;color:#111;}
-  .header{text-align:center;border-bottom:3px double #333;padding-bottom:12px;margin-bottom:16px;}
+  .header{text-align:center;border-bottom:3px double #333;padding-bottom:12px;margin-bottom:16px;position:relative;}
   .header h2{margin:4px 0;font-size:16px;text-transform:uppercase;letter-spacing:.5px;}
   .header p{margin:2px 0;font-size:12px;}
+  .antri-box{position:absolute;top:0;right:0;border:2px solid #111;border-radius:6px;padding:6px 12px;text-align:center;min-width:96px;}
+  .antri-box .lbl{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:#444;}
+  .antri-box .num{font-size:20px;font-weight:800;line-height:1.1;}
+  .antri-box .loket{font-size:10px;font-weight:bold;margin-top:2px;}
   table.info{width:100%;border-collapse:collapse;margin-bottom:16px;}
   table.info td{padding:4px 8px;vertical-align:top;}
   table.info td:first-child{width:170px;font-weight:bold;color:#333;}
@@ -1796,7 +1858,8 @@ function printBukti(r) {
   .berkas-table th{background:#f0f0f0;padding:5px 8px;text-align:left;font-size:11px;border:1px solid #ccc;}
   .berkas-table td{padding:5px 8px;border:1px solid #ddd;vertical-align:middle;}
   .berkas-table td.centang{text-align:center;width:36px;}
-  .berkas-box{display:inline-block;width:14px;height:14px;border:1.5px solid #555;vertical-align:middle;}
+  .berkas-box{display:inline-block;width:14px;height:14px;border:1.5px solid #555;vertical-align:middle;text-align:center;line-height:14px;font-size:12px;font-weight:bold;}
+  .berkas-box.on{background:#198754;border-color:#198754;color:#fff;}
   .status-ok{color:#198754;font-weight:700;}
   .status-fail{color:#dc3545;font-weight:700;}
   .yn-wrap{display:flex;gap:12px;align-items:center;}
@@ -1813,6 +1876,7 @@ function printBukti(r) {
 </style></head>
 <body>
 <div class="header">
+  ${antri ? `<div class="antri-box"><div class="lbl">No. Antrian</div><div class="num">${antri.nomor}</div>${antri.meja ? `<div class="loket">${antri.meja}</div>` : ''}</div>` : ''}
   <h2>SMKS Laboratorium Jakarta</h2>
   <p>Jl. Rawajaya No. 37 RT008/RW004 Kel. Pondok Kopi Kec. Duren Sawit, Jakarta Timur</p>
   <h2 style="margin-top:8px;font-size:15px;">BUKTI TANDA DAFTAR SPMB</h2>
@@ -1840,7 +1904,7 @@ function printBukti(r) {
   </thead>
   <tbody>
     <tr>
-      <td class="centang"><div class="berkas-box"></div></td>
+      <td class="centang">${kkOk ? boxOn : boxOff}</td>
       <td><strong>Kartu Keluarga (KK) DKI Jakarta</strong><br><small>Asli + fotokopi</small></td>
       <td>
         ${r.tgl_kk
@@ -1851,24 +1915,16 @@ function printBukti(r) {
       </td>
     </tr>
     <tr>
-      <td class="centang"><div class="berkas-box"></div></td>
+      <td class="centang">${tkaOk ? boxOn : boxOff}</td>
       <td><strong>Hasil TKA</strong><br><small>Fotokopi (reguler &amp; PKBM)</small></td>
-      <td></td>
+      <td>${tkaOk
+          ? '<span class="status-ok">&#10003; Sudah ada</span><br><small>Nilai TKA: ' + nilaiTkaTxt + '</small>'
+          : '<small style="color:#888;">Belum diisi</small>'}</td>
     </tr>
     <tr>
-      <td class="centang"><div class="berkas-box"></div></td>
+      <td class="centang">${boxOff}</td>
       <td><strong>Akta Kelahiran</strong><br><small>Fotokopi</small></td>
-      <td></td>
-    </tr>
-    <tr>
-      <td class="centang">—</td>
-      <td><strong>Buta Warna</strong></td>
-      <td>
-        <div class="yn-wrap">
-          <div class="yn-item"><div class="berkas-box"></div> <span>Ya</span></div>
-          <div class="yn-item"><div class="berkas-box"></div> <span>Tidak</span></div>
-        </div>
-      </td>
+      <td><small style="color:#888;">Diperiksa petugas</small></td>
     </tr>
   </tbody>
 </table>

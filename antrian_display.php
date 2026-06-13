@@ -682,7 +682,7 @@ function selectVoice(name) {
 function testCurrentVoice() {
     if (!ttsUnlocked) return;
     speechSynthesis.cancel();
-    speakOnce('Halo, nomor antrian, nol, nol, satu, silakan menuju, Meja satu');
+    speakOnce('Halo, nomor antrian, S S G, kosong sepuluh, silakan menuju, Loket satu');
 }
 
 function toggleVoicePicker() {
@@ -698,16 +698,33 @@ document.addEventListener('click', e => {
     }
 });
 
-function numToDigits(n) {
-    const w = ['nol','satu','dua','tiga','empat','lima','enam','tujuh','delapan','sembilan'];
-    return String(n).padStart(3,'0').split('').map(d => w[+d]).join(', ');
+// Baca bilangan secara natural (terbilang) — bukan digit per digit.
+function terbilang(n) {
+    n = parseInt(n, 10);
+    const sat = ['','satu','dua','tiga','empat','lima','enam','tujuh','delapan','sembilan','sepuluh','sebelas'];
+    if (n < 12)  return sat[n];
+    if (n < 20)  return terbilang(n - 10) + ' belas';
+    if (n < 100) return terbilang(Math.floor(n / 10)) + ' puluh' + (n % 10 ? ' ' + terbilang(n % 10) : '');
+    if (n < 200) return 'seratus' + (n % 100 ? ' ' + terbilang(n % 100) : '');
+    if (n < 1000) return terbilang(Math.floor(n / 100)) + ' ratus' + (n % 100 ? ' ' + terbilang(n % 100) : '');
+    return String(n);
+}
+// Nomor antrian: nol di depan = "kosong", sisanya dibaca natural (010 → "kosong sepuluh").
+function numToSpoken(n) {
+    const s = String(n).padStart(3, '0');
+    const parts = [];
+    let i = 0;
+    while (i < s.length - 1 && s[i] === '0') { parts.push('kosong'); i++; }
+    const rest = parseInt(s.slice(i), 10);
+    parts.push(rest === 0 ? 'kosong' : terbilang(rest));
+    return parts.join(' ');
 }
 
 function speakOnce(text) {
     const u    = new SpeechSynthesisUtterance(text);
     if (ttsVoice) u.voice = ttsVoice;
     u.lang   = ttsVoice ? ttsVoice.lang : 'id-ID';
-    u.rate   = 0.82;   // lebih lambat = lebih jelas & mulus
+    u.rate   = 0.95;   // sedikit lebih cepat, tetap jelas
     u.pitch  = 1.0;    // natural, tidak perlu naikkan kalau sudah pilih suara perempuan
     u.volume = 1.0;
     speechSynthesis.speak(u);
@@ -716,8 +733,8 @@ function speakOnce(text) {
 function announceNumber(num, mejaNama, fase) {
     if (!ttsEnabled || !ttsUnlocked) return;
     speechSynthesis.cancel();
-    const digits = numToDigits(num);
-    const text   = `Nomor antrian, S S G, ${digits}, silakan menuju, ${mejaNama}`;
+    const spoken = numToSpoken(num);
+    const text   = `Nomor antrian, S S G, ${spoken}, silakan menuju, ${mejaNama}`;
     speakOnce(text);
     setTimeout(() => speakOnce(text), 4200);
 }
