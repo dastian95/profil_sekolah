@@ -1778,7 +1778,6 @@ function printBukti(r) {
     const sistemLabel = r.sistem_pendidikan === 'pkbm' ? 'PKBM (85% Raport)' : r.sistem_pendidikan === 'khusus' ? 'Daftar Khusus (85% Raport)' : 'Reguler (SMP)';
     const html = `<!DOCTYPE html>
 <html lang="id"><head><meta charset="UTF-8">
-<title>Bukti Pendaftaran - ${r.nama}</title>
 <style>
   body{font-family:Arial,sans-serif;font-size:13px;margin:0;padding:24px;color:#111;}
   .header{text-align:center;border-bottom:3px double #333;padding-bottom:12px;margin-bottom:16px;}
@@ -1815,7 +1814,7 @@ function printBukti(r) {
 <body>
 <div class="header">
   <h2>SMKS Laboratorium Jakarta</h2>
-  <p>Jl. Laboratorium No. 1, Jakarta Selatan</p>
+  <p>Jl. Rawajaya No. 37 RT008/RW004 Kel. Pondok Kopi Kec. Duren Sawit, Jakarta Timur</p>
   <h2 style="margin-top:8px;font-size:15px;">BUKTI TANDA DAFTAR SPMB</h2>
   <p style="font-size:11px;">Tahun Pelajaran ${new Date().getFullYear()}/${new Date().getFullYear()+1}</p>
 </div>

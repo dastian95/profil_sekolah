@@ -23,9 +23,12 @@ $slist = fn($k, $d = '') => array_values(array_filter(array_map('trim', explode(
   <meta name="description" content="<?= $s('seo_description') ?>">
   <meta name="keywords" content="<?= $s('seo_keywords') ?>">
 
-  <!-- Favicons -->
-  <link href="<?= htmlspecialchars($sr('favicon_url', 'assets/img/smk.png') ?: 'assets/img/smk.png') ?>" rel="icon">
-  <link href="assets/img/apple-touch-icon.png" rel="apple-touch-icon">
+  <!-- Favicons — favicon.ico di root untuk Google, PNG untuk browser/perangkat -->
+  <?php $fav = $sr('favicon_url', 'assets/img/smk.png') ?: 'assets/img/smk.png'; ?>
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="<?= htmlspecialchars($fav) ?>">
+  <link rel="shortcut icon" href="favicon.ico">
+  <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
 
   <!-- Fonts -->
   <link href="https://fonts.googleapis.com" rel="preconnect">
