@@ -730,13 +730,42 @@ function speakOnce(text) {
     speechSynthesis.speak(u);
 }
 
+// ── Antrean suara: panggilan tidak saling memotong ──────────────────────────
+// Tiap panggilan diucapkan, dan diulang sampai 2x HANYA jika tidak ada panggilan
+// lain yang sedang menunggu di antrean.
+let speakQueue = [];     // [{ text, repeatLeft }]
+let speaking   = false;
+
 function announceNumber(num, mejaNama, fase) {
     if (!ttsEnabled || !ttsUnlocked) return;
-    speechSynthesis.cancel();
     const spoken = numToSpoken(num);
     const text   = `Nomor antrian, S S G, ${spoken}, silakan menuju, ${mejaNama}`;
-    speakOnce(text);
-    setTimeout(() => speakOnce(text), 4200);
+    speakQueue.push({ text, repeatLeft: 2 });
+    pumpQueue();
+}
+
+function pumpQueue() {
+    if (speaking || speakQueue.length === 0) return;
+    speaking = true;
+    const item = speakQueue[0];   // peek (jangan dibuang dulu — bisa diulang)
+    const u = new SpeechSynthesisUtterance(item.text);
+    if (ttsVoice) u.voice = ttsVoice;
+    u.lang = ttsVoice ? ttsVoice.lang : 'id-ID';
+    u.rate = 0.95; u.pitch = 1.0; u.volume = 1.0;
+    const advance = () => {
+        speaking = false;
+        item.repeatLeft--;
+        // Ulang (total 2x) hanya bila tidak ada panggilan lain menunggu
+        if (item.repeatLeft > 0 && speakQueue.length === 1) {
+            pumpQueue();           // ucapkan item yang sama sekali lagi
+        } else {
+            speakQueue.shift();    // selesai dgn item ini
+            pumpQueue();           // lanjut ke panggilan berikutnya bila ada
+        }
+    };
+    u.onend = advance;
+    u.onerror = advance;          // jaga-jaga agar antrean tidak macet
+    speechSynthesis.speak(u);
 }
 
 function unlockAudio() {
@@ -756,7 +785,24 @@ function toggleTTS() {
     if (btn)   btn.classList.toggle('muted', !ttsEnabled);
     if (icon)  icon.className = ttsEnabled ? 'bi bi-volume-up-fill' : 'bi bi-volume-mute-fill';
     if (label) label.textContent = ttsEnabled ? 'Suara ON' : 'Suara OFF';
-    if (!ttsEnabled) speechSynthesis.cancel();
+    if (!ttsEnabled) { speakQueue = []; speaking = false; speechSynthesis.cancel(); }
+}
+
+// ── Deteksi panggilan baru dari daftar (mendukung beberapa meja sekaligus) ────
+let announcedCalls = null;   // Set kunci panggilan yang sudah diumumkan
+function processAnnouncements(list) {
+    const keyOf = a => a.meja_id + '|' + a.nomor + '|' + (a.dipanggil_at || '');
+    if (announcedCalls === null) {
+        // Saat halaman dibuka, anggap panggilan yang sudah ada bukan hal baru
+        announcedCalls = new Set(list.map(keyOf));
+        return;
+    }
+    // list diurut terbaru→lama; balik agar diumumkan sesuai urutan dipanggil
+    const fresh = list.filter(a => !announcedCalls.has(keyOf(a)));
+    fresh.reverse().forEach(a => {
+        announcedCalls.add(keyOf(a));
+        announceNumber(a.nomor, a.nama_meja || ('Meja ' + a.nomor_meja), a.fase);
+    });
 }
 
 // ── Beep ───────────────────────────────────────────────────────────────────────
@@ -891,8 +937,7 @@ function refreshData() {
                 if (lastNumber !== newNum || lastMejaId !== newMeja) {
                     lastNumber = newNum; lastMejaId = newMeja;
                     playBeep(); showBeepIndicator();
-                    const mejaNama = latest.nama_meja || ('Meja ' + latest.nomor_meja);
-                    announceNumber(newNum, mejaNama, latest.fase);
+                    // Audio panggilan ditangani processAnnouncements (mendukung banyak meja & antre)
                     const numEl  = document.getElementById('current-number');
                     const deskEl = document.getElementById('current-desk');
                     const faseEl = document.getElementById('current-fase');
@@ -905,6 +950,7 @@ function refreshData() {
                 const panel = document.getElementById('current-panel');
                 if (panel) panel.innerHTML = '<div class="no-call"><i class="bi bi-hourglass-split me-2"></i>Menunggu antrian...</div>';
             }
+            processAnnouncements(data.list || []);
             renderNextCards(data.next_f1 || [], data.next_f2 || []);
             renderRecentList(data.list, data.colors);
             renderMejaGrid(data);
