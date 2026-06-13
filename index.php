@@ -19,6 +19,8 @@ $slist = fn($k, $d = '') => array_values(array_filter(array_map('trim', explode(
 <head>
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
+  <!-- Verifikasi kepemilikan situs Google Search Console -->
+  <meta name="google-site-verification" content="_usDkUv5nr1NaY5SZVWE2uwiYmUhkYlsWdsKrCW3348" />
   <title><?= $s('sekolah_nama', 'SMKS Laboratorium Jakarta') ?> — SPMB</title>
   <meta name="description" content="<?= $s('seo_description') ?>">
   <meta name="keywords" content="<?= $s('seo_keywords') ?>">
