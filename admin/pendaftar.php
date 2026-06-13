@@ -1923,9 +1923,14 @@ function printBukti(r) {
   .ttd{text-align:center;width:200px;}
   .ttd .name-line{margin-top:56px;border-top:1px solid #333;padding-top:4px;font-size:11px;}
   .note{font-size:11px;color:#666;margin-bottom:12px;padding:6px 8px;border:1px dashed #bbb;border-radius:4px;}
+  .rangkap{text-align:right;font-size:10px;color:#555;font-weight:bold;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;}
+  .lembar.first{page-break-after:always;}
   @media print{body{padding:0;}}
 </style></head>
 <body>
+${[1,2].map(_lembar => `
+<div class="lembar${_lembar === 1 ? ' first' : ''}">
+<div class="rangkap">${_lembar === 1 ? 'Lembar 1 — Untuk Pendaftar' : 'Lembar 2 — Arsip Sekolah'}</div>
 <div class="header">
   ${antri ? `<div class="antri-box"><div class="lbl">No. Antrian</div><div class="num">${antri.nomor}</div>${antri.meja ? `<div class="loket">${antri.meja}</div>` : ''}</div>` : ''}
   <h2>SMKS Laboratorium Jakarta</h2>
@@ -1998,6 +2003,7 @@ function printBukti(r) {
   <div class="ttd"><div class="name-line">Orang Tua / Wali</div></div>
   <div class="ttd"><div class="name-line">Panitia SPMB</div></div>
 </div>
+</div>`).join('')}
 </body></html>`;
     const w = window.open('', '_blank', 'width=720,height=960');
     w.document.write(html);
