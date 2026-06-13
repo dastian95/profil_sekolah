@@ -81,6 +81,8 @@ $persen_diterima = $total > 0 ? round(($diterima / $total) * 100, 1) : 0;
     </span>
 </div>
 
+<?php include __DIR__ . '/_announcements_widget.php'; ?>
+
 <!-- Stat Cards -->
 <div class="row g-3 mb-4">
     <div class="col-6 col-md-4 col-xl-2">
