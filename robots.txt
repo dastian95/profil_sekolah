@@ -1,0 +1,13 @@
+# robots.txt — SMKS Laboratorium Jakarta
+User-agent: *
+Allow: /
+
+# Area admin/panel — jangan diindeks Google
+Disallow: /admin.php
+Disallow: /admin/
+Disallow: /admin_dashboard.php
+Disallow: /superadmin_dashboard.php
+Disallow: /antrian_display.php
+Disallow: /logout.php
+
+Sitemap: https://smkslaboratoriumjakarta.id/sitemap.xml

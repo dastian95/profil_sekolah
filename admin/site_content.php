@@ -171,6 +171,19 @@ $group_icons = [
 
 // Tab aktif: dari ?tab= (persist setelah simpan) atau grup pertama
 $active_group = isset($_GET['tab']) && isset($groups[$_GET['tab']]) ? $_GET['tab'] : array_key_first($groups);
+
+// Panduan per-field (ditampilkan di bawah input) — untuk orang awam yang mengisi
+$field_hints = [
+    'seo_description' => 'Kalimat yang muncul di bawah judul situs saat orang mencari di Google. '
+        . 'Tulis seperti iklan singkat: apa itu sekolahnya + apa keunggulannya. '
+        . '<strong>Maksimal 160 huruf</strong> (kalau lebih, dipotong Google).<br>'
+        . '<span class="text-success">Contoh: </span><em>"SMKS Laboratorium Jakarta — sekolah kejuruan di Duren Sawit, Jakarta Timur. '
+        . 'Jurusan RPL, TKJ, Asisten Keperawatan & Tata Kecantikan. Pendaftaran SPMB 2026/2027 dibuka."</em>',
+    'seo_keywords' => 'Kata-kata yang mungkin diketik orang saat mencari sekolah Anda di Google, '
+        . '<strong>dipisah dengan koma</strong>. Tidak tampil ke pengunjung, hanya bantuan untuk mesin pencari.<br>'
+        . '<span class="text-success">Contoh: </span><em>SMK Laboratorium Jakarta, SMK Duren Sawit, SPMB 2026, '
+        . 'sekolah kejuruan Jakarta Timur, jurusan RPL, asisten keperawatan</em>',
+];
 ?>
 
 <?= $msg ?>
@@ -209,6 +222,21 @@ $active_group = isset($_GET['tab']) && isset($groups[$_GET['tab']]) ? $_GET['tab
                     <strong><?= htmlspecialchars($group_name) ?></strong>
                 </div>
                 <div class="card-body">
+                    <?php if ($group_name === 'SEO'): ?>
+                    <div class="alert border-0 mb-4" style="background:#eff6ff;">
+                        <div class="d-flex gap-2">
+                            <i class="bi bi-search fs-4 text-primary"></i>
+                            <div class="small">
+                                <strong>Apa itu SEO?</strong> Ini pengaturan agar sekolah lebih mudah <em>ditemukan di Google</em>.
+                                Saat seseorang mencari "SMK Laboratorium Jakarta" atau "SMK di Duren Sawit", inilah teks yang akan tampil di hasil pencarian.
+                                <hr class="my-2">
+                                <div class="mb-1"><i class="bi bi-1-circle-fill text-primary me-1"></i> Isi kedua kolom di bawah dengan kalimat &amp; kata kunci tentang sekolah (ada contoh siap-pakai di tiap kolom).</div>
+                                <div class="mb-1"><i class="bi bi-2-circle-fill text-primary me-1"></i> Klik <strong>Simpan SEO</strong>.</div>
+                                <div><i class="bi bi-3-circle-fill text-primary me-1"></i> Hasil di Google <strong>tidak langsung berubah</strong> — perlu beberapa hari sampai minggu sampai Google memperbaruinya. Ini normal.</div>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
                     <form method="POST">
                         <input type="hidden" name="group" value="<?= htmlspecialchars($group_name) ?>">
                         <?php foreach ($items as $item): $skey = $item['setting_key']; ?>
@@ -219,8 +247,13 @@ $active_group = isset($_GET['tab']) && isset($groups[$_GET['tab']]) ? $_GET['tab
                             </label>
 
                             <?php if ($item['type'] === 'textarea'): ?>
-                            <textarea name="fields[<?= htmlspecialchars($skey) ?>]"
-                                      class="form-control" rows="4"><?= htmlspecialchars($item['setting_value'] ?? '') ?></textarea>
+                            <textarea name="fields[<?= htmlspecialchars($skey) ?>]" id="fld_<?= htmlspecialchars($skey) ?>"
+                                      class="form-control" rows="4"
+                                      <?= $skey === 'seo_description' ? 'oninput="seoCount(this)"' : '' ?>><?= htmlspecialchars($item['setting_value'] ?? '') ?></textarea>
+                            <?php if ($skey === 'seo_description'): ?>
+                            <div class="form-text"><span id="seoCountNum">0</span>/160 huruf
+                                <span id="seoCountWarn" class="text-danger d-none">— terlalu panjang, akan dipotong Google</span></div>
+                            <?php endif; ?>
 
                             <?php elseif ($item['type'] === 'image_url'): ?>
                             <div class="input-group">
@@ -266,8 +299,14 @@ $active_group = isset($_GET['tab']) && isset($groups[$_GET['tab']]) ? $_GET['tab
                             </div>
 
                             <?php else: ?>
-                            <input type="text" name="fields[<?= htmlspecialchars($skey) ?>]"
+                            <input type="text" name="fields[<?= htmlspecialchars($skey) ?>]" id="fld_<?= htmlspecialchars($skey) ?>"
                                    class="form-control" value="<?= htmlspecialchars($item['setting_value'] ?? '') ?>">
+                            <?php endif; ?>
+
+                            <?php if (!empty($field_hints[$skey])): ?>
+                            <div class="form-text mt-2 p-2 rounded" style="background:#f8fafc;line-height:1.6;">
+                                <i class="bi bi-lightbulb-fill text-warning me-1"></i><?= $field_hints[$skey] ?>
+                            </div>
                             <?php endif; ?>
                         </div>
                         <?php endforeach; ?>
@@ -287,6 +326,19 @@ $active_group = isset($_GET['tab']) && isset($groups[$_GET['tab']]) ? $_GET['tab
 </div>
 
 <script>
+// Penghitung huruf untuk Meta Description SEO (batas ideal Google 160)
+function seoCount(el) {
+    const n = el.value.length;
+    const num = document.getElementById('seoCountNum');
+    const warn = document.getElementById('seoCountWarn');
+    if (num) num.textContent = n;
+    if (warn) warn.classList.toggle('d-none', n <= 160);
+}
+document.addEventListener('DOMContentLoaded', function() {
+    const sd = document.getElementById('fld_seo_description');
+    if (sd) seoCount(sd);
+});
+
 async function uploadImg(fileInput, targetId, previewId) {
     if (!fileInput.files || !fileInput.files[0]) return;
     const btn = fileInput.previousElementSibling;
