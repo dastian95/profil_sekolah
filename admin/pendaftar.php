@@ -177,17 +177,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ? $_POST['sistem_pendidikan'] : 'reguler';
 
             // Cek apakah raport diisi
+            $input_mode = $_POST['input_mode'] ?? 'matrix';
             if ($sistem === 'pkbm') {
                 $matrix       = $_POST['pkbm_raport'] ?? [];
                 $mapel_active = PKBM_MAPEL_UMUM;
                 $sem_active   = array_keys(PKBM_TINGKAT);
+            } elseif ($input_mode === 'manual') {
+                // Mode rata-rata PER mata pelajaran → disimpan sebagai semester 1 tiap mapel
+                $avg_in = $_POST['raport_avg'] ?? [];
+                $matrix = [];
+                foreach ($mapel_list as $mp) {
+                    $v = $avg_in[$mp] ?? '';
+                    if ($v !== '' && $v !== null) $matrix[$mp][1] = min(100, max(0, (float)$v));
+                }
+                $mapel_active = $mapel_list;
+                $sem_active   = [1];
             } else {
                 $matrix       = $_POST['raport'] ?? [];
                 $mapel_active = $mapel_list;
                 $sem_active   = $semester_list;
             }
             $rata = rataRaportFromMatrix($matrix);
-            // Mode input rata-rata langsung: pakai nilai manual jika matrix kosong
+            // Fallback: data lama tersimpan sebagai nilai_raport tunggal (hidden) bila belum ada detail
             if ($rata == 0 && isset($_POST['nilai_raport_manual'])) {
                 $manual = (float)$_POST['nilai_raport_manual'];
                 if ($manual > 0) $rata = min(100, max(0, $manual));
@@ -949,22 +960,47 @@ if ($edit_id_get > 0) {
               </div>
               <div class="form-check form-check-inline mb-0">
                 <input class="form-check-input" type="radio" name="input_mode" id="modeManual" value="manual" onchange="switchInputMode('manual')">
-                <label class="form-check-label small" for="modeManual"><strong>Langsung (Rata-rata)</strong> <span class="text-muted">— jika raport sudah ada nilai rata-ratanya</span></label>
+                <label class="form-check-label small" for="modeManual"><strong>Rata-rata per Mapel</strong> <span class="text-muted">— isi nilai rata-rata tiap mata pelajaran (tanpa per semester)</span></label>
               </div>
             </div>
 
-            <!-- Input Rata-rata Langsung (tersembunyi default) -->
+            <!-- Input Rata-rata per Mata Pelajaran (tersembunyi default) -->
             <div id="wrapManualRata" class="mb-3" style="display:none;">
-              <div class="row g-3 align-items-end">
-                <div class="col-md-4">
-                  <label class="form-label fw-semibold">Nilai Rata-rata Raport <span class="text-danger">*</span></label>
-                  <input type="number" name="nilai_raport_manual" id="fManualRata"
-                         class="form-control form-control-lg text-center fw-bold"
-                         min="0" max="100" step="0.01" placeholder="0 – 100"
-                         value="<?= ($formData['nilai_raport'] ?? 0) > 0 && empty($formRaport) ? htmlspecialchars($formData['nilai_raport']) : '' ?>"
-                         oninput="updateRataRataManual()">
-                  <div class="form-text">Skala 0–100. Nilai ini langsung dipakai sebagai rata-rata raport.</div>
-                </div>
+              <!-- fallback nilai lama (data tanpa detail per-mapel) -->
+              <input type="hidden" name="nilai_raport_manual" id="fManualRata" value="">
+              <div class="alert alert-info small d-flex align-items-start gap-2 py-2">
+                <i class="bi bi-info-circle mt-1"></i>
+                <div>Masukkan <strong>nilai rata-rata tiap mata pelajaran</strong> (yang sudah tertera di raport), tanpa perlu mengisi nilai per semester. Rata-rata Raport = rata-rata dari mapel yang diisi.</div>
+              </div>
+              <div class="table-responsive">
+              <table class="table table-bordered mb-0 align-middle" id="tabelRaportAvg">
+                <thead>
+                  <tr class="text-center">
+                    <th style="min-width:200px;background:#1a3c34;color:#fff;">Mata Pelajaran</th>
+                    <th style="width:160px;background:#198754;color:#fff;">Nilai Rata-rata</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php foreach ($mapel_list as $i => $mp): ?>
+                  <tr>
+                    <td class="fw-semibold small" style="background:#f8f9fa;"><?= htmlspecialchars($mp) ?></td>
+                    <td class="p-0">
+                      <input type="number" name="raport_avg[<?= htmlspecialchars($mp) ?>]"
+                             class="form-control form-control-sm text-center raport-avg-cell border-0 rounded-0"
+                             min="0" max="100" step="0.01" placeholder="—"
+                             oninput="clampCell(this); updateRataRataManual()"
+                             onfocus="this.select();">
+                    </td>
+                  </tr>
+                  <?php endforeach; ?>
+                </tbody>
+                <tfoot>
+                  <tr class="table-success">
+                    <th class="text-end">Rata-rata Raport (auto):</th>
+                    <th class="text-center fs-5" id="rataTotalManual">—</th>
+                  </tr>
+                </tfoot>
+              </table>
               </div>
             </div>
 
@@ -1255,9 +1291,19 @@ function switchInputMode(mode) {
 }
 
 function updateRataRataManual() {
-    const v = parseFloat(document.getElementById('fManualRata').value) || 0;
+    // Rata-rata dari nilai per mata pelajaran yang diisi
+    let sum = 0, cnt = 0;
+    document.querySelectorAll('.raport-avg-cell').forEach(c => {
+        if (c.value !== '') { sum += parseFloat(c.value) || 0; cnt++; }
+    });
+    let v = cnt > 0 ? sum / cnt : 0;
+    // Fallback ke nilai lama (hidden) bila belum ada input per-mapel sama sekali
+    if (cnt === 0) {
+        const hid = parseFloat(document.getElementById('fManualRata').value) || 0;
+        if (hid > 0) v = hid;
+    }
     const disp = document.getElementById('displayRata');
-    const tot  = document.getElementById('rataTotal');
+    const tot  = document.getElementById('rataTotalManual');
     if (disp) disp.textContent = v > 0 ? v.toFixed(2) : '—';
     if (tot)  tot.textContent  = v > 0 ? v.toFixed(2) : '—';
     updatePreviewNilai();
@@ -1784,8 +1830,9 @@ function resetForm() {
     document.getElementById('previewUsia').className = 'form-control bg-light';
     document.querySelectorAll('.raport-cell').forEach(c => c.value = '');
     document.querySelectorAll('.pkbm-cell').forEach(c => c.value = '');
+    document.querySelectorAll('.raport-avg-cell').forEach(c => c.value = '');
     document.querySelectorAll('[id^="avgMp"], [id^="pkbmAvgRow"]').forEach(el => el.textContent = '—');
-    ['rataTotal','rataTotalPKBM','displayRata','displayTka','displayAkhir'].forEach(id => {
+    ['rataTotal','rataTotalPKBM','rataTotalManual','displayRata','displayTka','displayAkhir'].forEach(id => {
         const el = document.getElementById(id); if (el) el.textContent = '—';
     });
     // Reset sistem ke Reguler
@@ -1930,16 +1977,36 @@ function editForm(d) {
         updateRataRata();
     }
 
-    // Mode rata-rata langsung: nilai tersimpan tapi matrix kosong → isi field manual
-    // agar nilai tidak ter-reset 0 saat disimpan ulang
+    // Tentukan mode tampil: matrix (per semester) vs rata-rata per mapel
     const manualEl = document.getElementById('fManualRata');
-    const matrixHasData = Object.values(matrix).some(row =>
-        Object.values(row).some(v => v !== '' && v !== null));
     if (manualEl) manualEl.value = '';
-    if (!matrixHasData && parseFloat(d.nilai_raport) > 0 && sistem !== 'pkbm') {
+    document.querySelectorAll('.raport-avg-cell').forEach(c => c.value = '');
+
+    // Analisa matrix: ada data? hanya semester 1 (artinya disimpan via mode rata-rata per mapel)?
+    let anyFilled = false, anyNonSem1 = false;
+    Object.keys(matrix).forEach(mp => Object.keys(matrix[mp] || {}).forEach(smt => {
+        const v = matrix[mp][smt];
+        if (v !== '' && v !== null && v !== undefined) {
+            anyFilled = true;
+            if (parseInt(smt, 10) !== 1) anyNonSem1 = true;
+        }
+    }));
+    const perMapelOnly = anyFilled && !anyNonSem1;
+    const legacySingle = !anyFilled && parseFloat(d.nilai_raport) > 0;
+
+    if (sistem !== 'pkbm' && (perMapelOnly || legacySingle)) {
         const mm = document.getElementById('modeManual');
         if (mm) { mm.checked = true; switchInputMode('manual'); }
-        if (manualEl) { manualEl.value = d.nilai_raport; updateRataRataManual(); }
+        if (perMapelOnly) {
+            MAPEL_LIST.forEach(mp => {
+                const v = (matrix[mp] && matrix[mp][1] !== undefined) ? matrix[mp][1] : '';
+                const cell = document.querySelector(`input[name="raport_avg[${mp}]"]`);
+                if (cell) cell.value = v;
+            });
+        } else if (manualEl) {
+            manualEl.value = d.nilai_raport;   // legacy: simpan agar tidak hilang saat re-save
+        }
+        updateRataRataManual();
     } else {
         const mx = document.getElementById('modeMatrix');
         if (mx) { mx.checked = true; switchInputMode('matrix'); }
@@ -1968,6 +2035,7 @@ function printBukti(r) {
     const bw      = r.buta_warna || 'belum';
     const html = `<!DOCTYPE html>
 <html lang="id"><head><meta charset="UTF-8">
+<title>Bukti Daftar SPMB</title>
 <style>
   body{font-family:Arial,sans-serif;font-size:13px;margin:0;padding:24px;color:#111;}
   .header{text-align:center;border-bottom:3px double #333;padding-bottom:12px;margin-bottom:16px;position:relative;}
@@ -2004,14 +2072,13 @@ function printBukti(r) {
   .ttd{text-align:center;width:200px;}
   .ttd .name-line{margin-top:56px;border-top:1px solid #333;padding-top:4px;font-size:11px;}
   .note{font-size:11px;color:#666;margin-bottom:12px;padding:6px 8px;border:1px dashed #bbb;border-radius:4px;}
-  .rangkap{text-align:right;font-size:10px;color:#555;font-weight:bold;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;}
   .lembar.first{page-break-after:always;}
-  @media print{body{padding:0;}}
+  @page{size:A4;margin:0;}
+  @media print{body{padding:14mm;}}
 </style></head>
 <body>
 ${[1,2].map(_lembar => `
 <div class="lembar${_lembar === 1 ? ' first' : ''}">
-<div class="rangkap">${_lembar === 1 ? 'Lembar 1 — Untuk Pendaftar' : 'Lembar 2 — Arsip Sekolah'}</div>
 <div class="header">
   ${antri ? `<div class="antri-box"><div class="lbl">No. Antrian</div><div class="num">${antri.nomor}</div>${antri.meja ? `<div class="loket">${antri.meja}</div>` : ''}</div>` : ''}
   <h2>SMKS Laboratorium Jakarta</h2>
@@ -2087,10 +2154,34 @@ ${[1,2].map(_lembar => `
 </div>
 </div>`).join('')}
 </body></html>`;
-    const w = window.open('', '_blank', 'width=720,height=960');
-    w.document.write(html);
-    w.document.close();
-    w.onload = () => w.print();
+    // Cetak lewat iframe tersembunyi — tanpa popup "about:blank", auto-bersih setelah cetak
+    const old = document.getElementById('printFrame');
+    if (old) old.remove();
+    const frame = document.createElement('iframe');
+    frame.id = 'printFrame';
+    frame.style.position = 'fixed';
+    frame.style.right = '0';
+    frame.style.bottom = '0';
+    frame.style.width = '0';
+    frame.style.height = '0';
+    frame.style.border = '0';
+    document.body.appendChild(frame);
+    const fdoc = frame.contentWindow.document;
+    fdoc.open();
+    fdoc.write(html);
+    fdoc.close();
+    const doPrint = () => {
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+        // Bersihkan iframe setelah dialog cetak selesai
+        frame.contentWindow.onafterprint = () => frame.remove();
+        setTimeout(() => { if (document.getElementById('printFrame')) frame.remove(); }, 60000);
+    };
+    if (frame.contentWindow.document.readyState === 'complete') {
+        setTimeout(doPrint, 150);
+    } else {
+        frame.onload = () => setTimeout(doPrint, 150);
+    }
 }
 
 // ── Gelombang Tab Switching (langsung, tanpa konfirmasi) ─────────────────────
