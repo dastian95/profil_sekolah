@@ -427,10 +427,10 @@ $slist = fn($k, $d = '') => array_values(array_filter(array_map('trim', explode(
                     </div>
                   </div>
                   <div class="col-6">
-                    <img src="assets/img/rpl-lab-2.webp" alt="Kegiatan RPL" class="img-fluid rounded" style="width:100%;height:120px;object-fit:cover;object-position:center;">
+                    <img src="<?= htmlspecialchars($sr('jur_rpl_galeri2', 'assets/img/rpl-lab-2.webp')) ?>" alt="Kegiatan RPL" class="img-fluid rounded" style="width:100%;height:120px;object-fit:cover;object-position:center;">
                   </div>
                   <div class="col-6">
-                    <img src="assets/img/rpl-lab-4.webp" alt="Kegiatan RPL" class="img-fluid rounded" style="width:100%;height:120px;object-fit:cover;object-position:center;">
+                    <img src="<?= htmlspecialchars($sr('jur_rpl_galeri4', 'assets/img/rpl-lab-4.webp')) ?>" alt="Kegiatan RPL" class="img-fluid rounded" style="width:100%;height:120px;object-fit:cover;object-position:center;">
                   </div>
                 </div>
               </div>
@@ -527,21 +527,13 @@ $slist = fn($k, $d = '') => array_values(array_filter(array_map('trim', explode(
             <div>
               <h5 class="fw-bold mb-3"><i class="bi bi-camera-fill me-2" style="color:#667eea;"></i>Kegiatan Siswa RPL</h5>
               <div class="row g-2">
+                <?php for ($gi = 1; $gi <= 5; $gi++):
+                    $gimg = $sr('jur_rpl_galeri' . $gi, 'assets/img/rpl-lab-' . $gi . '.webp');
+                    if (trim($gimg) === '') continue; ?>
                 <div class="col-6 col-sm-4 col-lg">
-                  <img src="assets/img/rpl-lab-1.webp" alt="Kegiatan RPL" class="img-fluid rounded" style="height:160px;object-fit:cover;width:100%;">
+                  <img src="<?= htmlspecialchars($gimg) ?>" alt="Kegiatan RPL <?= $gi ?>" class="img-fluid rounded" style="height:160px;object-fit:cover;width:100%;">
                 </div>
-                <div class="col-6 col-sm-4 col-lg">
-                  <img src="assets/img/rpl-lab-2.webp" alt="Kegiatan RPL" class="img-fluid rounded" style="height:160px;object-fit:cover;width:100%;">
-                </div>
-                <div class="col-6 col-sm-4 col-lg">
-                  <img src="assets/img/rpl-lab-3.webp" alt="Kegiatan RPL" class="img-fluid rounded" style="height:160px;object-fit:cover;width:100%;">
-                </div>
-                <div class="col-6 col-sm-4 col-lg">
-                  <img src="assets/img/rpl-lab-4.webp" alt="Kegiatan RPL" class="img-fluid rounded" style="height:160px;object-fit:cover;width:100%;">
-                </div>
-                <div class="col-6 col-sm-4 col-lg">
-                  <img src="assets/img/rpl-lab-5.webp" alt="Kegiatan RPL" class="img-fluid rounded" style="height:160px;object-fit:cover;width:100%;">
-                </div>
+                <?php endfor; ?>
               </div>
             </div>
           </div><!-- End Tab Content Item -->

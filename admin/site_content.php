@@ -61,30 +61,36 @@ $defaults = [
     ['sec_daftar_sub2',      'Datang Langsung Ke SMKS Laboratorium Jakarta', 'text', 'Sub-judul 2 Cara Mendaftar', 'Judul Section'],
     ['sec_pengumuman_title', 'Pengumuman Penerimaan',  'text', 'Judul Section Pengumuman',     'Judul Section'],
     ['sec_pengumuman_sub',   'Hasil Seleksi SPMB SMKS Laboratorium Jakarta', 'text', 'Sub-judul Pengumuman', 'Judul Section'],
-    // Jurusan: RPL
-    ['jur_rpl_judul',    'Rekayasa Perangkat Lunak (RPL)', 'text', 'Judul Jurusan', 'Jurusan: RPL'],
-    ['jur_rpl_intro',    'Program keahlian yang membekali siswa dengan kemampuan merancang, membangun, dan mengelola perangkat lunak sesuai kebutuhan dunia industri teknologi informasi yang terus berkembang.', 'textarea', 'Paragraf Intro', 'Jurusan: RPL'],
-    ['jur_rpl_keahlian', "Pemrograman web: HTML, CSS, JavaScript, PHP, Python\nPengembangan aplikasi mobile Android & iOS\nBasis data, sistem informasi, dan UI/UX Design\nAlgoritma, struktur data, dan pemrograman berorientasi objek", 'textarea', 'Daftar Keahlian (1 per baris)', 'Jurusan: RPL'],
-    ['jur_rpl_karir',    'Lulusan RPL siap berkarir sebagai software developer, web programmer, atau entrepreneur di bidang teknologi dengan bekal sertifikasi kompetensi nasional dan pengalaman proyek nyata.', 'textarea', 'Paragraf Prospek Karir', 'Jurusan: RPL'],
-    ['jur_rpl_foto',     'assets/img/logo-rpl-1.webp', 'image_url', 'Logo/Foto Utama', 'Jurusan: RPL'],
-    // Jurusan: TKJ
-    ['jur_tkj_judul',    'Teknik Komputer dan Jaringan (TKJ)', 'text', 'Judul Jurusan', 'Jurusan: TKJ'],
-    ['jur_tkj_intro',    'Program keahlian yang mempersiapkan tenaga ahli instalasi, konfigurasi, dan pemeliharaan infrastruktur jaringan komputer serta sistem keamanan informasi di berbagai skala organisasi.', 'textarea', 'Paragraf Intro', 'Jurusan: TKJ'],
-    ['jur_tkj_keahlian', "Instalasi & konfigurasi jaringan LAN, WAN, dan WLAN\nKeamanan siber, firewall, VPN, dan proteksi data\nCloud computing, virtualisasi server, dan troubleshooting\nRouting & switching (Cisco), administrasi jaringan", 'textarea', 'Daftar Keahlian (1 per baris)', 'Jurusan: TKJ'],
-    ['jur_tkj_karir',    'Lulusan TKJ siap bekerja sebagai network engineer, IT support, sistem administrator, atau melanjutkan ke perguruan tinggi bidang informatika.', 'textarea', 'Paragraf Prospek Karir', 'Jurusan: TKJ'],
-    ['jur_tkj_foto',     'assets/img/tkj-lab-2.webp', 'image_url', 'Foto Utama', 'Jurusan: TKJ'],
-    // Jurusan: AP
-    ['jur_ap_judul',    'Asisten Keperawatan (AP)', 'text', 'Judul Jurusan', 'Jurusan: AP'],
-    ['jur_ap_intro',    'Program keahlian yang mencetak tenaga asisten perawat profesional dan berkarakter, siap memberikan pelayanan kesehatan terbaik di rumah sakit, puskesmas, klinik, dan berbagai fasilitas kesehatan lainnya.', 'textarea', 'Paragraf Intro', 'Jurusan: AP'],
-    ['jur_ap_keahlian', "Perawatan dasar pasien & pemantauan tanda-tanda vital\nProsedur keperawatan klinis dan kegawatdaruratan\nFarmakologi dasar, dokumentasi medis & rekam medis\nEtika profesi keperawatan & komunikasi terapeutik", 'textarea', 'Daftar Keahlian (1 per baris)', 'Jurusan: AP'],
-    ['jur_ap_karir',    'Lulusan AP siap bekerja sebagai asisten tenaga kesehatan yang kompeten dengan peluang karir luas di seluruh fasilitas pelayanan kesehatan Indonesia.', 'textarea', 'Paragraf Prospek Karir', 'Jurusan: AP'],
-    ['jur_ap_foto',     'assets/img/ap-lab-1.webp', 'image_url', 'Foto Utama', 'Jurusan: AP'],
-    // Jurusan: TKKR
-    ['jur_tkkr_judul',    'Tata Kecantikan Kulit dan Rambut (TKKR)', 'text', 'Judul Jurusan', 'Jurusan: TKKR'],
-    ['jur_tkkr_intro',    'Program keahlian yang mencetak tenaga profesional kecantikan kreatif dan terampil, siap bersaing di industri kecantikan nasional maupun internasional dengan bekal teknik terkini.', 'textarea', 'Paragraf Intro', 'Jurusan: TKKR'],
-    ['jur_tkkr_keahlian', "Perawatan & treatment kulit wajah, leher, dan tubuh\nTeknik styling, coloring, dan perawatan rambut\nTata rias pengantin, karakter, dan make-up artistik\nKosmetologi, manajemen salon & kewirausahaan kecantikan", 'textarea', 'Daftar Keahlian (1 per baris)', 'Jurusan: TKKR'],
-    ['jur_tkkr_karir',    '', 'textarea', 'Paragraf Prospek Karir (kosong = tidak tampil)', 'Jurusan: TKKR'],
-    ['jur_tkkr_foto',     'assets/img/tkkr-siswa-1.webp', 'image_url', 'Foto Utama', 'Jurusan: TKKR'],
+    // ── Jurusan (semua dalam 1 grup "Jurusan", dipisah sub-bagian per jurusan) ──
+    // RPL
+    ['jur_rpl_judul',    'Rekayasa Perangkat Lunak (RPL)', 'text', 'RPL — Judul Jurusan', 'Jurusan'],
+    ['jur_rpl_intro',    'Program keahlian yang membekali siswa dengan kemampuan merancang, membangun, dan mengelola perangkat lunak sesuai kebutuhan dunia industri teknologi informasi yang terus berkembang.', 'textarea', 'RPL — Paragraf Intro', 'Jurusan'],
+    ['jur_rpl_keahlian', "Pemrograman web: HTML, CSS, JavaScript, PHP, Python\nPengembangan aplikasi mobile Android & iOS\nBasis data, sistem informasi, dan UI/UX Design\nAlgoritma, struktur data, dan pemrograman berorientasi objek", 'textarea', 'RPL — Daftar Keahlian (1 per baris)', 'Jurusan'],
+    ['jur_rpl_karir',    'Lulusan RPL siap berkarir sebagai software developer, web programmer, atau entrepreneur di bidang teknologi dengan bekal sertifikasi kompetensi nasional dan pengalaman proyek nyata.', 'textarea', 'RPL — Paragraf Prospek Karir', 'Jurusan'],
+    ['jur_rpl_foto',     'assets/img/logo-rpl-1.webp', 'image_url', 'RPL — Logo/Foto Utama', 'Jurusan'],
+    ['jur_rpl_galeri1',  'assets/img/rpl-lab-1.webp', 'image_url', 'RPL — Galeri Kegiatan 1', 'Jurusan'],
+    ['jur_rpl_galeri2',  'assets/img/rpl-lab-2.webp', 'image_url', 'RPL — Galeri Kegiatan 2', 'Jurusan'],
+    ['jur_rpl_galeri3',  'assets/img/rpl-lab-3.webp', 'image_url', 'RPL — Galeri Kegiatan 3', 'Jurusan'],
+    ['jur_rpl_galeri4',  'assets/img/rpl-lab-4.webp', 'image_url', 'RPL — Galeri Kegiatan 4', 'Jurusan'],
+    ['jur_rpl_galeri5',  'assets/img/rpl-lab-5.webp', 'image_url', 'RPL — Galeri Kegiatan 5', 'Jurusan'],
+    // TKJ
+    ['jur_tkj_judul',    'Teknik Komputer dan Jaringan (TKJ)', 'text', 'TKJ — Judul Jurusan', 'Jurusan'],
+    ['jur_tkj_intro',    'Program keahlian yang mempersiapkan tenaga ahli instalasi, konfigurasi, dan pemeliharaan infrastruktur jaringan komputer serta sistem keamanan informasi di berbagai skala organisasi.', 'textarea', 'TKJ — Paragraf Intro', 'Jurusan'],
+    ['jur_tkj_keahlian', "Instalasi & konfigurasi jaringan LAN, WAN, dan WLAN\nKeamanan siber, firewall, VPN, dan proteksi data\nCloud computing, virtualisasi server, dan troubleshooting\nRouting & switching (Cisco), administrasi jaringan", 'textarea', 'TKJ — Daftar Keahlian (1 per baris)', 'Jurusan'],
+    ['jur_tkj_karir',    'Lulusan TKJ siap bekerja sebagai network engineer, IT support, sistem administrator, atau melanjutkan ke perguruan tinggi bidang informatika.', 'textarea', 'TKJ — Paragraf Prospek Karir', 'Jurusan'],
+    ['jur_tkj_foto',     'assets/img/tkj-lab-2.webp', 'image_url', 'TKJ — Foto Utama', 'Jurusan'],
+    // AP
+    ['jur_ap_judul',    'Asisten Keperawatan (AP)', 'text', 'AP — Judul Jurusan', 'Jurusan'],
+    ['jur_ap_intro',    'Program keahlian yang mencetak tenaga asisten perawat profesional dan berkarakter, siap memberikan pelayanan kesehatan terbaik di rumah sakit, puskesmas, klinik, dan berbagai fasilitas kesehatan lainnya.', 'textarea', 'AP — Paragraf Intro', 'Jurusan'],
+    ['jur_ap_keahlian', "Perawatan dasar pasien & pemantauan tanda-tanda vital\nProsedur keperawatan klinis dan kegawatdaruratan\nFarmakologi dasar, dokumentasi medis & rekam medis\nEtika profesi keperawatan & komunikasi terapeutik", 'textarea', 'AP — Daftar Keahlian (1 per baris)', 'Jurusan'],
+    ['jur_ap_karir',    'Lulusan AP siap bekerja sebagai asisten tenaga kesehatan yang kompeten dengan peluang karir luas di seluruh fasilitas pelayanan kesehatan Indonesia.', 'textarea', 'AP — Paragraf Prospek Karir', 'Jurusan'],
+    ['jur_ap_foto',     'assets/img/ap-lab-1.webp', 'image_url', 'AP — Foto Utama', 'Jurusan'],
+    // TKKR
+    ['jur_tkkr_judul',    'Tata Kecantikan Kulit dan Rambut (TKKR)', 'text', 'TKKR — Judul Jurusan', 'Jurusan'],
+    ['jur_tkkr_intro',    'Program keahlian yang mencetak tenaga profesional kecantikan kreatif dan terampil, siap bersaing di industri kecantikan nasional maupun internasional dengan bekal teknik terkini.', 'textarea', 'TKKR — Paragraf Intro', 'Jurusan'],
+    ['jur_tkkr_keahlian', "Perawatan & treatment kulit wajah, leher, dan tubuh\nTeknik styling, coloring, dan perawatan rambut\nTata rias pengantin, karakter, dan make-up artistik\nKosmetologi, manajemen salon & kewirausahaan kecantikan", 'textarea', 'TKKR — Daftar Keahlian (1 per baris)', 'Jurusan'],
+    ['jur_tkkr_karir',    '', 'textarea', 'TKKR — Paragraf Prospek Karir (kosong = tidak tampil)', 'Jurusan'],
+    ['jur_tkkr_foto',     'assets/img/tkkr-siswa-1.webp', 'image_url', 'TKKR — Foto Utama', 'Jurusan'],
     // Cara Mendaftar
     ['syarat_intro', 'Calon siswa datang langsung ke sekolah dengan membawa fotocopy:', 'text', 'Kalimat Pembuka Syarat', 'Cara Mendaftar'],
     ['syarat_list',  "Kartu Keluarga (KK) DKI Jakarta (cut off 15 Juni 2025)\nNilai Raport semester 1 - 5\nNISN (Nomor Induk Siswa Nasional)\nAkte Kelahiran\nKTP Orang Tua\nWajib Membawa Surat Keterangan Tidak Buta warna(Puskesmas/Klinik)\nMap Kertas TKJ (Hijau), RPL (Merah), Asisten Keperawatan (Biru), Tata Kecantikan (Kuning)", 'textarea', 'Daftar Syarat Berkas (1 per baris)', 'Cara Mendaftar'],
@@ -94,6 +100,12 @@ $defaults = [
 ];
 $ins_default = $conn->prepare("INSERT IGNORE INTO site_settings (setting_key, setting_value, type, label, group_name) VALUES (?,?,?,?,?)");
 foreach ($defaults as $d) $ins_default->execute($d);
+
+// Migrasi: gabungkan grup "Jurusan: RPL/TKJ/AP/TKKR" lama menjadi satu grup "Jurusan"
+try { $conn->exec("UPDATE site_settings SET group_name='Jurusan' WHERE group_name LIKE 'Jurusan:%'"); } catch (PDOException $e) {}
+// Sinkronkan label jurusan ke label baru (ber-prefix kode jurusan) bila baris sudah ada
+$upd_label = $conn->prepare("UPDATE site_settings SET label=? WHERE setting_key=?");
+foreach ($defaults as $d) { if ($d[4] === 'Jurusan') $upd_label->execute([$d[3], $d[0]]); }
 
 // Paksa update nilai default yang sudah ada jika masih pakai nilai lama/salah
 $fix_values = [
@@ -142,7 +154,7 @@ foreach ($conn->query("SELECT * FROM site_settings ORDER BY group_name, setting_
 // Urutan & ikon grup di sidebar pills
 $group_order = [
     'Identitas', 'Logo', 'Hero', 'Tentang', 'Navbar', 'Judul Section',
-    'Jurusan: RPL', 'Jurusan: TKJ', 'Jurusan: AP', 'Jurusan: TKKR',
+    'Jurusan',
     'Cara Mendaftar', 'Lokasi', 'Footer', 'Sosial Media', 'Tema Warna', 'SEO',
 ];
 $ordered_groups = [];
@@ -156,10 +168,7 @@ $group_icons = [
     'Tentang'        => 'bi-info-circle',
     'Navbar'         => 'bi-list',
     'Judul Section'  => 'bi-type-h2',
-    'Jurusan: RPL'   => 'bi-code-slash',
-    'Jurusan: TKJ'   => 'bi-hdd-network',
-    'Jurusan: AP'    => 'bi-heart-pulse',
-    'Jurusan: TKKR'  => 'bi-stars',
+    'Jurusan'        => 'bi-mortarboard-fill',
     'Cara Mendaftar' => 'bi-card-checklist',
     'Lokasi'         => 'bi-geo-alt',
     'Footer'         => 'bi-layout-text-window',
@@ -239,7 +248,40 @@ $field_hints = [
                     <?php endif; ?>
                     <form method="POST">
                         <input type="hidden" name="group" value="<?= htmlspecialchars($group_name) ?>">
-                        <?php foreach ($items as $item): $skey = $item['setting_key']; ?>
+                        <?php
+                        // Grup "Jurusan": susun ulang per sub-bagian jurusan + sisipkan sub-header
+                        $render_items = $items;
+                        if ($group_name === 'Jurusan') {
+                            $by_key = [];
+                            foreach ($items as $it) $by_key[$it['setting_key']] = $it;
+                            $jur_struct = [
+                                'RPL'  => ['prefix' => 'jur_rpl_',  'icon' => 'bi-code-slash',  'nama' => 'Rekayasa Perangkat Lunak'],
+                                'TKJ'  => ['prefix' => 'jur_tkj_',  'icon' => 'bi-hdd-network', 'nama' => 'Teknik Komputer & Jaringan'],
+                                'AP'   => ['prefix' => 'jur_ap_',   'icon' => 'bi-heart-pulse', 'nama' => 'Asisten Keperawatan'],
+                                'TKKR' => ['prefix' => 'jur_tkkr_', 'icon' => 'bi-stars',      'nama' => 'Tata Kecantikan Kulit & Rambut'],
+                            ];
+                            $field_order = ['judul', 'intro', 'keahlian', 'karir', 'foto',
+                                            'galeri1', 'galeri2', 'galeri3', 'galeri4', 'galeri5'];
+                            $render_items = [];
+                            $used = [];
+                            foreach ($jur_struct as $kode => $meta) {
+                                $render_items[] = ['__subheader' => $kode, 'icon' => $meta['icon'], 'nama' => $meta['nama']];
+                                foreach ($field_order as $fo) {
+                                    $k = $meta['prefix'] . $fo;
+                                    if (isset($by_key[$k])) { $render_items[] = $by_key[$k]; $used[$k] = true; }
+                                }
+                            }
+                            // Sisipkan field jurusan lain yang mungkin belum tercakup
+                            foreach ($items as $it) if (empty($used[$it['setting_key']])) $render_items[] = $it;
+                        }
+                        foreach ($render_items as $item):
+                            if (isset($item['__subheader'])): ?>
+                            <div class="d-flex align-items-center gap-2 mt-2 mb-3 pb-2 border-bottom">
+                                <span class="badge bg-primary-subtle text-primary-emphasis"><i class="bi <?= $item['icon'] ?> me-1"></i><?= htmlspecialchars($item['__subheader']) ?></span>
+                                <span class="fw-semibold text-muted small"><?= htmlspecialchars($item['nama']) ?></span>
+                            </div>
+                            <?php continue; endif; ?>
+                        <?php $skey = $item['setting_key']; ?>
                         <div class="mb-4">
                             <label class="form-label fw-semibold">
                                 <?= htmlspecialchars($item['label']) ?>
