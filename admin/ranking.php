@@ -215,7 +215,7 @@ function rank_row_json(array $r, array $raport_map): string {
     return json_encode([
         'id'=>$r['id'],'no_pendaftaran'=>$r['no_pendaftaran'],'nama'=>$r['nama'],'nisn'=>$r['nisn'],
         'tanggal_lahir'=>$r['tanggal_lahir'],'usia'=>$r['usia'],'jenis_kelamin'=>$r['jenis_kelamin'],
-        'asal_sekolah'=>$r['asal_sekolah'],'no_telp'=>$r['no_telp'],'alamat'=>$r['alamat'],
+        'asal_sekolah'=>$r['asal_sekolah'],'alamat_sekolah'=>$r['alamat_sekolah'] ?? null,'no_telp'=>$r['no_telp'],'alamat'=>$r['alamat'],
         'sistem_pendidikan'=>$r['sistem_pendidikan'],'jurusan'=>$r['jurusan'],
         'nilai_raport'=>$r['nilai_raport'],'nilai_tka'=>$r['nilai_tka'],'nilai_akhir'=>$r['nilai_akhir'],
         'lolos_usia'=>$r['lolos_usia'],'is_pinned'=>$r['is_pinned'],'status'=>$r['status'],
@@ -550,7 +550,7 @@ function openViewModal(d) {
                 <tr><th class="text-muted fw-normal">NISN</th><td>${esc(d.nisn)}</td></tr>
                 <tr><th class="text-muted fw-normal">Tgl Lahir</th><td>${d.tanggal_lahir} (${d.usia} thn)</td></tr>
                 <tr><th class="text-muted fw-normal">Jenis Kelamin</th><td>${d.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'}</td></tr>
-                <tr><th class="text-muted fw-normal">Asal Sekolah</th><td>${esc(d.asal_sekolah)}</td></tr>
+                <tr><th class="text-muted fw-normal">Asal Sekolah</th><td>${esc(d.asal_sekolah)}${d.alamat_sekolah ? `<br><span class="small text-muted">${esc(d.alamat_sekolah)}</span>` : ''}</td></tr>
             </table>
         </div>
         <div class="col-md-6">

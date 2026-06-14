@@ -27,6 +27,7 @@ $all_pages = [
     'ranking'        => ['label' => 'Ranking & Hasil',      'icon' => 'bi-trophy-fill',          'group' => 'Manajemen'],
     'announcements'  => ['label' => 'Pengumuman',           'icon' => 'bi-megaphone-fill',       'group' => 'Manajemen'],
     'pengaturan_ppdb'=> ['label' => 'Pengaturan Pendaftaran','icon' => 'bi-sliders',              'group' => 'Konfigurasi'],
+    'sekolah'        => ['label' => 'Kelola Sekolah',       'icon' => 'bi-building',             'group' => 'Konfigurasi'],
     'meja'           => ['label' => 'Kelola Meja',          'icon' => 'bi-layout-split',         'group' => 'Konfigurasi'],
     'backup'         => ['label' => 'Backup / Export',      'icon' => 'bi-cloud-download',       'group' => 'Sistem'],
     'change_password'=> ['label' => 'Ganti Password',       'icon' => 'bi-shield-lock',          'group' => 'Sistem'],
@@ -66,6 +67,10 @@ try {
 // Display antrian selalu muncul jika admin punya akses antrian
 if (in_array('antrian', $allowed_pages)) {
     $allowed_pages[] = 'antrian_display';
+}
+// Kelola Sekolah muncul jika admin bisa input Data Pendaftar (sumber dropdown asal sekolah)
+if (in_array('pendaftar', $allowed_pages) && !in_array('sekolah', $allowed_pages)) {
+    $allowed_pages[] = 'sekolah';
 }
 
 // Kalau admin belum punya tahapan → tampilkan semua (supaya tidak blank)
@@ -387,6 +392,7 @@ foreach ($pages as $key => $info) {
         'ranking'         => 'admin/ranking.php',
         'announcements'   => 'admin/announcements.php',
         'pengaturan_ppdb' => 'admin/pengaturan_ppdb.php',
+        'sekolah'         => 'admin/sekolah.php',
         'backup'          => 'admin/backup.php',
         'change_password' => 'admin/change_password.php',
         'kelola_admin'    => 'admin/kelola_admin.php',

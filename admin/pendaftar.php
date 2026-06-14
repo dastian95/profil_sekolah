@@ -137,6 +137,13 @@ try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN status_ortu ENUM('tidak','ya
 // Auto-migrate: hasil tes buta warna & jalur seleksi Gelombang 2
 try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN buta_warna ENUM('belum','normal','buta_warna') NOT NULL DEFAULT 'belum' AFTER status_ortu"); } catch (PDOException $e) {}
 try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN jalur ENUM('zonasi','afirmasi','prestasi') NOT NULL DEFAULT 'prestasi' AFTER buta_warna"); } catch (PDOException $e) {}
+// Auto-migrate: alamat sekolah asal (terisi dari pilihan dropdown / manual)
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN alamat_sekolah VARCHAR(255) NULL AFTER asal_sekolah"); } catch (PDOException $e) {}
+
+// Daftar sekolah untuk dropdown Asal Sekolah
+ensure_sekolah_table($conn);
+$sekolah_list = [];
+try { $sekolah_list = $conn->query("SELECT nama, alamat FROM sekolah_asal WHERE is_active=1 ORDER BY nama")->fetchAll(PDO::FETCH_ASSOC); } catch (PDOException $e) {}
 
 // ─── POST: Tambah / Edit / Hapus ────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -210,6 +217,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ? $_POST['buta_warna'] : 'belum';
             $jalur        = in_array($_POST['jalur'] ?? '', ['zonasi','afirmasi','prestasi'], true)
                 ? $_POST['jalur'] : 'prestasi';
+            $alamat_sekolah = trim($_POST['alamat_sekolah'] ?? '') ?: null;
             $zon          = $kelurahan_in !== '' ? zonasi_lookup($kelurahan_in) : null;
             $kelurahan_sv = $zon ? $kelurahan_in : null;
             $jarak_sv     = $zon ? $zon['jarak'] : null;
@@ -289,10 +297,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($action === 'add') {
                     $no = generateNoPendaftaran($conn, $d['gelombang']);
                     $stmt = $conn->prepare("INSERT INTO pendaftar
-                        (no_pendaftaran,gelombang,nama,nisn,tanggal_lahir,usia,jenis_kelamin,asal_sekolah,no_telp,tgl_kk,alamat,kelurahan,jarak_km,status_ortu,buta_warna,jalur,jurusan,sistem_pendidikan,nilai_raport,nilai_tka,tka_mtk,tka_bindo,nilai_akhir,lolos_usia,status)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+                        (no_pendaftaran,gelombang,nama,nisn,tanggal_lahir,usia,jenis_kelamin,asal_sekolah,alamat_sekolah,no_telp,tgl_kk,alamat,kelurahan,jarak_km,status_ortu,buta_warna,jalur,jurusan,sistem_pendidikan,nilai_raport,nilai_tka,tka_mtk,tka_bindo,nilai_akhir,lolos_usia,status)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
                     $stmt->execute([$no,$d['gelombang'],$d['nama'],$d['nisn'],$d['tanggal_lahir'],$d['usia'],
-                        $d['jenis_kelamin'],$d['asal_sekolah'],$d['no_telp'],$tgl_kk,$d['alamat'],$kelurahan_sv,$jarak_sv,$status_ortu,$buta_warna,$jalur,$d['jurusan'],
+                        $d['jenis_kelamin'],$d['asal_sekolah'],$alamat_sekolah,$d['no_telp'],$tgl_kk,$d['alamat'],$kelurahan_sv,$jarak_sv,$status_ortu,$buta_warna,$jalur,$d['jurusan'],
                         $sistem,$d['nilai_raport'],$d['nilai_tka'],$tka_mtk_sv,$tka_bindo_sv,$d['nilai_akhir'],$d['lolos_usia'],$new_status]);
                     $id = (int)$conn->lastInsertId();
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
@@ -329,11 +337,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } else {
                     $id = (int)$_POST['id'];
                     $stmt = $conn->prepare("UPDATE pendaftar SET
-                        gelombang=?,nama=?,nisn=?,tanggal_lahir=?,usia=?,jenis_kelamin=?,asal_sekolah=?,
+                        gelombang=?,nama=?,nisn=?,tanggal_lahir=?,usia=?,jenis_kelamin=?,asal_sekolah=?,alamat_sekolah=?,
                         no_telp=?,tgl_kk=?,alamat=?,kelurahan=?,jarak_km=?,status_ortu=?,buta_warna=?,jalur=?,jurusan=?,sistem_pendidikan=?,nilai_raport=?,nilai_tka=?,tka_mtk=?,tka_bindo=?,nilai_akhir=?,lolos_usia=?,status=?
                         WHERE id=?");
                     $stmt->execute([$d['gelombang'],$d['nama'],$d['nisn'],$d['tanggal_lahir'],$d['usia'],
-                        $d['jenis_kelamin'],$d['asal_sekolah'],$d['no_telp'],$tgl_kk,$d['alamat'],$kelurahan_sv,$jarak_sv,$status_ortu,$buta_warna,$jalur,$d['jurusan'],
+                        $d['jenis_kelamin'],$d['asal_sekolah'],$alamat_sekolah,$d['no_telp'],$tgl_kk,$d['alamat'],$kelurahan_sv,$jarak_sv,$status_ortu,$buta_warna,$jalur,$d['jurusan'],
                         $sistem,$d['nilai_raport'],$d['nilai_tka'],$tka_mtk_sv,$tka_bindo_sv,$d['nilai_akhir'],$d['lolos_usia'],$new_status,$id]);
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
 
@@ -770,9 +778,22 @@ if ($edit_id_get > 0) {
               </div>
               <div class="col-md-5">
                 <label class="form-label fw-semibold">Asal Sekolah <span class="text-danger">*</span></label>
-                <input type="text" name="asal_sekolah" id="fAsal" class="form-control" value="<?= htmlspecialchars($formData['asal_sekolah'] ?? '') ?>" placeholder="contoh: SMPN 1 Jakarta" required>
+                <select id="fAsalSelect" class="form-select" onchange="onAsalChange()">
+                  <option value="">— Pilih Sekolah —</option>
+                  <?php foreach ($sekolah_list as $sk): ?>
+                  <option value="<?= htmlspecialchars($sk['nama']) ?>" data-alamat="<?= htmlspecialchars($sk['alamat'] ?? '') ?>"><?= htmlspecialchars($sk['nama']) ?></option>
+                  <?php endforeach; ?>
+                  <option value="__manual__">Lainnya (isi manual)…</option>
+                </select>
+                <input type="text" id="fAsalManual" class="form-control mt-2 d-none" placeholder="Ketik nama sekolah" oninput="syncAsalManual()">
+                <input type="hidden" name="asal_sekolah" id="fAsal" value="<?= htmlspecialchars($formData['asal_sekolah'] ?? '') ?>">
+                <small class="text-muted">Tidak ada di daftar? Pilih <em>Lainnya</em> lalu isi manual. Daftar bisa ditambah di menu <strong>Kelola Sekolah</strong>.</small>
               </div>
-              <div class="col-md-2">
+              <div class="col-md-7">
+                <label class="form-label fw-semibold">Alamat Sekolah</label>
+                <textarea name="alamat_sekolah" id="fAlamatSekolah" class="form-control bg-light" rows="2" readonly placeholder="Terisi otomatis saat sekolah dipilih"><?= htmlspecialchars($formData['alamat_sekolah'] ?? '') ?></textarea>
+              </div>
+              <div class="col-md-3">
                 <label class="form-label fw-semibold">No. Telepon</label>
                 <input type="text" name="no_telp" id="fTelp" class="form-control" value="<?= htmlspecialchars($formData['no_telp'] ?? '') ?>" placeholder="08...">
               </div>
@@ -1259,7 +1280,7 @@ function loadTemplate() {
     if (!tpl.jurusan && !tpl.asal_sekolah) { alert('Belum ada template tersimpan. Isi form lalu klik tombol 🔖 untuk menyimpan template.'); return; }
     resetForm();
     if (tpl.jurusan)      document.getElementById('fJurusan').value = tpl.jurusan;
-    if (tpl.asal_sekolah) document.getElementById('fAsal').value    = tpl.asal_sekolah;
+    if (tpl.asal_sekolah) initAsal(tpl.asal_sekolah, '');
     if (tpl.sistem) {
         const r = document.querySelector(`input[name="sistem_pendidikan"][value="${tpl.sistem}"]`);
         if (r) { r.checked = true; switchSistem(tpl.sistem); }
@@ -1654,18 +1675,20 @@ document.getElementById('formPendaftar').addEventListener('submit', function(e) 
         { el: document.getElementById('fNisn'),    label: 'NISN' },
         { el: document.getElementById('fJurusan'), label: 'Jurusan' },
         { el: document.getElementById('fTgl'),     label: 'Tanggal Lahir' },
-        { el: document.getElementById('fAsal'),    label: 'Asal Sekolah' },
+        { el: document.getElementById('fAsal'),    label: 'Asal Sekolah', focusEl: document.getElementById('fAsalSelect') },
     ];
     const kosong = fields.filter(f => !f.el.value.trim());
     if (kosong.length > 0) {
         e.preventDefault();
         kosong.forEach(f => {
-            f.el.classList.add('is-invalid');
-            f.el.addEventListener('input', () => f.el.classList.remove('is-invalid'), { once: true });
+            const t = f.focusEl || f.el;
+            t.classList.add('is-invalid');
+            t.addEventListener('input', () => t.classList.remove('is-invalid'), { once: true });
+            t.addEventListener('change', () => t.classList.remove('is-invalid'), { once: true });
         });
         const isTab1Field = ['fNama','fNisn','fJurusan','fTgl','fAsal'].includes(kosong[0].el.id);
         if (isTab1Field) new bootstrap.Tab(document.querySelector('[data-bs-target="#tabDiri"]')).show();
-        kosong[0].el.focus();
+        (kosong[0].focusEl || kosong[0].el).focus();
         return;
     }
 
@@ -1683,6 +1706,64 @@ document.querySelectorAll('[data-bs-target="#tabDiri"], [data-bs-target="#tabRap
     btn.addEventListener('shown.bs.tab', updateSubmitBtn);
 });
 
+// ── Asal Sekolah: dropdown + alamat otomatis + fallback manual ───────────────
+function onAsalChange() {
+    const sel    = document.getElementById('fAsalSelect');
+    const manual = document.getElementById('fAsalManual');
+    const hidden = document.getElementById('fAsal');
+    const alamat = document.getElementById('fAlamatSekolah');
+    const val = sel.value;
+    sel.classList.remove('is-invalid');
+    if (val === '__manual__') {
+        manual.classList.remove('d-none');
+        manual.value = ''; hidden.value = '';
+        alamat.readOnly = false; alamat.value = ''; alamat.classList.remove('bg-light');
+        manual.focus();
+    } else if (val === '') {
+        manual.classList.add('d-none'); manual.value = '';
+        hidden.value = '';
+        alamat.readOnly = true; alamat.value = ''; alamat.classList.add('bg-light');
+    } else {
+        manual.classList.add('d-none'); manual.value = '';
+        hidden.value = val;
+        const opt = sel.options[sel.selectedIndex];
+        alamat.value = opt.getAttribute('data-alamat') || '';
+        alamat.readOnly = true; alamat.classList.add('bg-light');
+    }
+}
+function syncAsalManual() {
+    document.getElementById('fAsal').value = document.getElementById('fAsalManual').value;
+}
+// Inisialisasi state Asal Sekolah dari data tersimpan (cocokkan ke dropdown, atau manual)
+function initAsal(nama, alamatSek) {
+    const sel    = document.getElementById('fAsalSelect');
+    const manual = document.getElementById('fAsalManual');
+    const hidden = document.getElementById('fAsal');
+    const alamat = document.getElementById('fAlamatSekolah');
+    nama = nama || ''; alamatSek = alamatSek || '';
+    let matched = false;
+    for (const opt of sel.options) {
+        if (opt.value !== '' && opt.value !== '__manual__' && opt.value === nama) { matched = true; break; }
+    }
+    if (nama === '') {
+        sel.value = '';
+        manual.classList.add('d-none'); manual.value = '';
+        hidden.value = '';
+        alamat.value = ''; alamat.readOnly = true; alamat.classList.add('bg-light');
+    } else if (matched) {
+        sel.value = nama;
+        manual.classList.add('d-none'); manual.value = '';
+        hidden.value = nama;
+        alamat.value = alamatSek || (sel.options[sel.selectedIndex].getAttribute('data-alamat') || '');
+        alamat.readOnly = true; alamat.classList.add('bg-light');
+    } else {
+        sel.value = '__manual__';
+        manual.classList.remove('d-none'); manual.value = nama;
+        hidden.value = nama;
+        alamat.value = alamatSek; alamat.readOnly = false; alamat.classList.remove('bg-light');
+    }
+}
+
 function resetForm() {
     document.getElementById('modalTitle').textContent = 'Tambah Pendaftar';
     document.getElementById('formAction').value = 'add';
@@ -1695,7 +1776,7 @@ function resetForm() {
     document.getElementById('fTelp').value    = '';
     document.getElementById('fAlamat').value  = '';
     document.getElementById('fTgl').value     = '';
-    document.getElementById('fAsal').value    = '';
+    initAsal('', '');
     document.getElementById('fTkaMtk').value   = '';
     document.getElementById('fTkaBindo').value = '';
     document.getElementById('fTkaAvg').value   = '';
@@ -1793,7 +1874,7 @@ function editForm(d) {
     document.getElementById('fNisn').value    = d.nisn;
     document.getElementById('fJK').value      = d.jenis_kelamin;
     document.getElementById('fTgl').value     = d.tanggal_lahir;
-    document.getElementById('fAsal').value    = d.asal_sekolah;
+    initAsal(d.asal_sekolah || '', d.alamat_sekolah || '');
     document.getElementById('fTelp').value    = d.no_telp || '';
     document.getElementById('fAlamat').value  = d.alamat || '';
     document.getElementById('fJurusan').value = d.jurusan;
@@ -1948,6 +2029,7 @@ ${[1,2].map(_lembar => `
   <tr><td>Jurusan Pilihan</td><td>: <strong>${r.jurusan}</strong></td></tr>
   <tr><td>Gelombang</td><td>: Gelombang ${r.gelombang}</td></tr>
   <tr><td>Asal Sekolah</td><td>: ${r.asal_sekolah || '-'}</td></tr>
+  ${r.alamat_sekolah ? `<tr><td>Alamat Sekolah</td><td>: ${r.alamat_sekolah}</td></tr>` : ''}
   <tr><td>Sistem Penilaian</td><td>: ${sistemLabel}</td></tr>
   <tr><td>Tanggal KK</td><td>: ${tglKk}</td></tr>
   <tr><td>Tanggal Daftar</td><td>: ${daft}</td></tr>

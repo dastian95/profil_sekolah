@@ -217,3 +217,45 @@ const STATUS_ORTU_LABEL = [
     'piatu'       => 'Piatu — Ibu meninggal',
     'yatim_piatu' => 'Yatim Piatu — keduanya meninggal',
 ];
+
+// ── Daftar Sekolah Asal (SMP) ───────────────────────────────────────────────
+// Tabel sekolah_asal dikelola lewat menu "Kelola Sekolah".
+// Daftar awal di bawah = SMP Negeri sekitar Jakarta Timur (alamat awal/ancar-ancar,
+// silakan dilengkapi/dikoreksi lewat menu Kelola Sekolah).
+const SEKOLAH_SEED = [
+    ['SMP Negeri 99 Jakarta',  'Jl. Pahlawan Revolusi No.5, Pondok Bambu, Kec. Duren Sawit, Jakarta Timur'],
+    ['SMP Negeri 138 Jakarta', 'Jl. Swadaya PLN, Klender, Kec. Duren Sawit, Jakarta Timur'],
+    ['SMP Negeri 195 Jakarta', 'Jl. Mawar Merah VI, Malaka Jaya, Kec. Duren Sawit, Jakarta Timur'],
+    ['SMP Negeri 198 Jakarta', 'Jl. Bunga Rampai X, Malaka Jaya, Kec. Duren Sawit, Jakarta Timur'],
+    ['SMP Negeri 233 Jakarta', 'Jl. Pondok Kopi Raya, Pondok Kopi, Kec. Duren Sawit, Jakarta Timur'],
+    ['SMP Negeri 252 Jakarta', 'Jl. Kampung Baru, Pondok Kopi, Kec. Duren Sawit, Jakarta Timur'],
+    ['SMP Negeri 27 Jakarta',  'Jl. Kayu Tinggi, Cakung Timur, Kec. Cakung, Jakarta Timur'],
+    ['SMP Negeri 172 Jakarta', 'Jl. Stasiun Cakung, Pulo Gebang, Kec. Cakung, Jakarta Timur'],
+    ['SMP Negeri 168 Jakarta', 'Jl. Penggilingan, Kec. Cakung, Jakarta Timur'],
+    ['SMP Negeri 150 Jakarta', 'Jl. Cipinang Muara, Kec. Jatinegara, Jakarta Timur'],
+    ['SMP Negeri 51 Jakarta',  'Jl. Pisangan Lama, Kec. Pulo Gadung, Jakarta Timur'],
+    ['SMP Negeri 74 Jakarta',  'Jl. Pulo Asem Utara, Jati, Kec. Pulo Gadung, Jakarta Timur'],
+    ['SMP Negeri 117 Jakarta', 'Jl. Jambore, Cibubur, Kec. Ciracas, Jakarta Timur'],
+    ['SMP Negeri 9 Jakarta',   'Jl. Salemba Raya, Kec. Senen, Jakarta Pusat'],
+    ['MTs Negeri 9 Jakarta',   'Jl. Pahlawan Komarudin, Penggilingan, Kec. Cakung, Jakarta Timur'],
+];
+
+// Buat tabel sekolah_asal bila belum ada, seed daftar awal sekali saja.
+function ensure_sekolah_table(PDO $conn): void {
+    try {
+        $conn->exec("CREATE TABLE IF NOT EXISTS sekolah_asal (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nama VARCHAR(150) NOT NULL,
+            alamat VARCHAR(255) NULL,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        $cnt = (int)$conn->query("SELECT COUNT(*) FROM sekolah_asal")->fetchColumn();
+        if ($cnt === 0) {
+            $ins = $conn->prepare("INSERT INTO sekolah_asal (nama, alamat) VALUES (?, ?)");
+            foreach (SEKOLAH_SEED as [$snama, $salamat]) {
+                $ins->execute([$snama, $salamat]);
+            }
+        }
+    } catch (PDOException $e) { /* abaikan bila gagal (mis. permission) */ }
+}
