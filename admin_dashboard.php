@@ -295,24 +295,41 @@ foreach ($pages as $key => $info) {
         /* Mobile */
         .sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 1039; }
         .mobile-toggle { display: none; background: var(--primary); color: #fff; border: 0; padding: 8px 12px; border-radius: 8px; margin-right: 14px; }
+        .table-responsive { -webkit-overflow-scrolling: touch; }
         @media (max-width: 992px) {
-            .sidebar { transform: translateX(-100%); }
+            .sidebar { transform: translateX(-100%); box-shadow: 4px 0 24px rgba(0,0,0,.18); }
             .sidebar.show { transform: translateX(0); }
             .sidebar-backdrop.show { display: block; }
             .content-wrap { margin-left: 0; }
             .mobile-toggle { display: inline-flex; align-items: center; }
-            .topbar { padding: 0 16px; }
+            .topbar { padding: 0 14px; }
             .content { padding: 16px; }
+            .sidebar .nav-link { padding: 12px 16px; }     /* tap target lebih besar */
+            .modal-xl, .modal-lg { max-width: 96%; }
         }
         @media (max-width: 575px) {
-            .topbar { padding: 0 10px; min-height: 52px; }
-            .topbar h1, .topbar .fs-5 { font-size: .88rem !important; }
+            .topbar { padding: 0 10px; height: 56px; }
+            .topbar h1, .topbar .fs-5 { font-size: .9rem !important; }
             .content { padding: 10px !important; }
-            .card { border-radius: 8px; }
-            .table { font-size: .78rem; }
-            .btn-sm { padding: .22rem .48rem; font-size: .76rem; }
-            /* Tabel aksi — tampilkan tombol secara vertikal */
-            .table td.text-end { white-space: normal; display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+            .card { border-radius: 10px; }
+            .card-header { padding: 11px 13px; }
+            .card-body { padding: 13px; }
+            .table { font-size: .8rem; }
+            .table thead th, .table tbody td { padding: 8px 10px; white-space: nowrap; }
+            .btn-sm { padding: .24rem .5rem; font-size: .78rem; }
+            h2 { font-size: 1.3rem; }
+            .fs-2 { font-size: 1.5rem !important; }
+            .table td.text-end { white-space: normal; }
+            /* Modal hampir penuh layar */
+            .modal-dialog { margin: .4rem; max-width: none; }
+            .modal-xl, .modal-lg { max-width: none; }
+            .modal-body { padding: .9rem; }
+            .row.g-2, .row.g-3 { --bs-gutter-y: .5rem; }
+        }
+        /* Perangkat sentuh: matikan animasi berat → lebih ringan & cepat */
+        @media (hover: none) {
+            .card, .btn, .stat-card, .config-card { transition: none !important; }
+            .stat-card:hover, .card:hover, .config-card:hover { transform: none !important; box-shadow: var(--card-shadow) !important; }
         }
 
         /* Badge polish */

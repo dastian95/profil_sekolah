@@ -51,6 +51,13 @@ $total      = $conn->query("SELECT COUNT(*) FROM pendaftar")->fetchColumn();
 $diterima   = $conn->query("SELECT COUNT(*) FROM pendaftar WHERE status='terima'")->fetchColumn();
 $gel_rows   = $conn->query("SELECT * FROM gelombang ORDER BY gelombang")->fetchAll();
 $jurusan_list = JURUSAN_LIST;
+$short        = JURUSAN_SHORT;
+
+// Data preview (yang akan ikut ter-export) — tampilkan maksimal 200 terbaru
+$prevStmt = $conn->query("SELECT no_pendaftaran, nama, nisn, jenis_kelamin, gelombang, jurusan,
+    nilai_akhir, status, created_at FROM pendaftar ORDER BY id DESC LIMIT 200");
+$preview_rows = $prevStmt->fetchAll();
+$status_badge = ['terima'=>'bg-success','gugur'=>'bg-danger','lengkap'=>'bg-info text-dark','diproses'=>'bg-warning text-dark'];
 ?>
 
 <div class="alert alert-info small">
@@ -127,5 +134,52 @@ $jurusan_list = JURUSAN_LIST;
                 </div>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- Preview data yang akan di-backup -->
+<div class="card mt-4">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span class="fw-semibold"><i class="bi bi-table me-2"></i>Pratinjau Data Pendaftar</span>
+        <span class="small text-muted">
+            Menampilkan <strong><?= count($preview_rows) ?></strong> dari <strong><?= $total ?></strong> data (terbaru di atas)
+            <?php if ($total > count($preview_rows)): ?> — sisanya tetap ikut saat Download CSV<?php endif; ?>
+        </span>
+    </div>
+    <div class="card-body p-0">
+    <div class="table-responsive" style="max-height:520px;overflow:auto;">
+    <table class="table table-hover table-sm mb-0 align-middle">
+        <thead class="table-light" style="position:sticky;top:0;z-index:1;">
+            <tr>
+                <th>No. Daftar</th>
+                <th>Nama</th>
+                <th>NISN</th>
+                <th class="text-center">L/P</th>
+                <th class="text-center">Glm</th>
+                <th>Jurusan</th>
+                <th class="text-center">Nilai Akhir</th>
+                <th>Status</th>
+                <th class="text-nowrap">Waktu Daftar</th>
+            </tr>
+        </thead>
+        <tbody>
+        <?php if (empty($preview_rows)): ?>
+            <tr><td colspan="9" class="text-center py-4 text-muted">Belum ada data pendaftar.</td></tr>
+        <?php else: foreach ($preview_rows as $r): ?>
+            <tr>
+                <td class="small text-nowrap"><?= htmlspecialchars($r['no_pendaftaran']) ?></td>
+                <td><?= htmlspecialchars($r['nama']) ?></td>
+                <td class="small"><?= htmlspecialchars($r['nisn']) ?></td>
+                <td class="text-center"><?= htmlspecialchars($r['jenis_kelamin']) ?></td>
+                <td class="text-center"><?= (int)$r['gelombang'] ?></td>
+                <td class="small text-nowrap"><?= htmlspecialchars($short[$r['jurusan']] ?? $r['jurusan']) ?></td>
+                <td class="text-center fw-semibold"><?= number_format((float)$r['nilai_akhir'], 2) ?></td>
+                <td><span class="badge <?= $status_badge[$r['status']] ?? 'bg-secondary' ?>"><?= ucfirst($r['status']) ?></span></td>
+                <td class="small text-muted text-nowrap"><?= $r['created_at'] ? date('d/m/Y H:i', strtotime($r['created_at'])) : '-' ?></td>
+            </tr>
+        <?php endforeach; endif; ?>
+        </tbody>
+    </table>
+    </div>
     </div>
 </div>
