@@ -5,12 +5,14 @@ if (empty($_SESSION['is_super'])) {
 }
 
 // Halaman yang bisa diakses admin biasa (key => label)
+// 'none' = tahap offline/tatap muka, tidak terkait halaman admin manapun.
 const HALAMAN_TERSEDIA = [
     'pendaftar'    => 'Data Pendaftar',
     'antrian'      => 'Meja Antrian',
     'ranking'      => 'Ranking & Hasil',
     'announcements'=> 'Pengumuman',
     'backup'       => 'Backup / Export',
+    'none'         => 'Tanpa Halaman (Offline / Tatap Muka)',
 ];
 
 $msg = '';
@@ -427,7 +429,7 @@ document.querySelectorAll('.tahapan-nama').forEach(el => {
                 <option value="<?= $k ?>"><?= $l ?></option>
               <?php endforeach; ?>
             </select>
-            <small class="text-muted">Admin yang ditugaskan ke tahapan ini hanya bisa membuka halaman tersebut.</small>
+            <small class="text-muted">Admin yang ditugaskan ke tahapan ini hanya bisa membuka halaman tersebut. Pilih <strong>Tanpa Halaman</strong> untuk tahap yang dilakukan langsung/tatap muka (tidak lewat website).</small>
           </div>
 
           <div class="mb-3">

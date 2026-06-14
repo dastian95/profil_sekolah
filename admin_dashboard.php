@@ -53,7 +53,8 @@ try {
         // Prioritaskan mapping dari kode; fallback ke halaman_key jika kode tidak dikenal
         $pages_for_tahap = $tahap_pages[$row['kode']] ?? [$row['halaman_key']];
         foreach ($pages_for_tahap as $p) {
-            if ($p && !in_array($p, $allowed_pages)) {
+            // 'none' = tahap offline/tatap muka → tidak menambah akses halaman manapun
+            if ($p && $p !== 'none' && !in_array($p, $allowed_pages)) {
                 $allowed_pages[] = $p;
             }
         }
