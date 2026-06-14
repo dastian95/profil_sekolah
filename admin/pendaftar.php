@@ -706,7 +706,7 @@ if ($edit_id_get > 0) {
                     ];
                     $jalur_cur = $formData['jalur'] ?? 'prestasi';
                     foreach ($jalur_opts as $jl_k => [$jl_l, $jl_i, $jl_d]): ?>
-                    <input type="radio" class="btn-check" name="jalur" id="jalur_<?= $jl_k ?>" value="<?= $jl_k ?>" <?= $jalur_cur === $jl_k ? 'checked' : '' ?>>
+                    <input type="radio" class="btn-check" name="jalur" id="jalur_<?= $jl_k ?>" value="<?= $jl_k ?>" <?= $jalur_cur === $jl_k ? 'checked' : '' ?> onchange="onJalurChange()">
                     <label class="btn btn-outline-warning" for="jalur_<?= $jl_k ?>" title="<?= $jl_d ?>">
                       <i class="bi <?= $jl_i ?> me-1"></i><?= $jl_l ?>
                     </label>
@@ -715,37 +715,60 @@ if ($edit_id_get > 0) {
                   <small class="text-muted">Pilih jalur penerimaan pendaftar ini. Tiap jalur punya kuota sendiri (dibagi rata).</small>
                 </div>
               </div>
-              <div class="row g-3">
-                <div class="col-md-5">
-                  <label class="form-label fw-semibold small mb-1">Kelurahan Domisili (sesuai KK)</label>
-                  <select name="kelurahan" id="fKelurahan" class="form-select form-select-sm" onchange="updateJarakZonasi()">
-                    <option value="" data-jarak="">— Pilih Kelurahan —</option>
-                    <?php foreach (KELURAHAN_ZONASI as $zon_kec => $zon_list): ?>
-                    <optgroup label="Kec. <?= htmlspecialchars($zon_kec) ?>">
-                      <?php foreach ($zon_list as $zon_kel => [$zon_lat, $zon_lng]): ?>
-                      <option value="<?= htmlspecialchars($zon_kel) ?>"
-                              data-jarak="<?= zonasi_jarak_km($zon_lat, $zon_lng) ?>"
-                              <?= ($formData['kelurahan'] ?? '') === $zon_kel ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($zon_kel) ?>
-                      </option>
+              <!-- Isi berbeda sesuai jalur yang dipilih -->
+              <!-- Jalur ZONASI: kelurahan + jarak -->
+              <div id="jalurBoxZonasi" class="border-top pt-3">
+                <div class="fw-semibold small text-uppercase mb-2" style="color:#92400e;"><i class="bi bi-geo-alt-fill me-1"></i>Data Zonasi (jarak terdekat)</div>
+                <div class="row g-3">
+                  <div class="col-md-7">
+                    <label class="form-label fw-semibold small mb-1">Kelurahan Domisili (sesuai KK)</label>
+                    <select name="kelurahan" id="fKelurahan" class="form-select form-select-sm" onchange="updateJarakZonasi()">
+                      <option value="" data-jarak="">— Pilih Kelurahan —</option>
+                      <?php foreach (KELURAHAN_ZONASI as $zon_kec => $zon_list): ?>
+                      <optgroup label="Kec. <?= htmlspecialchars($zon_kec) ?>">
+                        <?php foreach ($zon_list as $zon_kel => [$zon_lat, $zon_lng]): ?>
+                        <option value="<?= htmlspecialchars($zon_kel) ?>"
+                                data-jarak="<?= zonasi_jarak_km($zon_lat, $zon_lng) ?>"
+                                <?= ($formData['kelurahan'] ?? '') === $zon_kel ? 'selected' : '' ?>>
+                          <?= htmlspecialchars($zon_kel) ?>
+                        </option>
+                        <?php endforeach; ?>
+                      </optgroup>
                       <?php endforeach; ?>
-                    </optgroup>
-                    <?php endforeach; ?>
-                  </select>
-                  <small class="text-muted">Luar Jakarta Timur? Biarkan kosong, isi alamat manual saja.</small>
+                    </select>
+                    <small class="text-muted">Luar Jakarta Timur? Biarkan kosong, isi alamat manual saja.</small>
+                  </div>
+                  <div class="col-md-5">
+                    <label class="form-label fw-semibold small mb-1">Jarak ke Sekolah</label>
+                    <input type="text" id="fJarak" class="form-control form-control-sm bg-light" readonly placeholder="—">
+                    <small class="text-muted">Garis lurus, dihitung otomatis. Makin dekat makin diutamakan.</small>
+                  </div>
                 </div>
-                <div class="col-md-3">
-                  <label class="form-label fw-semibold small mb-1">Jarak ke Sekolah</label>
-                  <input type="text" id="fJarak" class="form-control form-control-sm bg-light" readonly placeholder="—">
-                  <small class="text-muted">Garis lurus, otomatis</small>
+              </div>
+
+              <!-- Jalur AFIRMASI: status orang tua -->
+              <div id="jalurBoxAfirmasi" class="border-top pt-3">
+                <div class="fw-semibold small text-uppercase mb-2" style="color:#92400e;"><i class="bi bi-heart-fill me-1"></i>Data Afirmasi (Yatim / Piatu)</div>
+                <div class="row g-3">
+                  <div class="col-md-7">
+                    <label class="form-label fw-semibold small mb-1">Status Orang Tua</label>
+                    <select name="status_ortu" id="fStatusOrtu" class="form-select form-select-sm">
+                      <?php foreach (STATUS_ORTU_LABEL as $so_k => $so_l): ?>
+                      <option value="<?= $so_k ?>" <?= ($formData['status_ortu'] ?? 'tidak') === $so_k ? 'selected' : '' ?>><?= htmlspecialchars($so_l) ?></option>
+                      <?php endforeach; ?>
+                    </select>
+                    <small class="text-muted">Jalur Afirmasi mengutamakan pendaftar yatim/piatu (yang lebih tua diutamakan).</small>
+                  </div>
                 </div>
-                <div class="col-md-4">
-                  <label class="form-label fw-semibold small mb-1">Status Orang Tua</label>
-                  <select name="status_ortu" id="fStatusOrtu" class="form-select form-select-sm">
-                    <?php foreach (STATUS_ORTU_LABEL as $so_k => $so_l): ?>
-                    <option value="<?= $so_k ?>" <?= ($formData['status_ortu'] ?? 'tidak') === $so_k ? 'selected' : '' ?>><?= htmlspecialchars($so_l) ?></option>
-                    <?php endforeach; ?>
-                  </select>
+              </div>
+
+              <!-- Jalur PRESTASI: info -->
+              <div id="jalurBoxPrestasi" class="border-top pt-3">
+                <div class="fw-semibold small text-uppercase mb-2" style="color:#92400e;"><i class="bi bi-trophy-fill me-1"></i>Data Prestasi (nilai)</div>
+                <div class="alert alert-light border small mb-0">
+                  <i class="bi bi-info-circle me-1 text-warning"></i>
+                  Jalur Prestasi dinilai dari <strong>Nilai Akhir</strong> (Raport &amp; TKA). Tidak ada data tambahan di sini —
+                  cukup lengkapi <strong>Data Diri</strong> &amp; <strong>Detail Raport</strong>. Nilai tertinggi diutamakan.
                 </div>
               </div>
             </div>
@@ -1669,6 +1692,17 @@ function updateJarakZonasi() {
     const j = sel.options[sel.selectedIndex]?.dataset.jarak || '';
     out.value = j !== '' ? j + ' km' : '';
 }
+// Tampilkan isi sesuai jalur seleksi yang dipilih (Zonasi/Afirmasi/Prestasi)
+function onJalurChange() {
+    const sel = document.querySelector('input[name="jalur"]:checked');
+    const jl = sel ? sel.value : 'prestasi';
+    const boxes = { zonasi: 'jalurBoxZonasi', afirmasi: 'jalurBoxAfirmasi', prestasi: 'jalurBoxPrestasi' };
+    Object.entries(boxes).forEach(([k, id]) => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = (k === jl) ? '' : 'none';
+    });
+}
+
 function setG2Section(gel) {
     const show = parseInt(gel, 10) === 2;
     const nav = document.getElementById('tabJalurNav');
@@ -1682,7 +1716,7 @@ function setG2Section(gel) {
         }
     }
 }
-document.addEventListener('DOMContentLoaded', updateJarakZonasi);
+document.addEventListener('DOMContentLoaded', () => { updateJarakZonasi(); onJalurChange(); });
 
 // Rata-rata TKA dari 2 mapel (MTK & B.Indonesia) + update field readonly
 function getTkaAvg() {
@@ -1873,6 +1907,7 @@ function resetForm() {
     if (_so) _so.value = 'tidak';
     const _jl = document.getElementById('jalur_prestasi');
     if (_jl) _jl.checked = true;
+    onJalurChange();
     const _bw = document.getElementById('fButaWarna');
     if (_bw) _bw.value = 'belum';
     updateJarakZonasi();
@@ -1955,6 +1990,7 @@ function editForm(d) {
     if (_so) _so.value = d.status_ortu || 'tidak';
     const _jl = document.getElementById('jalur_' + (d.jalur || 'prestasi'));
     if (_jl) _jl.checked = true;
+    onJalurChange();
     const _bw = document.getElementById('fButaWarna');
     if (_bw) _bw.value = d.buta_warna || 'belum';
     updateJarakZonasi();

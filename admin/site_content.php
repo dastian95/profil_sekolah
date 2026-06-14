@@ -249,9 +249,10 @@ $field_hints = [
                     <form method="POST">
                         <input type="hidden" name="group" value="<?= htmlspecialchars($group_name) ?>">
                         <?php
-                        // Grup "Jurusan": susun ulang per sub-bagian jurusan + sisipkan sub-header
+                        // Grup "Jurusan": susun ulang per jurusan + tampilkan sebagai TAB per jurusan
                         $render_items = $items;
-                        if ($group_name === 'Jurusan') {
+                        $is_jurusan = ($group_name === 'Jurusan');
+                        if ($is_jurusan) {
                             $by_key = [];
                             foreach ($items as $it) $by_key[$it['setting_key']] = $it;
                             $jur_struct = [
@@ -271,15 +272,30 @@ $field_hints = [
                                     if (isset($by_key[$k])) { $render_items[] = $by_key[$k]; $used[$k] = true; }
                                 }
                             }
-                            // Sisipkan field jurusan lain yang mungkin belum tercakup
+                            // Sisipkan field jurusan lain yang mungkin belum tercakup (ke tab terakhir)
                             foreach ($items as $it) if (empty($used[$it['setting_key']])) $render_items[] = $it;
                         }
+                        ?>
+                        <?php if ($is_jurusan): ?>
+                        <ul class="nav nav-pills nav-fill mb-3 gap-1 border rounded p-1 bg-light" role="tablist">
+                          <?php $jfirst = true; foreach ($jur_struct as $kode => $meta): ?>
+                          <li class="nav-item">
+                            <button type="button" class="nav-link <?= $jfirst ? 'active' : '' ?> py-1" data-bs-toggle="pill" data-bs-target="#jurpane-<?= strtolower($kode) ?>">
+                              <i class="bi <?= $meta['icon'] ?> me-1"></i><?= $kode ?>
+                            </button>
+                          </li>
+                          <?php $jfirst = false; endforeach; ?>
+                        </ul>
+                        <div class="tab-content">
+                        <?php endif; ?>
+                        <?php
+                        $pane_open = false;
                         foreach ($render_items as $item):
-                            if (isset($item['__subheader'])): ?>
-                            <div class="d-flex align-items-center gap-2 mt-2 mb-3 pb-2 border-bottom">
-                                <span class="badge bg-primary-subtle text-primary-emphasis"><i class="bi <?= $item['icon'] ?> me-1"></i><?= htmlspecialchars($item['__subheader']) ?></span>
-                                <span class="fw-semibold text-muted small"><?= htmlspecialchars($item['nama']) ?></span>
-                            </div>
+                            if (isset($item['__subheader'])):
+                                if ($pane_open) echo '</div>';
+                                $pane_open = true; ?>
+                            <div class="tab-pane fade <?= $item['__subheader'] === 'RPL' ? 'show active' : '' ?>" id="jurpane-<?= strtolower($item['__subheader']) ?>">
+                              <div class="mb-3 pb-2 border-bottom small"><i class="bi <?= $item['icon'] ?> me-1 text-primary"></i><strong><?= htmlspecialchars($item['__subheader']) ?></strong> — <span class="text-muted"><?= htmlspecialchars($item['nama']) ?></span></div>
                             <?php continue; endif; ?>
                         <?php $skey = $item['setting_key']; ?>
                         <div class="mb-4">
@@ -352,6 +368,9 @@ $field_hints = [
                             <?php endif; ?>
                         </div>
                         <?php endforeach; ?>
+                        <?php if ($is_jurusan): if ($pane_open) echo '</div>'; /* tutup pane terakhir */ ?>
+                        </div><!-- /tab-content jurusan -->
+                        <?php endif; ?>
 
                         <div class="d-flex justify-content-end border-top pt-3">
                             <button type="submit" class="btn btn-primary px-4">
