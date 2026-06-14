@@ -675,79 +675,81 @@ if ($edit_id_get > 0) {
         <input type="hidden" name="id" id="formId" value="<?= htmlspecialchars($formId) ?>">
         <input type="hidden" name="form_token" id="formToken" value="<?= htmlspecialchars($form_token) ?>">
 
-        <!-- ── Section Gelombang 2: Zonasi & Yatim/Piatu (di atas Data Diri) ── -->
         <?php $g2_aktif = ($gelombang_aktif && (int)$gelombang_aktif['gelombang'] === 2) || $active_glm === '2'; ?>
-        <div id="sectionG2" class="px-3 pt-3" style="<?= $g2_aktif ? '' : 'display:none;' ?>">
-          <div class="border rounded-3 p-3" style="background:#fffbeb;border-color:#fcd34d !important;">
-            <div class="fw-bold small text-uppercase mb-2" style="color:#92400e;letter-spacing:.4px;">
-              <i class="bi bi-signpost-split-fill me-1"></i>Gelombang 2 — Jalur Seleksi, Zonasi &amp; Status Orang Tua
-            </div>
-            <div class="row g-3 mb-1">
-              <div class="col-md-12">
-                <label class="form-label fw-semibold small mb-1">Jalur Seleksi <span class="text-danger">*</span></label>
-                <div class="btn-group w-100" role="group" id="jalurGroup">
-                  <?php
-                  $jalur_opts = [
-                    'zonasi'   => ['Zonasi', 'bi-geo-alt-fill', 'Berdasarkan jarak terdekat'],
-                    'afirmasi' => ['Afirmasi', 'bi-heart-fill', 'Yatim / Piatu'],
-                    'prestasi' => ['Prestasi', 'bi-trophy-fill', 'Berdasarkan nilai'],
-                  ];
-                  $jalur_cur = $formData['jalur'] ?? 'prestasi';
-                  foreach ($jalur_opts as $jl_k => [$jl_l, $jl_i, $jl_d]): ?>
-                  <input type="radio" class="btn-check" name="jalur" id="jalur_<?= $jl_k ?>" value="<?= $jl_k ?>" <?= $jalur_cur === $jl_k ? 'checked' : '' ?>>
-                  <label class="btn btn-outline-warning btn-sm" for="jalur_<?= $jl_k ?>" title="<?= $jl_d ?>">
-                    <i class="bi <?= $jl_i ?> me-1"></i><?= $jl_l ?>
-                  </label>
-                  <?php endforeach; ?>
-                </div>
-                <small class="text-muted">Pilih jalur penerimaan pendaftar ini. Tiap jalur punya kuota sendiri (dibagi rata).</small>
-              </div>
-            </div>
-            <div class="row g-3">
-              <div class="col-md-5">
-                <label class="form-label fw-semibold small mb-1">Kelurahan Domisili (sesuai KK)</label>
-                <select name="kelurahan" id="fKelurahan" class="form-select form-select-sm"
-                        onchange="updateJarakZonasi()">
-                  <option value="" data-jarak="">— Pilih Kelurahan —</option>
-                  <?php foreach (KELURAHAN_ZONASI as $zon_kec => $zon_list): ?>
-                  <optgroup label="Kec. <?= htmlspecialchars($zon_kec) ?>">
-                    <?php foreach ($zon_list as $zon_kel => [$zon_lat, $zon_lng]): ?>
-                    <option value="<?= htmlspecialchars($zon_kel) ?>"
-                            data-jarak="<?= zonasi_jarak_km($zon_lat, $zon_lng) ?>"
-                            <?= ($formData['kelurahan'] ?? '') === $zon_kel ? 'selected' : '' ?>>
-                      <?= htmlspecialchars($zon_kel) ?>
-                    </option>
-                    <?php endforeach; ?>
-                  </optgroup>
-                  <?php endforeach; ?>
-                </select>
-                <small class="text-muted">Luar Jakarta Timur? Biarkan kosong, isi alamat manual saja.</small>
-              </div>
-              <div class="col-md-3">
-                <label class="form-label fw-semibold small mb-1">Jarak ke Sekolah</label>
-                <input type="text" id="fJarak" class="form-control form-control-sm bg-light" readonly placeholder="—">
-                <small class="text-muted">Garis lurus, otomatis</small>
-              </div>
-              <div class="col-md-4">
-                <label class="form-label fw-semibold small mb-1">Status Orang Tua</label>
-                <select name="status_ortu" id="fStatusOrtu" class="form-select form-select-sm">
-                  <?php foreach (STATUS_ORTU_LABEL as $so_k => $so_l): ?>
-                  <option value="<?= $so_k ?>" <?= ($formData['status_ortu'] ?? 'tidak') === $so_k ? 'selected' : '' ?>><?= htmlspecialchars($so_l) ?></option>
-                  <?php endforeach; ?>
-                </select>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <!-- Tab Navigation -->
         <ul class="nav nav-tabs px-3 pt-2" role="tablist">
+          <li class="nav-item" id="tabJalurNav" style="<?= $g2_aktif ? '' : 'display:none;' ?>">
+            <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#tabJalur"><i class="bi bi-signpost-split-fill me-1"></i> Jalur Seleksi</button>
+          </li>
           <li class="nav-item"><button type="button" class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabDiri"><i class="bi bi-person me-1"></i> Data Diri</button></li>
           <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#tabRaport"><i class="bi bi-table me-1"></i> Detail Raport</button></li>
         </ul>
 
         <div class="modal-body">
         <div class="tab-content">
+
+          <!-- ── Tab Jalur Seleksi (Gelombang 2) ─────────────────────────── -->
+          <div class="tab-pane fade" id="tabJalur">
+            <div class="border rounded-3 p-3" style="background:#fffbeb;border-color:#fcd34d !important;">
+              <div class="fw-bold small text-uppercase mb-3" style="color:#92400e;letter-spacing:.4px;">
+                <i class="bi bi-signpost-split-fill me-1"></i>Gelombang 2 — Jalur Seleksi, Zonasi &amp; Status Orang Tua
+              </div>
+              <div class="row g-3 mb-2">
+                <div class="col-md-12">
+                  <label class="form-label fw-semibold small mb-1">Jalur Seleksi <span class="text-danger">*</span></label>
+                  <div class="btn-group w-100" role="group" id="jalurGroup">
+                    <?php
+                    $jalur_opts = [
+                      'zonasi'   => ['Zonasi', 'bi-geo-alt-fill', 'Berdasarkan jarak terdekat'],
+                      'afirmasi' => ['Afirmasi', 'bi-heart-fill', 'Yatim / Piatu'],
+                      'prestasi' => ['Prestasi', 'bi-trophy-fill', 'Berdasarkan nilai'],
+                    ];
+                    $jalur_cur = $formData['jalur'] ?? 'prestasi';
+                    foreach ($jalur_opts as $jl_k => [$jl_l, $jl_i, $jl_d]): ?>
+                    <input type="radio" class="btn-check" name="jalur" id="jalur_<?= $jl_k ?>" value="<?= $jl_k ?>" <?= $jalur_cur === $jl_k ? 'checked' : '' ?>>
+                    <label class="btn btn-outline-warning" for="jalur_<?= $jl_k ?>" title="<?= $jl_d ?>">
+                      <i class="bi <?= $jl_i ?> me-1"></i><?= $jl_l ?>
+                    </label>
+                    <?php endforeach; ?>
+                  </div>
+                  <small class="text-muted">Pilih jalur penerimaan pendaftar ini. Tiap jalur punya kuota sendiri (dibagi rata).</small>
+                </div>
+              </div>
+              <div class="row g-3">
+                <div class="col-md-5">
+                  <label class="form-label fw-semibold small mb-1">Kelurahan Domisili (sesuai KK)</label>
+                  <select name="kelurahan" id="fKelurahan" class="form-select form-select-sm" onchange="updateJarakZonasi()">
+                    <option value="" data-jarak="">— Pilih Kelurahan —</option>
+                    <?php foreach (KELURAHAN_ZONASI as $zon_kec => $zon_list): ?>
+                    <optgroup label="Kec. <?= htmlspecialchars($zon_kec) ?>">
+                      <?php foreach ($zon_list as $zon_kel => [$zon_lat, $zon_lng]): ?>
+                      <option value="<?= htmlspecialchars($zon_kel) ?>"
+                              data-jarak="<?= zonasi_jarak_km($zon_lat, $zon_lng) ?>"
+                              <?= ($formData['kelurahan'] ?? '') === $zon_kel ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($zon_kel) ?>
+                      </option>
+                      <?php endforeach; ?>
+                    </optgroup>
+                    <?php endforeach; ?>
+                  </select>
+                  <small class="text-muted">Luar Jakarta Timur? Biarkan kosong, isi alamat manual saja.</small>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold small mb-1">Jarak ke Sekolah</label>
+                  <input type="text" id="fJarak" class="form-control form-control-sm bg-light" readonly placeholder="—">
+                  <small class="text-muted">Garis lurus, otomatis</small>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold small mb-1">Status Orang Tua</label>
+                  <select name="status_ortu" id="fStatusOrtu" class="form-select form-select-sm">
+                    <?php foreach (STATUS_ORTU_LABEL as $so_k => $so_l): ?>
+                    <option value="<?= $so_k ?>" <?= ($formData['status_ortu'] ?? 'tidak') === $so_k ? 'selected' : '' ?>><?= htmlspecialchars($so_l) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <!-- ── Tab Data Diri ───────────────────────────────────────────── -->
           <div class="tab-pane fade show active" id="tabDiri">
@@ -1668,8 +1670,17 @@ function updateJarakZonasi() {
     out.value = j !== '' ? j + ' km' : '';
 }
 function setG2Section(gel) {
-    const sec = document.getElementById('sectionG2');
-    if (sec) sec.style.display = (parseInt(gel, 10) === 2) ? '' : 'none';
+    const show = parseInt(gel, 10) === 2;
+    const nav = document.getElementById('tabJalurNav');
+    if (nav) nav.style.display = show ? '' : 'none';
+    // Jika Gelombang 1 dan tab Jalur sedang aktif, pindahkan ke Data Diri
+    if (!show) {
+        const jt = document.querySelector('[data-bs-target="#tabJalur"]');
+        if (jt && jt.classList.contains('active')) {
+            const dt = document.querySelector('[data-bs-target="#tabDiri"]');
+            if (dt) bootstrap.Tab.getOrCreateInstance(dt).show();
+        }
+    }
 }
 document.addEventListener('DOMContentLoaded', updateJarakZonasi);
 
