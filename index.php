@@ -26,11 +26,11 @@ $slist = fn($k, $d = '') => array_values(array_filter(array_map('trim', explode(
   <meta name="keywords" content="<?= $s('seo_keywords') ?>">
 
   <!-- Favicons — favicon.ico di root untuk Google, PNG untuk browser/perangkat -->
-  <?php $fav = $sr('favicon_url', 'assets/img/smk.png') ?: 'assets/img/smk.png'; ?>
-  <link rel="icon" href="favicon.ico" sizes="any">
-  <link rel="icon" type="image/png" href="<?= htmlspecialchars($fav) ?>">
-  <link rel="shortcut icon" href="favicon.ico">
-  <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+  <?php $fav = $sr('favicon_url', 'assets/img/favicon-32.png') ?: 'assets/img/favicon-32.png'; ?>
+  <link rel="icon" href="favicon.ico?v=2" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="<?= htmlspecialchars($fav) ?>">
+  <link rel="shortcut icon" href="favicon.ico?v=2">
+  <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png?v=2">
 
   <!-- Fonts -->
   <link href="https://fonts.googleapis.com" rel="preconnect">
