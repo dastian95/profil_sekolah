@@ -431,7 +431,7 @@ $total_rows = $countStmt->fetchColumn();
 $total_pages = max(1, ceil($total_rows / $per_page));
 $offset = ($page_num - 1) * $per_page;
 
-$dataStmt = $conn->prepare("SELECT * FROM pendaftar WHERE $whereStr ORDER BY nilai_akhir DESC, usia DESC LIMIT $per_page OFFSET $offset");
+$dataStmt = $conn->prepare("SELECT * FROM pendaftar WHERE $whereStr ORDER BY id DESC LIMIT $per_page OFFSET $offset");
 $dataStmt->execute($params);
 $rows = $dataStmt->fetchAll();
 

@@ -237,9 +237,10 @@ try {
                 <td>
                     <?php if (!empty($a['password_plain'])): ?>
                     <div class="d-flex align-items-center gap-1">
-                        <span class="font-monospace small" id="pwd<?= $a['id'] ?>">••••••</span>
+                        <span class="font-monospace small" id="pwd<?= $a['id'] ?>"
+                              data-pwd="<?= htmlspecialchars($a['password_plain'], ENT_QUOTES) ?>">••••••</span>
                         <button type="button" class="btn btn-sm btn-link p-0 text-muted"
-                                onclick="togglePwd(<?= $a['id'] ?>, <?= json_encode($a['password_plain']) ?>)"
+                                onclick="togglePwd(<?= $a['id'] ?>)"
                                 title="Tampilkan/Sembunyikan">
                             <i class="bi bi-eye" id="eyeIcon<?= $a['id'] ?>"></i>
                         </button>
@@ -515,11 +516,12 @@ try {
 </div>
 
 <script>
-function togglePwd(id, plaintext) {
+function togglePwd(id) {
     const el  = document.getElementById('pwd' + id);
     const ico = document.getElementById('eyeIcon' + id);
+    if (!el) return;
     if (el.textContent.includes('•')) {
-        el.textContent = plaintext;
+        el.textContent = el.dataset.pwd || '(kosong)';
         ico.className = 'bi bi-eye-slash';
     } else {
         el.textContent = '••••••';
