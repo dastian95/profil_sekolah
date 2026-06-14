@@ -197,6 +197,25 @@ $field_hints = [
 
 <?= $msg ?>
 
+<style>
+#cmsWrap .nav-pills .nav-link{color:#475569;border-radius:10px;padding:.5rem .8rem;font-size:.9rem;border:1px solid transparent;transition:all .15s;}
+#cmsWrap .nav-pills .nav-link:hover{background:#f1f5f9;}
+#cmsWrap .nav-pills .nav-link.active{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;box-shadow:0 4px 12px rgba(99,102,241,.25);}
+#cmsWrap .cms-card{border:none;border-radius:16px;box-shadow:0 2px 14px rgba(2,6,23,.06);overflow:hidden;}
+#cmsWrap .cms-card .card-header{background:linear-gradient(135deg,#eef2ff,#faf5ff);border:0;border-bottom:1px solid #eef2f7;padding:1rem 1.2rem;font-size:1.02rem;}
+#cmsWrap .cms-card .card-header i{font-size:1.15rem;}
+#cmsWrap .cms-card .card-body{padding:1.3rem 1.4rem;}
+#cmsWrap .form-label{font-size:.88rem;color:#334155;}
+#cmsWrap .form-control,#cmsWrap .form-select{border-radius:9px;border-color:#e2e8f0;}
+#cmsWrap .form-control:focus,#cmsWrap .form-select:focus{border-color:#a5b4fc;box-shadow:0 0 0 .2rem rgba(99,102,241,.12);}
+#cmsWrap .gallery-item{border-radius:12px !important;transition:box-shadow .15s,transform .15s;}
+#cmsWrap .gallery-item:hover{box-shadow:0 8px 18px rgba(2,6,23,.12);transform:translateY(-2px);}
+#cmsWrap .field-block{padding:.9rem 1rem;border:1px solid #eef2f7;border-radius:12px;margin-bottom:1rem;background:#fff;}
+#cmsWrap .field-block:hover{border-color:#e0e7ff;}
+#cmsWrap .img-preview{border-radius:10px !important;border:1px solid #e2e8f0;}
+</style>
+
+<div id="cmsWrap">
 <div class="d-flex align-items-center mb-4 gap-3">
     <div>
         <h4 class="mb-0 fw-bold"><i class="bi bi-layout-text-window-reverse me-2 text-primary"></i>Konten & Tampilan Website</h4>
@@ -225,8 +244,8 @@ $field_hints = [
         <div class="tab-content">
         <?php foreach ($groups as $group_name => $items): ?>
         <div class="tab-pane fade <?= $group_name === $active_group ? 'show active' : '' ?>" id="tab-<?= md5($group_name) ?>">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-bottom d-flex align-items-center gap-2">
+            <div class="card cms-card">
+                <div class="card-header d-flex align-items-center gap-2">
                     <i class="bi <?= $group_icons[$group_name] ?? 'bi-gear' ?> text-primary"></i>
                     <strong><?= htmlspecialchars($group_name) ?></strong>
                 </div>
@@ -298,7 +317,41 @@ $field_hints = [
                               <div class="mb-3 pb-2 border-bottom small"><i class="bi <?= $item['icon'] ?> me-1 text-primary"></i><strong><?= htmlspecialchars($item['__subheader']) ?></strong> — <span class="text-muted"><?= htmlspecialchars($item['nama']) ?></span></div>
                             <?php continue; endif; ?>
                         <?php $skey = $item['setting_key']; ?>
-                        <div class="mb-4">
+                        <?php
+                        // Galeri RPL: render sebagai 1 baris kartu yang bisa di-seret (drag & drop)
+                        if (preg_match('/^jur_rpl_galeri[2-5]$/', $skey)) continue; // ditangani oleh galeri1
+                        if ($skey === 'jur_rpl_galeri1'): ?>
+                        <div class="mb-4 field-block">
+                            <label class="form-label fw-semibold">Galeri Kegiatan RPL
+                                <small class="text-muted fw-normal ms-1"><i class="bi bi-arrows-move"></i> seret kartu untuk mengubah urutan</small>
+                            </label>
+                            <div class="d-flex flex-wrap gap-2" id="rplGallery">
+                                <?php for ($gi = 1; $gi <= 5; $gi++):
+                                    $gk = 'jur_rpl_galeri' . $gi;
+                                    $gv = $by_key[$gk]['setting_value'] ?? '';
+                                ?>
+                                <div class="gallery-item card p-2 border" style="width:158px;">
+                                    <div class="d-flex justify-content-between align-items-center mb-1" style="cursor:grab;">
+                                        <span class="badge bg-primary-subtle text-primary-emphasis gal-num">#<?= $gi ?></span>
+                                        <i class="bi bi-grip-vertical text-muted" title="Seret"></i>
+                                    </div>
+                                    <img id="prev_<?= $gk ?>" src="<?= htmlspecialchars($gv) ?>"
+                                         onerror="this.style.display='none'"
+                                         style="width:100%;height:90px;object-fit:cover;border-radius:6px;background:#f1f3f5;<?= $gv === '' ? 'display:none;' : '' ?>">
+                                    <input type="text" name="fields[<?= $gk ?>]" id="inp_<?= $gk ?>"
+                                           class="form-control form-control-sm mt-1 gallery-url"
+                                           value="<?= htmlspecialchars($gv) ?>" placeholder="assets/img/...">
+                                    <button type="button" class="btn btn-outline-primary btn-sm mt-1"
+                                            onclick="document.getElementById('file_<?= $gk ?>').click()"><i class="bi bi-upload me-1"></i>Ganti</button>
+                                    <input type="file" id="file_<?= $gk ?>" accept="image/*" class="d-none"
+                                           onchange="uploadImg(this, 'inp_<?= $gk ?>', 'prev_<?= $gk ?>')">
+                                </div>
+                                <?php endfor; ?>
+                            </div>
+                            <small class="text-muted">Urutan kiri → kanan = urutan tampil di website. Kosongkan salah satu untuk menyembunyikannya.</small>
+                        </div>
+                        <?php continue; endif; ?>
+                        <div class="mb-4 field-block">
                             <label class="form-label fw-semibold">
                                 <?= htmlspecialchars($item['label']) ?>
                                 <small class="text-muted fw-normal ms-1">(<?= $item['type'] ?>)</small>
@@ -327,9 +380,9 @@ $field_hints = [
                                        onchange="uploadImg(this, 'inp_<?= htmlspecialchars($skey) ?>', 'prev_<?= htmlspecialchars($skey) ?>')">
                             </div>
                             <div class="mt-2" id="prevwrap_<?= htmlspecialchars($skey) ?>">
-                                <img id="prev_<?= htmlspecialchars($skey) ?>"
+                                <img id="prev_<?= htmlspecialchars($skey) ?>" class="img-preview"
                                      src="<?= !empty($item['setting_value']) ? htmlspecialchars($item['setting_value']) : '' ?>"
-                                     style="max-height:120px;max-width:320px;object-fit:cover;border-radius:8px;border:1px solid #dee2e6;<?= empty($item['setting_value']) ? 'display:none;' : '' ?>"
+                                     style="max-height:120px;max-width:320px;object-fit:cover;<?= empty($item['setting_value']) ? 'display:none;' : '' ?>"
                                      onerror="this.style.display='none'">
                             </div>
 
@@ -385,7 +438,9 @@ $field_hints = [
         </div>
     </div>
 </div>
+</div><!-- /cmsWrap -->
 
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script>
 // Penghitung huruf untuk Meta Description SEO (batas ideal Google 160)
 function seoCount(el) {
@@ -421,4 +476,21 @@ async function uploadImg(fileInput, targetId, previewId) {
         fileInput.value = '';
     }
 }
+
+// ── Galeri RPL: drag & drop urutkan + renumber saat simpan ───────────────────
+document.addEventListener('DOMContentLoaded', function () {
+    const gal = document.getElementById('rplGallery');
+    if (!gal) return;
+    const relabel = () => gal.querySelectorAll('.gallery-item .gal-num').forEach((b, i) => b.textContent = '#' + (i + 1));
+    if (window.Sortable) {
+        new Sortable(gal, { animation: 150, ghostClass: 'opacity-50', onEnd: relabel });
+    }
+    // Saat form disimpan, tetapkan ulang nama field sesuai urutan kartu (kiri→kanan)
+    const form = gal.closest('form');
+    if (form) form.addEventListener('submit', () => {
+        gal.querySelectorAll('.gallery-url').forEach((inp, i) => {
+            inp.name = 'fields[jur_rpl_galeri' + (i + 1) + ']';
+        });
+    });
+});
 </script>
