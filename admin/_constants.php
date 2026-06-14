@@ -220,32 +220,69 @@ const STATUS_ORTU_LABEL = [
 
 // ── Daftar Sekolah Asal (SMP) ───────────────────────────────────────────────
 // Tabel sekolah_asal dikelola langsung lewat Database (Database Manager / phpMyAdmin).
-// Daftar di bawah = data resmi dari user (SMP Negeri & Swasta sekitar Jakarta Timur).
+// Daftar di bawah = data resmi terverifikasi dari user (SMP Negeri & Swasta Jakarta Timur).
 const SEKOLAH_SEED = [
-    // Negeri
-    ['SMPN 255 Jakarta', 'Jl. Raden Inten II No. 9, RT.1/RW.14, Duren Sawit, Kec. Duren Sawit, Kota Jakarta Timur, DKI Jakarta 13440'],
-    ['SMPN 99 Jakarta',  'Jl. Sirsak, RT.11/RW.10, Ciganjur, Kec. Jagakarsa (Batas wilayah) / Jl. Perintis No.1, RT.1/RW.12, Utan Kayu Utara, Kec. Matraman, Kota Jakarta Timur, DKI Jakarta 13120'],
-    ['SMPN 49 Jakarta',  'Jl. Raya Bogor No. KM 20, RT.1/RW.11, Kramat Jati, Kec. Kramat jati, Kota Jakarta Timur, DKI Jakarta 13510'],
-    ['SMPN 92 Jakarta',  'Jl. Komarudin, RT.6/RW.5, Pulo Gebang, Kec. Cakung, Kota Jakarta Timur, DKI Jakarta 13950'],
-    ['SMPN 109 Jakarta', 'Jl. Tj. Duren Timur No.1 (Lokasi aktual: Jl. Nusa Indah Mulya, RT.6/RW.2, Malaka Jaya, Kec. Duren Sawit, Kota Jakarta Timur, DKI Jakarta 13460)'],
-    ['SMPN 81 Jakarta',  'Jl. Monumen Pancasila Sakti, RT.4/RW.2, Lubang Buaya, Kec. Cipayung, Kota Jakarta Timur, DKI Jakarta 13810'],
-    // Swasta
-    ['SMP Labschool Jakarta',      'Jl. Pemuda No.10, RT.9/RW.3, Rawamangun, Kec. Pulo Gadung, Kota Jakarta Timur, DKI Jakarta 13220'],
-    ['SMP Al-Azhar 19 Cibubur',    'Jl. Jambore No.9A, RT.6/RW.13, Cibubur, Kec. Ciracas, Kota Jakarta Timur, DKI Jakarta 13720'],
-    ['SMP Islam Cikal Harapan II', 'Komplek Citra Gran, Jl. Alternatif Cibubur No.KM.4, Jatikarya, Kec. Jatisampurna (Perbatasan Timur) / Cakung, Jakarta Timur'],
-    ['SMP Muhammadiyah 4 Jakarta', 'Jl. Dewi Sartika No.9A, RT.1/RW.13, Cililitan, Kec. Kramat Jati, Kota Jakarta Timur, DKI Jakarta 13640'],
-    ['SMP Kristen Calvin',         "Komplek ruko d'mansion (banyak diakses dari area perbatasan Jaktim/Pusat) atau SMP Kristen Penabur Cipinang Indah: Komplek Cipinang Indah Raya No.II, RT.17/RW.3, Pondok Bambu, Duren Sawit, Jakarta Timur 13430"],
+    // ─ Negeri ─
+    ['SMP Negeri 6 Jakarta',   'Jl. Bulak Timur I/7, Klender, Kec. Duren Sawit, Jakarta Timur'],
+    ['SMP Negeri 7 Jakarta',   'Jl. Balai Rakyat, Utan Kayu Utara, Kec. Matraman, Jakarta Timur'],
+    ['SMP Negeri 9 Jakarta',   'Jl. Usman No. 6, Kelapa Dua Wetan, Kec. Ciracas, Jakarta Timur'],
+    ['SMP Negeri 14 Jakarta',  'Jl. Matraman Raya No. 177, Bali Mester, Kec. Jatinegara, Jakarta Timur'],
+    ['SMP Negeri 20 Jakarta',  'Jl. Komp. Bulak Rantai, Kampung Tengah, Kec. Kramat Jati, Jakarta Timur'],
+    ['SMP Negeri 24 Jakarta',  'Jl. Dukuh V, Dukuh, Kec. Kramat Jati, Jakarta Timur'],
+    ['SMP Negeri 25 Jakarta',  'Jl. BB I, Cipinang Muara, Kec. Jatinegara, Jakarta Timur'],
+    ['SMP Negeri 27 Jakarta',  'Komplek PTB, Jl. Lingkar Timur Duren Sawit No. 14, Kec. Duren Sawit, Jakarta Timur'],
+    ['SMP Negeri 44 Jakarta',  'Jl. Gading Raya II RT 006/RW 010, Pisangan Timur, Kec. Pulo Gadung, Jakarta Timur'],
+    ['SMP Negeri 49 Jakarta',  'Jl. Raya Bogor Km. 20, Kramat Jati, Kec. Kramat Jati, Jakarta Timur'],
+    ['SMP Negeri 51 Jakarta',  'Jl. Kejaksaan Raya Kavling No. 2, Pondok Bambu, Kec. Duren Sawit, Jakarta Timur'],
+    ['SMP Negeri 52 Jakarta',  'Jl. Cipinang Elok II, Cipinang Muara, Kec. Jatinegara, Jakarta Timur'],
+    ['SMP Negeri 74 Jakarta',  'Jl. Pemuda No. 6, Rawamangun, Kec. Pulo Gadung, Jakarta Timur'],
+    ['SMP Negeri 80 Jakarta',  'Jl. Trikora, Halim Perdana Kusumah, Kec. Makasar, Jakarta Timur'],
+    ['SMP Negeri 81 Jakarta',  'Jl. Monumen Pancasila Sakti, Lubang Buaya, Kec. Cipayung, Jakarta Timur'],
+    ['SMP Negeri 92 Jakarta',  'Jl. Perhubungan XII, Jati, Kec. Pulo Gadung, Jakarta Timur'],
+    ['SMP Negeri 99 Jakarta',  'Jl. Sirap, Kayu Putih, Kec. Pulo Gadung, Jakarta Timur'],
+    ['SMP Negeri 117 Jakarta', 'Jl. Taruna / Jl. Pahlawan Revolusi No. 54, Pondok Bambu, Kec. Duren Sawit, Jakarta Timur'],
+    ['SMP Negeri 138 Jakarta', 'Jl. Pendidikan No. 10, RT 17/RW 05, Penggilingan, Kec. Cakung, Jakarta Timur'],
+    ['SMP Negeri 139 Jakarta', 'Jl. Bunga Rampai X, Malaka Jaya, Kec. Duren Sawit, Jakarta Timur'],
+    ['SMP Negeri 150 Jakarta', 'Jl. Batu Tumbuh VII, Kramat Jati, Kec. Kramat Jati, Jakarta Timur'],
+    ['SMP Negeri 158 Jakarta', 'Jl. TB. Badarudin, Jatinegara Kaum, Kec. Pulo Gadung, Jakarta Timur'],
+    ['SMP Negeri 168 Jakarta', 'RT 004/RW 003, Cakung Barat, Kec. Cakung, Jakarta Timur'],
+    ['SMP Negeri 172 Jakarta', 'Jl. Raya Stasiun Cakung, Pulo Gebang, Kec. Cakung, Jakarta Timur'],
+    ['SMP Negeri 195 Jakarta', 'Jl. Sawah Barat Dalam No. 48, RT 16/RW 06, Duren Sawit, Kec. Duren Sawit, Jakarta Timur'],
+    ['SMP Negeri 198 Jakarta', 'Jl. Pertanian Raya, RT 006/RW 001, Klender, Kec. Duren Sawit, Jakarta Timur'],
+    ['SMP Negeri 232 Jakarta', 'Jl. Gading Raya No. 16, Pisangan Timur, Kec. Pulo Gadung, Jakarta Timur'],
+    ['SMP Negeri 233 Jakarta', 'Jl. Abdulrahman No. 68, RT 01/RW 14, Cibubur, Kec. Ciracas, Jakarta Timur'],
+    ['SMP Negeri 252 Jakarta', 'Jl. H. Naman No. 67, RT 02/RW 02, Pondok Kelapa, Kec. Duren Sawit, Jakarta Timur'],
+    ['MTs Negeri 9 Jakarta',   'Jl. Pahlawan Komarudin, RT 02/RW 03, Penggilingan, Kec. Cakung, Jakarta Timur'],
+    // ─ Swasta ─
+    ['SMP Labschool Jakarta',         'Jl. Pemuda Komp. UNJ, Rawamangun, Kec. Pulo Gadung, Jakarta Timur'],
+    ['SMP Global Islamic School',     'Jl. Condet Raya No. 5, Bale Kambang, Kec. Kramat Jati, Jakarta Timur'],
+    ['SMP Kristen 5 PENABUR',         'Komplek Cipinang Indah Raya No. II, Pondok Bambu, Kec. Duren Sawit, Jakarta Timur'],
+    ['SMP Islam Al Azhar 12',         'Jl. Sunan Giri No. 5, Rawamangun, Kec. Pulo Gadung, Jakarta Timur'],
+    ['SMP Islam Al Azhar 19',         'Jl. Jambore No. 9A, RT 06/RW 13, Cibubur, Kec. Ciracas, Jakarta Timur'],
+    ['SMP Marsudirini',               'Jl. Dewi Sartika No. 186 A, Cawang, Kec. Kramat Jati, Jakarta Timur'],
+    ['SMP Muhammadiyah 4',            'Jl. Dewi Sartika No. 316 A, Cawang, Kec. Kramat Jati, Jakarta Timur'],
+    ['SMP Muhammadiyah 31',           'Jl. Balai Pustaka Barat No. 2, Rawamangun, Kec. Pulo Gadung, Jakarta Timur'],
+    ['SMP Budhi Warman',              'Jl. Raya Bogor Km. 19, Kramat Jati, Kec. Kramat Jati, Jakarta Timur'],
+    ['SMP Santo Markus',              'Jl. Kelapa Gading III, Kramat Jati, Kec. Kramat Jati, Jakarta Timur'],
+    ["SMP As Sa'adah",                'Jl. Swakarsa IB No. 40, Pondok Kelapa, Kec. Duren Sawit, Jakarta Timur'],
+    ['SMP Embun Pagi Islamic School', 'Jl. Raya Kapin No. 8, RT 008/RW 008, Pondok Kelapa, Kec. Duren Sawit, Jakarta Timur'],
+    ['SMP IT Al-Halimiyah',           'Jl. Robusta Raya No. 31, Pondok Kopi, Kec. Duren Sawit, Jakarta Timur'],
+    ['SMP Al-Jannah',                 'Jl. Pondok Ranggon No. 4, Pondok Ranggon, Kec. Cipayung, Jakarta Timur'],
+    ['SMP Al Akhyar',                 'Jl. Kayu Tinggi, Cakung Timur, Kec. Cakung, Jakarta Timur'],
 ];
 
-// Nama placeholder lama (seed v1) — dihapus sekali saat migrasi ke daftar asli.
-const SEKOLAH_SEED_V1 = [
-    'SMP Negeri 99 Jakarta','SMP Negeri 138 Jakarta','SMP Negeri 195 Jakarta','SMP Negeri 198 Jakarta',
-    'SMP Negeri 233 Jakarta','SMP Negeri 252 Jakarta','SMP Negeri 27 Jakarta','SMP Negeri 172 Jakarta',
-    'SMP Negeri 168 Jakarta','SMP Negeri 150 Jakarta','SMP Negeri 51 Jakarta','SMP Negeri 74 Jakarta',
-    'SMP Negeri 117 Jakarta','SMP Negeri 9 Jakarta','MTs Negeri 9 Jakarta',
+// Nama seed lama (placeholder & versi ringkas) yang tidak ada di daftar resmi —
+// dihapus sekali saat migrasi agar tidak jadi data ganda.
+const SEKOLAH_SEED_DROP = [
+    'SMPN 255 Jakarta','SMPN 99 Jakarta','SMPN 49 Jakarta','SMPN 92 Jakarta','SMPN 109 Jakarta','SMPN 81 Jakarta',
+    'SMP Al-Azhar 19 Cibubur','SMP Islam Cikal Harapan II','SMP Muhammadiyah 4 Jakarta','SMP Kristen Calvin',
+    'SMP Negeri 138 Jakarta','SMP Negeri 195 Jakarta','SMP Negeri 198 Jakarta','SMP Negeri 233 Jakarta',
+    'SMP Negeri 252 Jakarta','SMP Negeri 27 Jakarta','SMP Negeri 172 Jakarta','SMP Negeri 168 Jakarta',
+    'SMP Negeri 150 Jakarta','SMP Negeri 51 Jakarta','SMP Negeri 74 Jakarta','SMP Negeri 117 Jakarta',
+    'SMP Negeri 9 Jakarta','SMP Negeri 99 Jakarta','SMP Negeri 233 Jakarta','MTs Negeri 9 Jakarta',
 ];
 
-// Buat tabel sekolah_asal bila belum ada; seed / migrasi daftar resmi.
+// Buat tabel sekolah_asal bila belum ada; seed / migrasi ke daftar resmi (sekali).
 function ensure_sekolah_table(PDO $conn): void {
     try {
         $conn->exec("CREATE TABLE IF NOT EXISTS sekolah_asal (
@@ -255,7 +292,6 @@ function ensure_sekolah_table(PDO $conn): void {
             is_active TINYINT(1) NOT NULL DEFAULT 1,
             created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-        // Lebarkan kolom alamat utk tabel lama (alamat resmi cukup panjang)
         try { $conn->exec("ALTER TABLE sekolah_asal MODIFY alamat VARCHAR(500) NULL"); } catch (PDOException $e) {}
 
         $ins = $conn->prepare("INSERT INTO sekolah_asal (nama, alamat) VALUES (?, ?)");
@@ -264,16 +300,14 @@ function ensure_sekolah_table(PDO $conn): void {
             foreach (SEKOLAH_SEED as [$snama, $salamat]) $ins->execute([$snama, $salamat]);
             return;
         }
-        // Migrasi sekali ke daftar resmi: hapus HANYA placeholder lama (data tambahan user aman)
-        $has_new = (int)$conn->query("SELECT COUNT(*) FROM sekolah_asal WHERE nama='SMPN 255 Jakarta'")->fetchColumn();
-        if ($has_new === 0) {
-            $in  = implode(',', array_fill(0, count(SEKOLAH_SEED_V1), '?'));
-            $conn->prepare("DELETE FROM sekolah_asal WHERE nama IN ($in)")->execute(SEKOLAH_SEED_V1);
-            $chk = $conn->prepare("SELECT COUNT(*) FROM sekolah_asal WHERE nama=?");
-            foreach (SEKOLAH_SEED as [$snama, $salamat]) {
-                $chk->execute([$snama]);
-                if ((int)$chk->fetchColumn() === 0) $ins->execute([$snama, $salamat]);
-            }
+        // Migrasi sekali ke daftar resmi terverifikasi (marker: 'SMP Negeri 6 Jakarta').
+        $has = (int)$conn->query("SELECT COUNT(*) FROM sekolah_asal WHERE nama='SMP Negeri 6 Jakarta'")->fetchColumn();
+        if ($has === 0) {
+            // Hapus varian lama + nama resmi (utk refresh alamat); data tambahan user (nama lain) aman.
+            $drop = array_values(array_unique(array_merge(SEKOLAH_SEED_DROP, array_column(SEKOLAH_SEED, 0))));
+            $in   = implode(',', array_fill(0, count($drop), '?'));
+            $conn->prepare("DELETE FROM sekolah_asal WHERE nama IN ($in)")->execute($drop);
+            foreach (SEKOLAH_SEED as [$snama, $salamat]) $ins->execute([$snama, $salamat]);
         }
     } catch (PDOException $e) { /* abaikan bila gagal (mis. permission) */ }
 }
