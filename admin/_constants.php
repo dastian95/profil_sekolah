@@ -219,42 +219,60 @@ const STATUS_ORTU_LABEL = [
 ];
 
 // ── Daftar Sekolah Asal (SMP) ───────────────────────────────────────────────
-// Tabel sekolah_asal dikelola lewat menu "Kelola Sekolah".
-// Daftar awal di bawah = SMP Negeri sekitar Jakarta Timur (alamat awal/ancar-ancar,
-// silakan dilengkapi/dikoreksi lewat menu Kelola Sekolah).
+// Tabel sekolah_asal dikelola langsung lewat Database (Database Manager / phpMyAdmin).
+// Daftar di bawah = data resmi dari user (SMP Negeri & Swasta sekitar Jakarta Timur).
 const SEKOLAH_SEED = [
-    ['SMP Negeri 99 Jakarta',  'Jl. Pahlawan Revolusi No.5, Pondok Bambu, Kec. Duren Sawit, Jakarta Timur'],
-    ['SMP Negeri 138 Jakarta', 'Jl. Swadaya PLN, Klender, Kec. Duren Sawit, Jakarta Timur'],
-    ['SMP Negeri 195 Jakarta', 'Jl. Mawar Merah VI, Malaka Jaya, Kec. Duren Sawit, Jakarta Timur'],
-    ['SMP Negeri 198 Jakarta', 'Jl. Bunga Rampai X, Malaka Jaya, Kec. Duren Sawit, Jakarta Timur'],
-    ['SMP Negeri 233 Jakarta', 'Jl. Pondok Kopi Raya, Pondok Kopi, Kec. Duren Sawit, Jakarta Timur'],
-    ['SMP Negeri 252 Jakarta', 'Jl. Kampung Baru, Pondok Kopi, Kec. Duren Sawit, Jakarta Timur'],
-    ['SMP Negeri 27 Jakarta',  'Jl. Kayu Tinggi, Cakung Timur, Kec. Cakung, Jakarta Timur'],
-    ['SMP Negeri 172 Jakarta', 'Jl. Stasiun Cakung, Pulo Gebang, Kec. Cakung, Jakarta Timur'],
-    ['SMP Negeri 168 Jakarta', 'Jl. Penggilingan, Kec. Cakung, Jakarta Timur'],
-    ['SMP Negeri 150 Jakarta', 'Jl. Cipinang Muara, Kec. Jatinegara, Jakarta Timur'],
-    ['SMP Negeri 51 Jakarta',  'Jl. Pisangan Lama, Kec. Pulo Gadung, Jakarta Timur'],
-    ['SMP Negeri 74 Jakarta',  'Jl. Pulo Asem Utara, Jati, Kec. Pulo Gadung, Jakarta Timur'],
-    ['SMP Negeri 117 Jakarta', 'Jl. Jambore, Cibubur, Kec. Ciracas, Jakarta Timur'],
-    ['SMP Negeri 9 Jakarta',   'Jl. Salemba Raya, Kec. Senen, Jakarta Pusat'],
-    ['MTs Negeri 9 Jakarta',   'Jl. Pahlawan Komarudin, Penggilingan, Kec. Cakung, Jakarta Timur'],
+    // Negeri
+    ['SMPN 255 Jakarta', 'Jl. Raden Inten II No. 9, RT.1/RW.14, Duren Sawit, Kec. Duren Sawit, Kota Jakarta Timur, DKI Jakarta 13440'],
+    ['SMPN 99 Jakarta',  'Jl. Sirsak, RT.11/RW.10, Ciganjur, Kec. Jagakarsa (Batas wilayah) / Jl. Perintis No.1, RT.1/RW.12, Utan Kayu Utara, Kec. Matraman, Kota Jakarta Timur, DKI Jakarta 13120'],
+    ['SMPN 49 Jakarta',  'Jl. Raya Bogor No. KM 20, RT.1/RW.11, Kramat Jati, Kec. Kramat jati, Kota Jakarta Timur, DKI Jakarta 13510'],
+    ['SMPN 92 Jakarta',  'Jl. Komarudin, RT.6/RW.5, Pulo Gebang, Kec. Cakung, Kota Jakarta Timur, DKI Jakarta 13950'],
+    ['SMPN 109 Jakarta', 'Jl. Tj. Duren Timur No.1 (Lokasi aktual: Jl. Nusa Indah Mulya, RT.6/RW.2, Malaka Jaya, Kec. Duren Sawit, Kota Jakarta Timur, DKI Jakarta 13460)'],
+    ['SMPN 81 Jakarta',  'Jl. Monumen Pancasila Sakti, RT.4/RW.2, Lubang Buaya, Kec. Cipayung, Kota Jakarta Timur, DKI Jakarta 13810'],
+    // Swasta
+    ['SMP Labschool Jakarta',      'Jl. Pemuda No.10, RT.9/RW.3, Rawamangun, Kec. Pulo Gadung, Kota Jakarta Timur, DKI Jakarta 13220'],
+    ['SMP Al-Azhar 19 Cibubur',    'Jl. Jambore No.9A, RT.6/RW.13, Cibubur, Kec. Ciracas, Kota Jakarta Timur, DKI Jakarta 13720'],
+    ['SMP Islam Cikal Harapan II', 'Komplek Citra Gran, Jl. Alternatif Cibubur No.KM.4, Jatikarya, Kec. Jatisampurna (Perbatasan Timur) / Cakung, Jakarta Timur'],
+    ['SMP Muhammadiyah 4 Jakarta', 'Jl. Dewi Sartika No.9A, RT.1/RW.13, Cililitan, Kec. Kramat Jati, Kota Jakarta Timur, DKI Jakarta 13640'],
+    ['SMP Kristen Calvin',         "Komplek ruko d'mansion (banyak diakses dari area perbatasan Jaktim/Pusat) atau SMP Kristen Penabur Cipinang Indah: Komplek Cipinang Indah Raya No.II, RT.17/RW.3, Pondok Bambu, Duren Sawit, Jakarta Timur 13430"],
 ];
 
-// Buat tabel sekolah_asal bila belum ada, seed daftar awal sekali saja.
+// Nama placeholder lama (seed v1) — dihapus sekali saat migrasi ke daftar asli.
+const SEKOLAH_SEED_V1 = [
+    'SMP Negeri 99 Jakarta','SMP Negeri 138 Jakarta','SMP Negeri 195 Jakarta','SMP Negeri 198 Jakarta',
+    'SMP Negeri 233 Jakarta','SMP Negeri 252 Jakarta','SMP Negeri 27 Jakarta','SMP Negeri 172 Jakarta',
+    'SMP Negeri 168 Jakarta','SMP Negeri 150 Jakarta','SMP Negeri 51 Jakarta','SMP Negeri 74 Jakarta',
+    'SMP Negeri 117 Jakarta','SMP Negeri 9 Jakarta','MTs Negeri 9 Jakarta',
+];
+
+// Buat tabel sekolah_asal bila belum ada; seed / migrasi daftar resmi.
 function ensure_sekolah_table(PDO $conn): void {
     try {
         $conn->exec("CREATE TABLE IF NOT EXISTS sekolah_asal (
             id INT AUTO_INCREMENT PRIMARY KEY,
             nama VARCHAR(150) NOT NULL,
-            alamat VARCHAR(255) NULL,
+            alamat VARCHAR(500) NULL,
             is_active TINYINT(1) NOT NULL DEFAULT 1,
             created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        // Lebarkan kolom alamat utk tabel lama (alamat resmi cukup panjang)
+        try { $conn->exec("ALTER TABLE sekolah_asal MODIFY alamat VARCHAR(500) NULL"); } catch (PDOException $e) {}
+
+        $ins = $conn->prepare("INSERT INTO sekolah_asal (nama, alamat) VALUES (?, ?)");
         $cnt = (int)$conn->query("SELECT COUNT(*) FROM sekolah_asal")->fetchColumn();
         if ($cnt === 0) {
-            $ins = $conn->prepare("INSERT INTO sekolah_asal (nama, alamat) VALUES (?, ?)");
+            foreach (SEKOLAH_SEED as [$snama, $salamat]) $ins->execute([$snama, $salamat]);
+            return;
+        }
+        // Migrasi sekali ke daftar resmi: hapus HANYA placeholder lama (data tambahan user aman)
+        $has_new = (int)$conn->query("SELECT COUNT(*) FROM sekolah_asal WHERE nama='SMPN 255 Jakarta'")->fetchColumn();
+        if ($has_new === 0) {
+            $in  = implode(',', array_fill(0, count(SEKOLAH_SEED_V1), '?'));
+            $conn->prepare("DELETE FROM sekolah_asal WHERE nama IN ($in)")->execute(SEKOLAH_SEED_V1);
+            $chk = $conn->prepare("SELECT COUNT(*) FROM sekolah_asal WHERE nama=?");
             foreach (SEKOLAH_SEED as [$snama, $salamat]) {
-                $ins->execute([$snama, $salamat]);
+                $chk->execute([$snama]);
+                if ((int)$chk->fetchColumn() === 0) $ins->execute([$snama, $salamat]);
             }
         }
     } catch (PDOException $e) { /* abaikan bila gagal (mis. permission) */ }
