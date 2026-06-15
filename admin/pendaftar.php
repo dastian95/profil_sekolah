@@ -100,7 +100,7 @@ if (!empty($_SESSION['pend_print_id'])) {
 }
 
 // Server-side form token — satu token per halaman, habis setelah dipakai
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($_GET['live_sig'])) {
     $_SESSION['pend_form_token'] = bin2hex(random_bytes(16));
 }
 $form_token = $_SESSION['pend_form_token'] ?? '';
