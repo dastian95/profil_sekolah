@@ -616,7 +616,8 @@ function ortuLabel(s) {
 }
 function bwLabel(b) {
     if (b === 'normal') return '<span class="text-success">Normal</span>';
-    if (b === 'buta_warna') return '<span class="text-danger">Buta Warna</span>';
+    if (b === 'buta_warna_parsial') return '<span class="text-danger">Buta Warna Parsial</span>';
+    if (b === 'buta_warna_total') return '<span class="text-danger">Buta Warna Total</span>';
     return '<span class="text-muted">Belum dites</span>';
 }
 

@@ -191,7 +191,7 @@ try {
         if ($current_pendaftar) {
             $berkas_auto['kk']         = !empty($current_pendaftar['tgl_kk']) && $current_pendaftar['tgl_kk'] <= '2025-06-15';
             $berkas_auto['tka']        = (float)($current_pendaftar['nilai_tka'] ?? 0) > 0;
-            $berkas_auto['buta_warna'] = in_array($current_pendaftar['buta_warna'] ?? 'belum', ['normal','buta_warna'], true);
+            $berkas_auto['buta_warna'] = in_array($current_pendaftar['buta_warna'] ?? 'belum', ['normal','buta_warna_parsial','buta_warna_total'], true);
             // 'akta' tidak punya sumber data → tetap manual
         }
     }

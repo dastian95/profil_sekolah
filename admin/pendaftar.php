@@ -13,10 +13,10 @@ function hitungPendaftar(array $data, float $rata_raport, string $sistem = 'regu
     $usia        = (int)$lahir->diff($sekarang)->y;
     $is_khusus   = ($sistem === 'khusus');
     $is_pkbm     = ($sistem === 'pkbm');
-    // Khusus & PKBM: 85% raport, tanpa TKA
+    // Khusus & PKBM: 70% raport, tanpa TKA
     $no_tka      = $is_khusus || $is_pkbm;
     $nilai_akhir = $no_tka
-        ? round($rata_raport * 0.85, 4)
+        ? round($rata_raport * 0.70, 4)
         : round(($rata_raport * 0.70) + ($data['nilai_tka'] * 0.30), 4);
     $lolos_usia  = ($usia <= 21) ? 1 : 0;
     return array_merge($data, [
@@ -135,8 +135,17 @@ try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN kelurahan VARCHAR(100) NULL"
 try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN jarak_km DECIMAL(5,2) NULL"); } catch (PDOException $e) {}
 try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN status_ortu ENUM('tidak','yatim','piatu','yatim_piatu') NOT NULL DEFAULT 'tidak'"); } catch (PDOException $e) {}
 try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN buta_warna ENUM('belum','normal','buta_warna') NOT NULL DEFAULT 'belum'"); } catch (PDOException $e) {}
+// Migrasi: tambah kategori Parsial & Total; konversi nilai lama 'buta_warna' → 'buta_warna_parsial'
+try { $conn->exec("ALTER TABLE pendaftar MODIFY COLUMN buta_warna ENUM('belum','normal','buta_warna','buta_warna_parsial','buta_warna_total') NOT NULL DEFAULT 'belum'"); } catch (PDOException $e) {}
+try { $conn->exec("UPDATE pendaftar SET buta_warna='buta_warna_parsial' WHERE buta_warna='buta_warna'"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE pendaftar MODIFY COLUMN buta_warna ENUM('belum','normal','buta_warna_parsial','buta_warna_total') NOT NULL DEFAULT 'belum'"); } catch (PDOException $e) {}
 try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN jalur ENUM('zonasi','afirmasi','prestasi') NOT NULL DEFAULT 'prestasi'"); } catch (PDOException $e) {}
 try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN alamat_sekolah VARCHAR(255) NULL"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN raport_mode VARCHAR(20) NOT NULL DEFAULT 'matrix'"); } catch (PDOException $e) {}
+// Recalculate nilai_akhir PKBM/Khusus: bobot lama 0.85 → 0.70 (hanya record yang masih pakai bobot lama)
+try { $conn->exec("UPDATE pendaftar SET nilai_akhir = ROUND(nilai_raport * 0.70, 4)
+    WHERE sistem_pendidikan IN ('pkbm','khusus') AND nilai_raport > 0
+    AND ABS(nilai_akhir - ROUND(nilai_raport * 0.85, 4)) < 0.001"); } catch (PDOException $e) {}
 
 // Daftar sekolah untuk dropdown Asal Sekolah
 ensure_sekolah_table($conn);
@@ -197,6 +206,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Cek apakah raport diisi
             $input_mode = $_POST['input_mode'] ?? 'matrix';
             if ($sistem === 'pkbm') {
+                $input_mode   = 'pkbm';
                 $matrix       = $_POST['pkbm_raport'] ?? [];
                 $mapel_active = PKBM_MAPEL_UMUM;
                 $sem_active   = array_keys(PKBM_TINGKAT);
@@ -210,7 +220,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $mapel_active = $mapel_list;
                 $sem_active   = [1];
+            } elseif ($input_mode === 'total') {
+                // Mode total: satu angka rata-rata keseluruhan — tidak ada matrix detail
+                $matrix = []; $mapel_active = []; $sem_active = [];
+            } elseif ($input_mode === 'per_smt') {
+                // Mode per semester: rata-rata tiap semester, disimpan sebagai mapel __smt__
+                $smt_in = $_POST['raport_smt'] ?? [];
+                $matrix = [];
+                foreach ($semester_list as $s) {
+                    $v = $smt_in[$s] ?? '';
+                    if ($v !== '' && is_numeric($v)) $matrix['__smt__'][$s] = min(100, max(0, (float)$v));
+                }
+                $mapel_active = ['__smt__'];
+                $sem_active   = $semester_list;
             } else {
+                $input_mode   = 'matrix';
                 $matrix       = $_POST['raport'] ?? [];
                 $mapel_active = $mapel_list;
                 $sem_active   = $semester_list;
@@ -220,6 +244,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($rata == 0 && isset($_POST['nilai_raport_manual'])) {
                 $manual = (float)$_POST['nilai_raport_manual'];
                 if ($manual > 0) $rata = min(100, max(0, $manual));
+            }
+            // Mode total: gunakan satu nilai langsung
+            if ($input_mode === 'total') {
+                $tv = (float)($_POST['raport_total'] ?? 0);
+                if ($tv > 0) $rata = min(100, max(0, $tv));
             }
             $has_raport = $rata > 0;
 
@@ -242,7 +271,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $kelurahan_in = trim($_POST['kelurahan'] ?? '');
             $status_ortu  = in_array($_POST['status_ortu'] ?? '', ['tidak','yatim','piatu','yatim_piatu'], true)
                 ? $_POST['status_ortu'] : 'tidak';
-            $buta_warna   = in_array($_POST['buta_warna'] ?? '', ['belum','normal','buta_warna'], true)
+            $buta_warna   = in_array($_POST['buta_warna'] ?? '', ['belum','normal','buta_warna_parsial','buta_warna_total'], true)
                 ? $_POST['buta_warna'] : 'belum';
             $jalur        = in_array($_POST['jalur'] ?? '', ['zonasi','afirmasi','prestasi'], true)
                 ? $_POST['jalur'] : 'prestasi';
@@ -327,11 +356,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($action === 'add') {
                     $no = generateNoPendaftaran($conn, $d['gelombang']);
                     $stmt = $conn->prepare("INSERT INTO pendaftar
-                        (no_pendaftaran,gelombang,nama,nisn,tanggal_lahir,usia,jenis_kelamin,asal_sekolah,alamat_sekolah,no_telp,tgl_kk,alamat,kelurahan,jarak_km,status_ortu,buta_warna,jalur,jurusan,sistem_pendidikan,nilai_raport,nilai_tka,tka_mtk,tka_bindo,nilai_akhir,lolos_usia,status)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+                        (no_pendaftaran,gelombang,nama,nisn,tanggal_lahir,usia,jenis_kelamin,asal_sekolah,alamat_sekolah,no_telp,tgl_kk,alamat,kelurahan,jarak_km,status_ortu,buta_warna,jalur,jurusan,sistem_pendidikan,nilai_raport,nilai_tka,tka_mtk,tka_bindo,nilai_akhir,lolos_usia,status,raport_mode)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
                     $stmt->execute([$no,$d['gelombang'],$d['nama'],$d['nisn'],$d['tanggal_lahir'],$d['usia'],
                         $d['jenis_kelamin'],$d['asal_sekolah'],$alamat_sekolah,$d['no_telp'],$tgl_kk,$d['alamat'],$kelurahan_sv,$jarak_sv,$status_ortu,$buta_warna,$jalur,$d['jurusan'],
-                        $sistem,$d['nilai_raport'],$d['nilai_tka'],$tka_mtk_sv,$tka_bindo_sv,$d['nilai_akhir'],$d['lolos_usia'],$new_status]);
+                        $sistem,$d['nilai_raport'],$d['nilai_tka'],$tka_mtk_sv,$tka_bindo_sv,$d['nilai_akhir'],$d['lolos_usia'],$new_status,$input_mode]);
                     $id = (int)$conn->lastInsertId();
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
 
@@ -378,11 +407,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $id = (int)$_POST['id'];
                     $stmt = $conn->prepare("UPDATE pendaftar SET
                         gelombang=?,nama=?,nisn=?,tanggal_lahir=?,usia=?,jenis_kelamin=?,asal_sekolah=?,alamat_sekolah=?,
-                        no_telp=?,tgl_kk=?,alamat=?,kelurahan=?,jarak_km=?,status_ortu=?,buta_warna=?,jalur=?,jurusan=?,sistem_pendidikan=?,nilai_raport=?,nilai_tka=?,tka_mtk=?,tka_bindo=?,nilai_akhir=?,lolos_usia=?,status=?
+                        no_telp=?,tgl_kk=?,alamat=?,kelurahan=?,jarak_km=?,status_ortu=?,buta_warna=?,jalur=?,jurusan=?,sistem_pendidikan=?,nilai_raport=?,nilai_tka=?,tka_mtk=?,tka_bindo=?,nilai_akhir=?,lolos_usia=?,status=?,raport_mode=?
                         WHERE id=?");
                     $stmt->execute([$d['gelombang'],$d['nama'],$d['nisn'],$d['tanggal_lahir'],$d['usia'],
                         $d['jenis_kelamin'],$d['asal_sekolah'],$alamat_sekolah,$d['no_telp'],$tgl_kk,$d['alamat'],$kelurahan_sv,$jarak_sv,$status_ortu,$buta_warna,$jalur,$d['jurusan'],
-                        $sistem,$d['nilai_raport'],$d['nilai_tka'],$tka_mtk_sv,$tka_bindo_sv,$d['nilai_akhir'],$d['lolos_usia'],$new_status,$id]);
+                        $sistem,$d['nilai_raport'],$d['nilai_tka'],$tka_mtk_sv,$tka_bindo_sv,$d['nilai_akhir'],$d['lolos_usia'],$new_status,$input_mode,$id]);
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
 
                     $conn->commit();
@@ -657,7 +686,7 @@ if ($edit_id_get > 0) {
         <?php if (empty($rows)): ?>
             <tr><td colspan="13" class="text-center py-4 text-muted">Tidak ada data.</td></tr>
         <?php else: foreach ($rows as $r):
-            $badge = match($r['status']) { 'terima'=>'bg-success', 'gugur'=>'bg-danger', default=>'bg-warning text-dark' };
+            $badge = STATUS_BADGE[$r['status']] ?? 'bg-warning text-dark';
             $gugur = !$r['lolos_usia'];
             // Sertakan matrix raport ke data row
             $r_with_raport = $r;
@@ -669,7 +698,7 @@ if ($edit_id_get > 0) {
                     <?= htmlspecialchars($r['nama']) ?>
                     <?php if ($gugur): ?><i class="bi bi-exclamation-circle text-danger" title="Gugur: usia > 21"></i><?php endif; ?>
                     <?php if (($r['sistem_pendidikan'] ?? '') === 'khusus'): ?>
-                      <span class="badge bg-warning text-dark ms-1" title="Daftar Khusus — 85% Raport">Khusus</span>
+                      <span class="badge bg-warning text-dark ms-1" title="Daftar Khusus — 70% Raport">Khusus</span>
                     <?php elseif (($r['sistem_pendidikan'] ?? '') === 'pkbm'): ?>
                       <span class="badge bg-info text-dark ms-1">PKBM</span>
                     <?php endif; ?>
@@ -691,7 +720,7 @@ if ($edit_id_get > 0) {
                 <td class="text-center"><?= number_format($r['nilai_tka'], 2) ?></td>
                 <td class="text-center fw-bold text-success"><?= number_format($r['nilai_akhir'], 2) ?></td>
                 <td class="text-center"><?= $r['usia'] ?></td>
-                <td><span class="badge <?= $badge ?>"><?= ucfirst($r['status']) ?></span></td>
+                <td><span class="badge <?= $badge ?>"><?= STATUS_LABEL[$r['status']] ?? ucfirst($r['status']) ?></span></td>
                 <td class="text-end">
                     <?php $r_print = $r; $r_print['_antrian'] = $antrian_per_pendaftar[$r['id']] ?? null; ?>
                     <button class="btn btn-sm btn-outline-info me-1" onclick='printBukti(<?= json_encode($r_print, JSON_HEX_APOS|JSON_HEX_QUOT) ?>)' title="Cetak Bukti"><i class="bi bi-printer"></i></button>
@@ -958,7 +987,7 @@ if ($edit_id_get > 0) {
                 </label>
                 <select name="buta_warna" id="fButaWarna" class="form-select">
                   <?php
-                  $bw_opts = ['belum' => 'Belum Dites', 'normal' => 'Normal (Tidak Buta Warna)', 'buta_warna' => 'Buta Warna'];
+                  $bw_opts = ['belum' => 'Belum Dites', 'normal' => 'Normal (Tidak Buta Warna)', 'buta_warna_parsial' => 'Buta Warna Parsial', 'buta_warna_total' => 'Buta Warna Total'];
                   foreach ($bw_opts as $bw_k => $bw_l): ?>
                   <option value="<?= $bw_k ?>" <?= ($formData['buta_warna'] ?? 'belum') === $bw_k ? 'selected' : '' ?>><?= $bw_l ?></option>
                   <?php endforeach; ?>
@@ -1036,7 +1065,7 @@ if ($edit_id_get > 0) {
                        <?= ($formData['sistem_pendidikan'] ?? '') === 'pkbm' ? 'checked' : '' ?>
                        onchange="switchSistem('pkbm')">
                 <label class="form-check-label" for="sistemPKBM">
-                  <strong>PKBM</strong> <small class="text-muted">— 85% Raport, tanpa TKA</small>
+                  <strong>PKBM</strong> <small class="text-muted">— 70% Raport, tanpa TKA</small>
                 </label>
               </div>
               <div class="form-check mb-0">
@@ -1045,7 +1074,7 @@ if ($edit_id_get > 0) {
                        onchange="switchSistem('khusus')">
                 <label class="form-check-label" for="sistemKhusus">
                   <strong class="text-warning">Daftar Khusus</strong>
-                  <small class="text-muted">— 85% Raport, tanpa TKA (usia ≥ <?= KHUSUS_MIN_USIA ?> thn)</small>
+                  <small class="text-muted">— 70% Raport, tanpa TKA (usia ≥ <?= KHUSUS_MIN_USIA ?> thn)</small>
                 </label>
               </div>
             </div>
@@ -1094,7 +1123,15 @@ if ($edit_id_get > 0) {
               </div>
               <div class="form-check form-check-inline mb-0">
                 <input class="form-check-input" type="radio" name="input_mode" id="modeManual" value="manual" onchange="switchInputMode('manual')">
-                <label class="form-check-label small" for="modeManual"><strong>Rata-rata per Mapel</strong> <span class="text-muted">— isi nilai rata-rata tiap mata pelajaran (tanpa per semester)</span></label>
+                <label class="form-check-label small" for="modeManual"><strong>Rata-rata per Mapel</strong></label>
+              </div>
+              <div class="form-check form-check-inline mb-0">
+                <input class="form-check-input" type="radio" name="input_mode" id="modePerSmt" value="per_smt" onchange="switchInputMode('per_smt')">
+                <label class="form-check-label small" for="modePerSmt"><strong>Per Semester</strong></label>
+              </div>
+              <div class="form-check form-check-inline mb-0">
+                <input class="form-check-input" type="radio" name="input_mode" id="modeTotal" value="total" onchange="switchInputMode('total')">
+                <label class="form-check-label small" for="modeTotal"><strong>Total Keseluruhan</strong></label>
               </div>
             </div>
 
@@ -1135,6 +1172,57 @@ if ($edit_id_get > 0) {
                   </tr>
                 </tfoot>
               </table>
+              </div>
+            </div>
+
+            <!-- Mode: Per Semester -->
+            <div id="wrapPerSmt" class="mb-3" style="display:none;">
+              <div class="alert alert-info small py-2 d-flex align-items-start gap-2">
+                <i class="bi bi-info-circle mt-1"></i>
+                <div>Masukkan <strong>nilai rata-rata per semester</strong> (rata-rata semua mata pelajaran dalam satu semester). Rata-rata Raport = rata-rata dari semester yang diisi.</div>
+              </div>
+              <table class="table table-bordered mb-0 align-middle" style="max-width:360px;">
+                <thead><tr class="text-center">
+                  <th style="background:#1a3c34;color:#fff;">Semester</th>
+                  <th style="background:#198754;color:#fff;">Nilai Rata-rata</th>
+                </tr></thead>
+                <tbody>
+                  <?php foreach ($semester_list as $s): ?>
+                  <tr>
+                    <td class="fw-semibold text-center" style="background:#f8f9fa;">Semester <?= $s ?></td>
+                    <td class="p-0">
+                      <input type="number" name="raport_smt[<?= $s ?>]" id="fSmtCell<?= $s ?>"
+                             class="form-control form-control-sm text-center border-0 rounded-0 smt-cell"
+                             min="0" max="100" step="0.01" placeholder="—"
+                             oninput="clampCell(this); updateRataRataPerSmt()" onfocus="this.select()">
+                    </td>
+                  </tr>
+                  <?php endforeach; ?>
+                </tbody>
+                <tfoot>
+                  <tr class="table-success">
+                    <th class="text-end">Rata-rata Raport:</th>
+                    <th class="text-center fs-5" id="rataPerSmt">—</th>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            <!-- Mode: Total Keseluruhan -->
+            <div id="wrapTotal" class="mb-3" style="display:none;">
+              <div class="alert alert-info small py-2 d-flex align-items-start gap-2">
+                <i class="bi bi-info-circle mt-1"></i>
+                <div>Masukkan <strong>satu nilai rata-rata total raport</strong> — sudah mencakup semua mata pelajaran dan semua semester (nilai akhir yang tertera di raport).</div>
+              </div>
+              <div class="row g-3" style="max-width:360px;">
+                <div class="col-12">
+                  <label class="form-label fw-semibold">Rata-rata Nilai Raport <span class="text-danger">*</span></label>
+                  <input type="number" name="raport_total" id="fRaportTotal"
+                         class="form-control form-control-lg text-center"
+                         min="0" max="100" step="0.01" placeholder="0 – 100"
+                         oninput="clampCell(this); updateRataRataTotal()" onfocus="this.select()">
+                  <div class="fw-semibold text-success mt-2">Rata-rata Raport: <span id="rataTotalSingle">—</span></div>
+                </div>
               </div>
             </div>
 
@@ -1379,7 +1467,7 @@ function switchSistem(sistem) {
 
     // Label formula
     const lbl = document.getElementById('formulaLabel');
-    if (lbl) lbl.textContent = noTka ? '85% Raport' : 'R×70% + T×30%';
+    if (lbl) lbl.textContent = noTka ? '70% Raport' : 'R×70% + T×30%';
 
     if (isManualMode) updateRataRataManual();
     else if (isReg || isKhusus) updateRataRata();
@@ -1409,19 +1497,48 @@ function updateRataRataPKBM() {
 
 function switchInputMode(mode) {
     const isManual  = mode === 'manual';
+    const isPerSmt  = mode === 'per_smt';
+    const isTotal   = mode === 'total';
+    const isMatrix  = !isManual && !isPerSmt && !isTotal;
     const sistem    = getSistem();
     const isPKBM    = sistem === 'pkbm';
     const toolbar   = document.getElementById('raportToolbar');
     const helpBlock = document.getElementById('helpRaportCollapse');
 
-    document.getElementById('wrapManualRata').style.display = isManual ? '' : 'none';
-    document.getElementById('matrixRegular').style.display  = (!isManual && !isPKBM) ? '' : 'none';
-    document.getElementById('matrixPKBM').style.display     = (!isManual && isPKBM)  ? '' : 'none';
-    if (toolbar)   toolbar.style.display   = isManual ? 'none' : '';
+    document.getElementById('wrapManualRata').style.display = isManual  ? '' : 'none';
+    document.getElementById('wrapPerSmt').style.display     = isPerSmt  ? '' : 'none';
+    document.getElementById('wrapTotal').style.display      = isTotal   ? '' : 'none';
+    document.getElementById('matrixRegular').style.display  = (isMatrix && !isPKBM) ? '' : 'none';
+    document.getElementById('matrixPKBM').style.display     = (isMatrix && isPKBM)  ? '' : 'none';
+    if (toolbar)   toolbar.style.display   = isMatrix ? '' : 'none';
     if (helpBlock) helpBlock.classList.add('collapse');
 
-    if (isManual) updateRataRataManual();
+    if (isManual)       updateRataRataManual();
+    else if (isPerSmt)  updateRataRataPerSmt();
+    else if (isTotal)   updateRataRataTotal();
     else isPKBM ? updateRataRataPKBM() : updateRataRata();
+}
+
+function updateRataRataPerSmt() {
+    let sum = 0, cnt = 0;
+    document.querySelectorAll('.smt-cell').forEach(c => {
+        if (c.value !== '') { sum += parseFloat(c.value) || 0; cnt++; }
+    });
+    const v = cnt > 0 ? sum / cnt : 0;
+    const disp = document.getElementById('displayRata');
+    const tot  = document.getElementById('rataPerSmt');
+    if (disp) disp.textContent = v > 0 ? v.toFixed(2) : '—';
+    if (tot)  tot.textContent  = v > 0 ? v.toFixed(2) : '—';
+    updatePreviewNilai();
+}
+
+function updateRataRataTotal() {
+    const v = parseFloat(document.getElementById('fRaportTotal')?.value) || 0;
+    const disp = document.getElementById('displayRata');
+    const tot  = document.getElementById('rataTotalSingle');
+    if (disp) disp.textContent = v > 0 ? v.toFixed(2) : '—';
+    if (tot)  tot.textContent  = v > 0 ? v.toFixed(2) : '—';
+    updatePreviewNilai();
 }
 
 function updateRataRataManual() {
@@ -1835,10 +1952,10 @@ function updatePreviewNilai() {
 
     document.getElementById('displayTka').textContent = noTka ? 'N/A' : (tka > 0 ? tka.toFixed(2) : '—');
     const lbl = document.getElementById('formulaLabel');
-    if (lbl) lbl.textContent = noTka ? '85% Raport' : 'R×70% + T×30%';
+    if (lbl) lbl.textContent = noTka ? '70% Raport' : 'R×70% + T×30%';
 
     if (rata > 0) {
-        const nilai = noTka ? (rata * 0.85) : (rata * 0.70) + (tka * 0.30);
+        const nilai = noTka ? (rata * 0.70) : (rata * 0.70) + (tka * 0.30);
         document.getElementById('displayAkhir').textContent = nilai.toFixed(2);
     } else {
         document.getElementById('displayAkhir').textContent = '—';
@@ -1990,9 +2107,12 @@ function resetForm() {
     // Reset sistem ke Reguler
     const rReg = document.getElementById('sistemReguler');
     if (rReg) { rReg.checked = true; switchSistem('reguler'); }
-    // Reset mode input ke Matrix & kosongkan rata-rata manual
+    // Reset mode input ke Matrix & kosongkan semua mode fields
     const _mr = document.getElementById('fManualRata');
     if (_mr) _mr.value = '';
+    const _rt = document.getElementById('fRaportTotal');
+    if (_rt) _rt.value = '';
+    document.querySelectorAll('.smt-cell').forEach(c => c.value = '');
     const _mx = document.getElementById('modeMatrix');
     if (_mx) { _mx.checked = true; switchInputMode('matrix'); }
     // Reset zonasi & status ortu, tampilkan section sesuai gelombang aktif
@@ -2136,29 +2256,57 @@ function editForm(d) {
     if (manualEl) manualEl.value = '';
     document.querySelectorAll('.raport-avg-cell').forEach(c => c.value = '');
 
-    // Analisa matrix: ada data? hanya semester 1 (artinya disimpan via mode rata-rata per mapel)?
-    let anyFilled = false, anyNonSem1 = false;
-    Object.keys(matrix).forEach(mp => Object.keys(matrix[mp] || {}).forEach(smt => {
-        const v = matrix[mp][smt];
-        if (v !== '' && v !== null && v !== undefined) {
-            anyFilled = true;
-            if (parseInt(smt, 10) !== 1) anyNonSem1 = true;
-        }
-    }));
-    const perMapelOnly = anyFilled && !anyNonSem1;
-    const legacySingle = !anyFilled && parseFloat(d.nilai_raport) > 0;
+    // Restore mode input berdasarkan raport_mode yang tersimpan di DB
+    const savedMode = d.raport_mode || 'matrix';
+    const isSmtMode  = savedMode === 'per_smt';
+    const isTotalMode = savedMode === 'total';
+    const isPerMapel = savedMode === 'manual';
 
-    if (sistem !== 'pkbm' && (perMapelOnly || legacySingle)) {
+    // Fallback detection untuk data lama (tanpa raport_mode)
+    let anyFilled = false, anyNonSem1 = false, hasSmtKey = false;
+    Object.keys(matrix).forEach(mp => {
+        if (mp === '__smt__') { hasSmtKey = true; }
+        Object.keys(matrix[mp] || {}).forEach(smt => {
+            const v = matrix[mp][smt];
+            if (v !== '' && v !== null && v !== undefined) {
+                anyFilled = true;
+                if (parseInt(smt, 10) !== 1) anyNonSem1 = true;
+            }
+        });
+    });
+    const effectiveMode = savedMode !== 'matrix'
+        ? savedMode
+        : (hasSmtKey ? 'per_smt'
+            : (!anyFilled && parseFloat(d.nilai_raport) > 0 ? 'total'
+                : (anyFilled && !anyNonSem1 ? 'manual' : 'matrix')));
+
+    if (sistem !== 'pkbm' && effectiveMode === 'per_smt') {
+        const el = document.getElementById('modePerSmt');
+        if (el) { el.checked = true; switchInputMode('per_smt'); }
+        const smtData = matrix['__smt__'] || {};
+        [<?= implode(',', $semester_list) ?>].forEach(s => {
+            const cell = document.getElementById('fSmtCell' + s);
+            if (cell) cell.value = smtData[s] !== undefined ? smtData[s] : '';
+        });
+        updateRataRataPerSmt();
+    } else if (sistem !== 'pkbm' && effectiveMode === 'total') {
+        const el = document.getElementById('modeTotal');
+        if (el) { el.checked = true; switchInputMode('total'); }
+        const tot = document.getElementById('fRaportTotal');
+        if (tot) tot.value = parseFloat(d.nilai_raport) > 0 ? d.nilai_raport : '';
+        if (manualEl) manualEl.value = d.nilai_raport;
+        updateRataRataTotal();
+    } else if (sistem !== 'pkbm' && effectiveMode === 'manual') {
         const mm = document.getElementById('modeManual');
         if (mm) { mm.checked = true; switchInputMode('manual'); }
-        if (perMapelOnly) {
+        if (anyFilled) {
             MAPEL_LIST.forEach(mp => {
                 const v = (matrix[mp] && matrix[mp][1] !== undefined) ? matrix[mp][1] : '';
                 const cell = document.querySelector(`input[name="raport_avg[${mp}]"]`);
                 if (cell) cell.value = v;
             });
         } else if (manualEl) {
-            manualEl.value = d.nilai_raport;   // legacy: simpan agar tidak hilang saat re-save
+            manualEl.value = d.nilai_raport;
         }
         updateRataRataManual();
     } else {
@@ -2176,7 +2324,7 @@ function printBukti(r) {
     const tgl  = r.tanggal_lahir ? new Date(r.tanggal_lahir).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}) : '-';
     const tglKk= r.tgl_kk ? new Date(r.tgl_kk).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}) : '-';
     const daft = r.tanggal_daftar ? new Date(r.tanggal_daftar).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}) : new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
-    const sistemLabel = r.sistem_pendidikan === 'pkbm' ? 'PKBM (85% Raport)' : r.sistem_pendidikan === 'khusus' ? 'Daftar Khusus (85% Raport)' : 'Reguler (SMP)';
+    const sistemLabel = r.sistem_pendidikan === 'pkbm' ? 'PKBM (70% Raport)' : r.sistem_pendidikan === 'khusus' ? 'Daftar Khusus (70% Raport)' : 'Reguler (SMP)';
     // Info antrian/loket (dari meja yang mengisi data) — opsional
     const antri = r._antrian || null;
     // Auto-centang berkas berdasarkan data yang sudah terisi
@@ -2185,7 +2333,7 @@ function printBukti(r) {
     const boxOn   = '<div class="berkas-box on">&#10003;</div>';
     const boxOff  = '<div class="berkas-box"></div>';
     const nilaiTkaTxt = tkaOk ? Number(r.nilai_tka).toFixed(2) : '';
-    // Buta warna: 'normal' | 'buta_warna' | 'belum'
+    // Buta warna: 'normal' | 'buta_warna_parsial' | 'buta_warna_total' | 'belum'
     const bw      = r.buta_warna || 'belum';
     // Identitas sekolah ikut Konten Website (CMS)
     const SCH_NAMA   = <?= json_encode($sch_nama) ?>;
@@ -2222,9 +2370,10 @@ function printBukti(r) {
           ket: tkaOk ? '<span class="status-ok">&#10003; Sudah ada</span><br><small>Nilai TKA: ' + nilaiTkaTxt + '</small>' : '<small style="color:#888;">Belum diisi</small>' },
         { label:'Akta Kelahiran', sub:'Fotokopi', on:false, ket:'<small style="color:#888;">Diperiksa petugas</small>' },
         { label:'Tes Buta Warna', sub:'', on:(bw === 'normal'),
-          ket: bw === 'normal' ? '<span class="status-ok">&#10003; Normal (tidak buta warna)</span>'
-             : (bw === 'buta_warna' ? '<span class="status-fail">&#10007; Positif Buta Warna</span>'
-             : '<small style="color:#888;">Belum dites</small>') },
+          ket: bw === 'normal'            ? '<span class="status-ok">&#10003; Normal (tidak buta warna)</span>'
+             : bw === 'buta_warna_parsial'? '<span class="status-fail">&#10007; Buta Warna Parsial</span>'
+             : bw === 'buta_warna_total'  ? '<span class="status-fail">&#10007; Buta Warna Total</span>'
+             : '<small style="color:#888;">Belum dites</small>' },
     ];
 
     // ── Gaya 1: Klasik ─────────────────────────────────────────────
