@@ -2338,6 +2338,6 @@ document.querySelectorAll('.glm-tab-link').forEach(link => {
     }
     // Saat modal ditutup, jika ada data tertunda → langsung muat
     document.addEventListener('hidden.bs.modal', () => { if (pending && safeToReload()) location.reload(); });
-    setInterval(check, 5000);
+    setInterval(check, 3000);
 })();
 </script>
