@@ -378,11 +378,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     header('Location: ' . $back_dash . '?page=pendaftar' . $glm_qs);
                     exit;
                 }
-                } catch (Exception $err) {
-                    if ($conn->inTransaction()) $conn->rollBack();
+
+                try {
+                    $conn->beginTransaction();
+
+                    // seluruh proses add/edit di sini
+
+                    $conn->commit();
+                } catch (Exception $e) {
+                    if ($conn->inTransaction()) {
+                        $conn->rollBack();
+                    }
                     $err = "Gagal menyimpan data: " . $e->getMessage();
-            }
-        }
+                }
     } elseif ($action === 'delete') {
         $id = (int)$_POST['id'];
         $row = $conn->prepare("SELECT nama, no_pendaftaran FROM pendaftar WHERE id=?");
@@ -1907,7 +1915,7 @@ function resetForm() {
     document.querySelectorAll('.raport-cell').forEach(c => c.value = '');
     document.querySelectorAll('.pkbm-cell').forEach(c => c.value = '');
     document.querySelectorAll('.raport-avg-cell').forEach(c => c.value = '');
-    document.querySelectorAll('[id^="avgMp"], [id^="pkbmAvgRow"]').forEach(el => el.textContent = '—');
+    document.querySelectorAll('[id^="avgMp"], [id^="pkbmAvgRow"]').forEach(el => {el.textContent = '-'; });
     ['rataTotal','rataTotalPKBM','rataTotalManual','displayRata','displayTka','displayAkhir'].forEach(id => {
         const el = document.getElementById(id); if (el) el.textContent = '—';
     });
