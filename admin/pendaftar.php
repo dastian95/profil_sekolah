@@ -163,16 +163,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (in_array($action, ['add', 'edit'])) {
         $submitted_token = $_POST['form_token'] ?? '';
         if (!$submitted_token || $submitted_token !== ($_SESSION['pend_form_token'] ?? '')) {
-            // Token tidak valid atau sudah terpakai — redirect saja, jangan proses
-            $glm_qs = !empty($_SESSION['pend_active_gelombang']) ? '&gelombang=' . urlencode($_SESSION['pend_active_gelombang']) : '';
-            while (ob_get_level() > 0) ob_end_clean();
-            header('Location: ' . $back_dash . '?page=pendaftar' . $glm_qs);
-            exit;
+            // Token tidak valid (double-submit / session expired) — tolak dengan pesan jelas
+            $err = 'Sesi formulir tidak valid atau sudah diproses. Silakan coba lagi.';
+            // Regenerate token agar bisa coba ulang
+            $_SESSION['pend_form_token'] = bin2hex(random_bytes(16));
+            $form_token = $_SESSION['pend_form_token'];
+            $formData        = $_POST;
+            $formRaport      = $_POST['raport'] ?? [];
+            $formAction      = $action;
+            $formId          = $_POST['id'] ?? '';
+            $showModalOnLoad = true;
+        } else {
+            unset($_SESSION['pend_form_token']); // Konsumsi token — tidak bisa dipakai lagi
+            // Langsung regenerate untuk retry jika validasi gagal
+            $_SESSION['pend_form_token'] = bin2hex(random_bytes(16));
+            $form_token = $_SESSION['pend_form_token'];
         }
-        unset($_SESSION['pend_form_token']); // Konsumsi token — tidak bisa dipakai lagi
-        // Langsung regenerate untuk retry jika validasi gagal
-        $_SESSION['pend_form_token'] = bin2hex(random_bytes(16));
-        $form_token = $_SESSION['pend_form_token'];
     }
 
     if ($action === 'add' || $action === 'edit') {
@@ -270,7 +276,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $existing_status = $existing['status'] ?? 'diproses';
                 }
             }
-            if (!$err) {
+            if (!$err) { try {
                 // Hitung data pendaftar
                 if ($has_raport) {
                     $d = hitungPendaftar([
@@ -376,7 +382,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     header('Location: ' . $back_dash . '?page=pendaftar' . $glm_qs);
                     exit;
                 }
-            }
+            } catch (Throwable $ex) {
+                if ($conn->inTransaction()) $conn->rollBack();
+                $err = 'Gagal menyimpan: ' . $ex->getMessage();
+            } }
         }
     } elseif ($action === 'delete') {
         $id = (int)$_POST['id'];
@@ -700,6 +709,12 @@ if ($edit_id_get > 0) {
         </ul>
 
         <div class="modal-body">
+        <?php if ($err && $showModalOnLoad): ?>
+        <div class="alert alert-danger alert-dismissible mb-3 py-2" id="modalErrAlert">
+          <i class="bi bi-exclamation-triangle-fill me-1"></i><?= htmlspecialchars($err) ?>
+          <button type="button" class="btn-close py-2" data-bs-dismiss="alert"></button>
+        </div>
+        <?php endif; ?>
         <div class="tab-content">
 
           <!-- ── Tab Jalur Seleksi (Gelombang 2) ─────────────────────────── -->
