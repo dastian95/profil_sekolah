@@ -12,20 +12,27 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.1'
+      - name: Install lftp
+        run: sudo apt-get install -y lftp
 
       - name: Deploy via SFTP
-        uses: wlixcc/SFTP-Deploy-Action@v1.3.2
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          port: 22
-          local_path: './*'
-          remote_path: ${{ secrets.FTP_SERVER_DIR }}
-          sftp_only: true
-          args: '-o ConnectTimeout=10 -o StrictHostKeyChecking=no'
-          delete_remote_files: false
+        env:
+          HOST: ${{ secrets.FTP_SERVER }}
+          USER: ${{ secrets.FTP_USERNAME }}
+          PASS: ${{ secrets.FTP_PASSWORD }}
+          DIR:  ${{ secrets.FTP_SERVER_DIR }}
+        run: |
+          lftp -c "
+            set sftp:auto-confirm yes
+            set net:timeout 60
+            set net:max-retries 10
+            set net:reconnect-interval-base 5
+            set net:reconnect-interval-multiplier 1
+            open -u \"$USER\",\"$PASS\" sftp://$HOST
+            mirror --reverse --verbose \
+              --exclude-glob .git \
+              --exclude-glob .github \
+              --exclude-glob node_modules \
+              . \"$DIR\"
+            quit
+          "
