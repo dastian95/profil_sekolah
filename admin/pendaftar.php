@@ -488,14 +488,19 @@ $active_glm = $_SESSION['pend_active_gelombang'] ?? '';
 $fJurusan  = $_GET['jurusan']  ?? '';
 $fGelombang= $active_glm; // pakai session, bukan GET langsung
 $fStatus   = $_GET['status']   ?? '';
+$fLoket    = (int)($_GET['loket'] ?? 0);
 $fCari     = trim($_GET['cari']?? '');
 $page_num  = max(1, (int)($_GET['p'] ?? 1));
 $per_page  = 20;
+
+$meja_list = [];
+try { $meja_list = $conn->query("SELECT id, nomor_meja, nama FROM meja ORDER BY nomor_meja")->fetchAll(); } catch (PDOException $e) {}
 
 $where = ['1=1']; $params = [];
 if ($fJurusan)   { $where[] = 'jurusan=?';  $params[] = $fJurusan; }
 if ($fGelombang) { $where[] = 'gelombang=?';$params[] = $fGelombang; }
 if ($fStatus)    { $where[] = 'status=?';   $params[] = $fStatus; }
+if ($fLoket)     { $where[] = 'EXISTS (SELECT 1 FROM antrian WHERE antrian.pendaftar_id=pendaftar.id AND antrian.meja_id=?)'; $params[] = $fLoket; }
 if ($fCari)      { $where[] = '(nama LIKE ? OR nisn LIKE ? OR no_pendaftaran LIKE ?)'; $params = array_merge($params, ["%$fCari%","%$fCari%","%$fCari%"]); }
 
 $whereStr = implode(' AND ', $where);
@@ -660,6 +665,16 @@ if ($edit_id_get > 0) {
             <option value="terima"   <?= $fStatus==='terima'  ?'selected':'' ?>>Terima</option>
             <option value="gugur"    <?= $fStatus==='gugur'   ?'selected':'' ?>>Gugur</option>
         </select>
+        <?php if ($meja_list): ?>
+        <select name="loket" class="form-select form-select-sm" style="width:auto">
+            <option value="">Semua Loket</option>
+            <?php foreach ($meja_list as $m): ?>
+            <option value="<?= $m['id'] ?>" <?= $fLoket===$m['id']?'selected':'' ?>>
+                <?= htmlspecialchars($m['nama'] ?: 'Loket '.$m['nomor_meja']) ?>
+            </option>
+            <?php endforeach; ?>
+        </select>
+        <?php endif; ?>
         <button type="submit" class="btn btn-primary btn-sm">Filter</button>
         <a href="?page=pendaftar&gelombang=<?= $active_glm ?>" class="btn btn-outline-secondary btn-sm">Reset</a>
     </form>
@@ -742,7 +757,7 @@ if ($edit_id_get > 0) {
         <nav><ul class="pagination pagination-sm mb-0">
             <?php for ($i = 1; $i <= $total_pages; $i++): ?>
             <li class="page-item <?= $i===$page_num?'active':'' ?>">
-                <a class="page-link" href="?page=pendaftar&p=<?= $i ?>&jurusan=<?= urlencode($fJurusan) ?>&gelombang=<?= $fGelombang ?>&status=<?= $fStatus ?>&cari=<?= urlencode($fCari) ?>"><?= $i ?></a>
+                <a class="page-link" href="?page=pendaftar&p=<?= $i ?>&jurusan=<?= urlencode($fJurusan) ?>&gelombang=<?= $fGelombang ?>&status=<?= $fStatus ?>&loket=<?= $fLoket ?>&cari=<?= urlencode($fCari) ?>"><?= $i ?></a>
             </li>
             <?php endfor; ?>
         </ul></nav>
@@ -2333,8 +2348,6 @@ function printBukti(r) {
     const boxOn   = '<div class="berkas-box on">&#10003;</div>';
     const boxOff  = '<div class="berkas-box"></div>';
     const nilaiTkaTxt = tkaOk ? Number(r.nilai_tka).toFixed(2) : '';
-    // Buta warna: 'normal' | 'buta_warna_parsial' | 'buta_warna_total' | 'belum'
-    const bw      = r.buta_warna || 'belum';
     // Identitas sekolah ikut Konten Website (CMS)
     const SCH_NAMA   = <?= json_encode($sch_nama) ?>;
     const SCH_ALAMAT = <?= json_encode($sch_alamat) ?>;
@@ -2359,21 +2372,21 @@ function printBukti(r) {
     rows.push(['Tanggal Daftar',   daft]);
 
     // Kelengkapan berkas
+    const isNoTka = r.sistem_pendidikan === 'pkbm' || r.sistem_pendidikan === 'khusus';
     const ketKK = !r.tgl_kk
-        ? '<small style="color:#888;">Tgl KK belum diisi</small>'
+        ? '<small style="color:#c0392b;">Kartu Keluarga belum diserahkan kepada panitia</small>'
         : (kkOk
-            ? '<span class="status-ok">&#10003; Memenuhi syarat</span><br><small>Tgl KK: ' + tglKk + '</small>'
-            : '<span class="status-fail">&#10007; Melebihi cut-off 15 Juni 2025</span><br><small>Tgl KK: ' + tglKk + '</small>');
+            ? '<span class="status-ok">&#10003; Memenuhi syarat</span><br><small>Tgl. KK: ' + tglKk + '</small>'
+            : '<span class="status-fail">&#10007; Melampaui batas cut-off 15 Juni 2025</span><br><small>Tgl. KK: ' + tglKk + '</small>');
+    const ketTka = isNoTka
+        ? '<small style="color:#6c757d;">Tidak dipersyaratkan untuk jalur pendaftaran ini</small>'
+        : (tkaOk
+            ? '<span class="status-ok">&#10003; Telah diserahkan kepada panitia</span><br><small>Nilai TKA: ' + nilaiTkaTxt + '</small>'
+            : '<small style="color:#c0392b;">Hasil TKA belum diserahkan kepada panitia</small>');
     const berkas = [
         { label:'Kartu Keluarga (KK) DKI Jakarta', sub:'Asli + fotokopi', on:kkOk, ket:ketKK },
-        { label:'Hasil TKA', sub:'Fotokopi (reguler & PKBM)', on:tkaOk,
-          ket: tkaOk ? '<span class="status-ok">&#10003; Sudah ada</span><br><small>Nilai TKA: ' + nilaiTkaTxt + '</small>' : '<small style="color:#888;">Belum diisi</small>' },
-        { label:'Akta Kelahiran', sub:'Fotokopi', on:false, ket:'<small style="color:#888;">Diperiksa petugas</small>' },
-        { label:'Tes Buta Warna', sub:'', on:(bw === 'normal'),
-          ket: bw === 'normal'            ? '<span class="status-ok">&#10003; Normal (tidak buta warna)</span>'
-             : bw === 'buta_warna_parsial'? '<span class="status-fail">&#10007; Buta Warna Parsial</span>'
-             : bw === 'buta_warna_total'  ? '<span class="status-fail">&#10007; Buta Warna Total</span>'
-             : '<small style="color:#888;">Belum dites</small>' },
+        { label:'Hasil TKA', sub:'Fotokopi (jalur reguler)', on:(!isNoTka && tkaOk), ket:ketTka },
+        { label:'Akta Kelahiran', sub:'Fotokopi', on:false, ket:'<small style="color:#6c757d;">Diserahkan dan diverifikasi oleh petugas pada saat pendaftaran</small>' },
     ];
 
     // ── Gaya 1: Klasik ─────────────────────────────────────────────

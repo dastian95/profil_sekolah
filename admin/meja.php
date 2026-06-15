@@ -61,9 +61,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         } elseif ($action === 'reset_antrian') {
             $tanggal = date('Y-m-d');
-            $conn->prepare("DELETE FROM antrian WHERE tanggal=?")->execute([$tanggal]);
-            log_admin_action($conn, 'ANTRIAN_RESET', "Hapus total antrian tanggal $tanggal");
-            $msg = '<div class="alert alert-warning"><i class="bi bi-arrow-clockwise me-2"></i>Antrian hari ini dihapus total. Bisa dibuka ulang.</div>';
+            // Hanya hapus nomor yang belum terhubung ke pendaftar — data terhubung dipertahankan sebagai riwayat
+            $conn->prepare("DELETE FROM antrian WHERE tanggal=? AND pendaftar_id IS NULL")->execute([$tanggal]);
+            log_admin_action($conn, 'ANTRIAN_RESET', "Reset antrian tanggal $tanggal (data terhubung pendaftar dipertahankan)");
+            $msg = '<div class="alert alert-warning"><i class="bi bi-arrow-clockwise me-2"></i>Antrian hari ini direset. Nomor yang sudah terhubung ke pendaftar tetap tersimpan sebagai riwayat. Antrian bisa dibuka ulang.</div>';
 
         } elseif ($action === 'tambah_nomor') {
             $tanggal = date('Y-m-d');
