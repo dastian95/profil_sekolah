@@ -425,6 +425,19 @@ if ($fStatus)    { $where[] = 'status=?';   $params[] = $fStatus; }
 if ($fCari)      { $where[] = '(nama LIKE ? OR nisn LIKE ? OR no_pendaftaran LIKE ?)'; $params = array_merge($params, ["%$fCari%","%$fCari%","%$fCari%"]); }
 
 $whereStr = implode(' AND ', $where);
+
+// Endpoint ringan untuk update real-time: tanda tangan data (jumlah + id terbaru + status)
+if (isset($_GET['live_sig'])) {
+    $sigStmt = $conn->prepare("SELECT COUNT(*) c, COALESCE(MAX(id),0) m, COALESCE(SUM(CRC32(CONCAT(id,status,nilai_akhir))),0) h
+                               FROM pendaftar WHERE $whereStr");
+    $sigStmt->execute($params);
+    $sg = $sigStmt->fetch(PDO::FETCH_ASSOC);
+    while (ob_get_level() > 0) ob_end_clean();
+    header('Content-Type: application/json');
+    echo json_encode(['sig' => $sg['c'] . '-' . $sg['m'] . '-' . $sg['h']]);
+    exit;
+}
+
 $countStmt = $conn->prepare("SELECT COUNT(*) FROM pendaftar WHERE $whereStr");
 $countStmt->execute($params);
 $total_rows = $countStmt->fetchColumn();
@@ -2292,5 +2305,41 @@ document.querySelectorAll('.glm-tab-link').forEach(link => {
         window.location.href = url.toString();
     });
 });
+
+// ── Update Real-Time Data Pendaftar (polling ringan) ─────────────────────────
+(function () {
+    const sigUrl = new URL(window.location.href);
+    sigUrl.searchParams.set('live_sig', '1');
+    let liveSig = null, pending = false, badge = null;
+
+    function safeToReload() {
+        if (document.querySelector('.modal.show')) return false;          // modal terbuka
+        const ae = document.activeElement;
+        if (ae && ['INPUT', 'SELECT', 'TEXTAREA'].includes(ae.tagName)) return false; // sedang mengetik
+        return true;
+    }
+    function showBadge() {
+        if (badge) return;
+        badge = document.createElement('button');
+        badge.type = 'button';
+        badge.className = 'btn btn-success shadow';
+        badge.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:1080;border-radius:30px;';
+        badge.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Ada data baru — Muat';
+        badge.onclick = () => location.reload();
+        document.body.appendChild(badge);
+    }
+    async function check() {
+        try {
+            const r = await fetch(sigUrl.toString(), { cache: 'no-store' });
+            const j = await r.json();
+            if (liveSig === null) { liveSig = j.sig; return; }
+            if (j.sig !== liveSig) { liveSig = j.sig; pending = true; }
+        } catch (e) { /* abaikan */ }
+        if (pending) { if (safeToReload()) location.reload(); else showBadge(); }
+    }
+    // Saat modal ditutup, jika ada data tertunda → langsung muat
+    document.addEventListener('hidden.bs.modal', () => { if (pending && safeToReload()) location.reload(); });
+    setInterval(check, 5000);
+})();
 </script>
 
