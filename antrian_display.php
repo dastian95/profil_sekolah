@@ -4,57 +4,57 @@ require_once __DIR__ . '/admin/_constants.php';
 
 $today = date('Y-m-d');
 
-// Stats pendaftar per jurusan (JURUSAN_LIST = array nama panjang, JURUSAN_SHORT = nama panjang => kode)
-$stats_jur = [];
-foreach (JURUSAN_LIST as $nama_lengkap) {
-    $kode = JURUSAN_SHORT[$nama_lengkap] ?? $nama_lengkap;
-    $s = $conn->prepare("SELECT COUNT(*) FROM pendaftar WHERE jurusan=?");
-    $s->execute([$nama_lengkap]);
-    $stats_jur[$kode] = (int)$s->fetchColumn();
-}
-$stats_total = array_sum($stats_jur);
-
-// Ambil data antrian yang sedang dipanggil
-$stmt = $conn->prepare("
-    SELECT a.nomor, a.fase, a.dipanggil_at,
-           m.id AS meja_id, m.nomor_meja, m.nama AS nama_meja, m.fase AS meja_fase
-    FROM antrian a
-    JOIN meja m ON m.id = a.meja_id
-    WHERE a.tanggal = ? AND a.status = 'dipanggil'
-    ORDER BY a.dipanggil_at DESC
-    LIMIT 20
-");
-$stmt->execute([$today]);
-$antrian_aktif = $stmt->fetchAll();
-
-// Ambil meja aktif
-$meja_list = $conn->query("SELECT * FROM meja WHERE is_active=1 ORDER BY nomor_meja")->fetchAll();
-
-$latest = $antrian_aktif[0] ?? null;
-
+// Default aman — display TIDAK boleh crash walau DB sempat error sesaat
+$stats_jur = []; $stats_total = 0;
+$antrian_aktif = []; $meja_list = []; $latest = null;
 $meja_colors = ['#7c3aed','#059669','#dc2626','#d97706','#2563eb','#0891b2','#c026d3','#65a30d'];
-$meja_color_map = [];
-foreach ($meja_list as $i => $m) {
-    $meja_color_map[$m['id']] = $meja_colors[$i % count($meja_colors)];
+$meja_color_map = []; $next_f1 = []; $next_f2 = [];
+
+try {
+    // Stats pendaftar per jurusan
+    foreach (JURUSAN_LIST as $nama_lengkap) {
+        $kode = JURUSAN_SHORT[$nama_lengkap] ?? $nama_lengkap;
+        $s = $conn->prepare("SELECT COUNT(*) FROM pendaftar WHERE jurusan=?");
+        $s->execute([$nama_lengkap]);
+        $stats_jur[$kode] = (int)$s->fetchColumn();
+    }
+    $stats_total = array_sum($stats_jur);
+
+    // Antrian yang sedang dipanggil
+    $stmt = $conn->prepare("
+        SELECT a.nomor, a.fase, a.dipanggil_at,
+               m.id AS meja_id, m.nomor_meja, m.nama AS nama_meja, m.fase AS meja_fase
+        FROM antrian a JOIN meja m ON m.id = a.meja_id
+        WHERE a.tanggal = ? AND a.status = 'dipanggil'
+        ORDER BY a.dipanggil_at DESC LIMIT 20");
+    $stmt->execute([$today]);
+    $antrian_aktif = $stmt->fetchAll();
+
+    $meja_list = $conn->query("SELECT * FROM meja WHERE is_active=1 ORDER BY nomor_meja")->fetchAll();
+    $latest = $antrian_aktif[0] ?? null;
+    foreach ($meja_list as $i => $m) {
+        $meja_color_map[$m['id']] = $meja_colors[$i % count($meja_colors)];
+    }
+
+    // Nomor menunggu berikutnya
+    $next_stmt = $conn->prepare("
+        SELECT a.nomor, a.fase, a.meja_id, m.nomor_meja, m.nama AS nama_meja
+        FROM antrian a LEFT JOIN meja m ON m.id=a.meja_id
+        WHERE a.tanggal=? AND a.fase=1 AND a.status='menunggu'
+        ORDER BY a.nomor ASC LIMIT 5");
+    $next_stmt->execute([$today]);
+    $next_f1 = $next_stmt->fetchAll();
+
+    $next_stmt2 = $conn->prepare("
+        SELECT a.nomor, a.fase, a.meja_id, m.nomor_meja, m.nama AS nama_meja
+        FROM antrian a LEFT JOIN meja m ON m.id=a.meja_id
+        WHERE a.tanggal=? AND a.fase=2 AND a.status='menunggu'
+        ORDER BY a.nomor ASC LIMIT 3");
+    $next_stmt2->execute([$today]);
+    $next_f2 = $next_stmt2->fetchAll();
+} catch (Throwable $e) {
+    // Biarkan default kosong — display tetap tampil, poll berikutnya coba lagi
 }
-
-// Nomor menunggu berikutnya — sertakan info meja
-// LEFT JOIN: entri Fase 2 dibuat tanpa meja_id (NULL) sampai dipanggil meja
-$next_stmt = $conn->prepare("
-    SELECT a.nomor, a.fase, a.meja_id, m.nomor_meja, m.nama AS nama_meja
-    FROM antrian a LEFT JOIN meja m ON m.id=a.meja_id
-    WHERE a.tanggal=? AND a.fase=1 AND a.status='menunggu'
-    ORDER BY a.nomor ASC LIMIT 5");
-$next_stmt->execute([$today]);
-$next_f1 = $next_stmt->fetchAll();
-
-$next_stmt2 = $conn->prepare("
-    SELECT a.nomor, a.fase, a.meja_id, m.nomor_meja, m.nama AS nama_meja
-    FROM antrian a LEFT JOIN meja m ON m.id=a.meja_id
-    WHERE a.tanggal=? AND a.fase=2 AND a.status='menunggu'
-    ORDER BY a.nomor ASC LIMIT 3");
-$next_stmt2->execute([$today]);
-$next_f2 = $next_stmt2->fetchAll();
 
 // AJAX refresh
 if (isset($_GET['json'])) {
@@ -738,6 +738,7 @@ function speakOnce(text) {
 // lain yang sedang menunggu di antrean.
 let speakQueue = [];     // [{ text, repeatLeft }]
 let speaking   = false;
+let speakStartedAt = 0;  // utk watchdog anti-macet
 
 function announceNumber(num, mejaNama, fase) {
     if (!ttsEnabled || !ttsUnlocked) return;
@@ -750,6 +751,7 @@ function announceNumber(num, mejaNama, fase) {
 function pumpQueue() {
     if (speaking || speakQueue.length === 0) return;
     speaking = true;
+    speakStartedAt = Date.now();
     const item = speakQueue[0];   // peek (jangan dibuang dulu — bisa diulang)
     const u = new SpeechSynthesisUtterance(item.text);
     if (ttsVoice) u.voice = ttsVoice;
@@ -806,7 +808,21 @@ function processAnnouncements(list) {
         announcedCalls.add(keyOf(a));
         announceNumber(a.nomor, a.nama_meja || ('Meja ' + a.nomor_meja), a.fase);
     });
+    // Batasi pertumbuhan memori pada acara panjang
+    if (announcedCalls.size > 1000) announcedCalls = new Set(list.map(keyOf));
 }
+
+// ── Watchdog suara: cegah antrean macet + lawan bug pause Chrome ─────────────
+setInterval(() => {
+    try { if (window.speechSynthesis && speechSynthesis.paused) speechSynthesis.resume(); } catch (e) {}
+    // Jika sedang "speaking" tapi >12 dtk tak selesai (utterance nyangkut), paksa lanjut
+    if (speaking && Date.now() - speakStartedAt > 12000) {
+        speaking = false;
+        try { speechSynthesis.cancel(); } catch (e) {}
+        speakQueue.shift();
+        pumpQueue();
+    }
+}, 4000);
 
 // ── Beep ───────────────────────────────────────────────────────────────────────
 function playBeep() {
@@ -930,10 +946,14 @@ function renderMejaGrid(data) {
 }
 
 // ── Auto Refresh ───────────────────────────────────────────────────────────────
+let fetching = false;
 function refreshData() {
-    fetch('?json=1')
+    if (fetching) return;            // hindari tumpang tindih bila jaringan lambat
+    fetching = true;
+    fetch('?json=1', { cache: 'no-store' })
         .then(r => r.json())
         .then(data => {
+            if (!data) return;
             const latest = data.latest;
             if (latest) {
                 const newNum = latest.nomor, newMeja = latest.meja_id;
@@ -955,15 +975,18 @@ function refreshData() {
             }
             processAnnouncements(data.list || []);
             renderNextCards(data.next_f1 || [], data.next_f2 || []);
-            renderRecentList(data.list, data.colors);
-            renderMejaGrid(data);
-            renderStats(data.stats_jur, data.stats_total);
+            renderRecentList(data.list || [], data.colors || {});
+            renderMejaGrid({ list: data.list || [], meja: data.meja || [], colors: data.colors || {} });
+            renderStats(data.stats_jur || {}, data.stats_total || 0);
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => { fetching = false; });
 }
 
 // Refresh setiap 3 detik
 setInterval(refreshData, 3000);
+// Pulihkan koneksi/render begitu tab kembali aktif (mis. layar sempat sleep)
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshData(); });
 </script>
 </body>
 </html>
