@@ -2243,7 +2243,7 @@ function printBukti(r) {
   .m-ttd{text-align:center;width:200px;font-size:11px;}
   .m-ttd .m-line{border-top:1px solid #333;margin-top:48px;margin-bottom:4px;}
   .lembar.first{page-break-after:always;}
-  @page{size:A4;margin:0;}
+  @page{size:215mm 330mm;margin:0;}
   @media print{body{padding:14mm;}}
 </style></head>
 <body>
