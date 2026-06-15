@@ -142,6 +142,8 @@ try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN alamat_sekolah VARCHAR(255) 
 ensure_sekolah_table($conn);
 $sekolah_list = [];
 try { $sekolah_list = $conn->query("SELECT nama, alamat FROM sekolah_asal WHERE is_active=1 ORDER BY nama")->fetchAll(PDO::FETCH_ASSOC); } catch (PDOException $e) {}
+$custom_sekolah = [];
+try { $custom_sekolah = $conn->query("SELECT id, nama, alamat, created_at FROM sekolah_asal WHERE is_custom=1 AND is_active=1 ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC); } catch (PDOException $e) {}
 
 // Identitas sekolah untuk kop bukti daftar — ikut Konten Website (site_settings)
 $sch_nama   = 'SMKS Laboratorium Jakarta';
@@ -354,6 +356,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     $conn->commit();
+                    // Auto-tambah sekolah baru ke daftar jika belum ada
+                    try {
+                        $sk_chk = $conn->prepare("SELECT COUNT(*) FROM sekolah_asal WHERE LOWER(nama)=LOWER(?)");
+                        $sk_chk->execute([$d['asal_sekolah']]);
+                        if ((int)$sk_chk->fetchColumn() === 0 && $d['asal_sekolah'] !== '') {
+                            $conn->prepare("INSERT INTO sekolah_asal (nama, alamat, is_custom) VALUES (?, ?, 1)")
+                                 ->execute([$d['asal_sekolah'], $alamat_sekolah]);
+                        }
+                    } catch (Throwable) {}
                     log_admin_action($conn, 'TAMBAH_PENDAFTAR', "Tambah pendaftar: {$d['nama']} ({$no}) [{$new_status}]" . ($autolink_note ? ' +autolink antrian' : ''));
                     $_SESSION['pend_flash_msg'] = "Pendaftar <strong>{$d['nama']}</strong> berhasil ditambahkan dengan nomor <strong>{$no}</strong>." . $autolink_note;
                     if (!empty($_POST['print_after_save'])) {
@@ -375,6 +386,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
 
                     $conn->commit();
+                    // Auto-tambah sekolah baru ke daftar jika belum ada
+                    try {
+                        $sk_chk = $conn->prepare("SELECT COUNT(*) FROM sekolah_asal WHERE LOWER(nama)=LOWER(?)");
+                        $sk_chk->execute([$d['asal_sekolah']]);
+                        if ((int)$sk_chk->fetchColumn() === 0 && $d['asal_sekolah'] !== '') {
+                            $conn->prepare("INSERT INTO sekolah_asal (nama, alamat, is_custom) VALUES (?, ?, 1)")
+                                 ->execute([$d['asal_sekolah'], $alamat_sekolah]);
+                        }
+                    } catch (Throwable) {}
                     log_admin_action($conn, 'EDIT_PENDAFTAR', "Edit pendaftar ID:{$id} — {$d['nama']} [{$new_status}]");
                     $_SESSION['pend_flash_msg'] = "Data <strong>{$d['nama']}</strong> berhasil diperbarui.";
                     $glm_qs = !empty($_SESSION['pend_active_gelombang']) ? '&gelombang=' . urlencode($_SESSION['pend_active_gelombang']) : '';
@@ -398,6 +418,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $glm_qs = !empty($_SESSION['pend_active_gelombang']) ? '&gelombang=' . urlencode($_SESSION['pend_active_gelombang']) : '';
         while (ob_get_level() > 0) ob_end_clean();
         header('Location: ' . $back_dash . '?page=pendaftar' . $glm_qs);
+        exit;
+    } elseif ($action === 'del_sekolah') {
+        $sk_id = (int)($_POST['sekolah_id'] ?? 0);
+        if ($sk_id) {
+            $chk = $conn->prepare("SELECT nama FROM sekolah_asal WHERE id=? AND is_custom=1");
+            $chk->execute([$sk_id]);
+            if ($sk = $chk->fetch()) {
+                $conn->prepare("DELETE FROM sekolah_asal WHERE id=? AND is_custom=1")->execute([$sk_id]);
+                log_admin_action($conn, 'HAPUS_SEKOLAH', "Hapus sekolah baru: {$sk['nama']}");
+                $_SESSION['pend_flash_msg'] = "Sekolah <strong>" . htmlspecialchars($sk['nama']) . "</strong> berhasil dihapus dari daftar.";
+            }
+        }
+        $glm_qs = !empty($_SESSION['pend_active_gelombang']) ? '&gelombang=' . urlencode($_SESSION['pend_active_gelombang']) : '';
+        while (ob_get_level() > 0) ob_end_clean();
+        header('Location: ' . $back_dash . '?page=pendaftar' . $glm_qs . '#sekolahBaru');
         exit;
     }
 
@@ -686,6 +721,39 @@ if ($edit_id_get > 0) {
     <?php endif; ?>
 </div>
 
+<!-- Panel Sekolah Baru (auto-ditambahkan dari input manual) -->
+<?php if ($custom_sekolah): ?>
+<div class="card border-warning mt-3" id="sekolahBaru">
+  <div class="card-header bg-warning-subtle d-flex align-items-center justify-content-between py-2">
+    <span class="fw-semibold"><i class="bi bi-building-add me-1"></i>Sekolah Baru (<?= count($custom_sekolah) ?>)</span>
+    <small class="text-muted">Ditambahkan otomatis dari input manual pendaftar</small>
+  </div>
+  <div class="card-body p-0">
+    <table class="table table-sm table-hover mb-0 align-middle">
+      <thead class="table-light"><tr>
+        <th>Nama Sekolah</th><th>Alamat</th><th>Ditambahkan</th><th style="width:60px;"></th>
+      </tr></thead>
+      <tbody>
+      <?php foreach ($custom_sekolah as $csk): ?>
+      <tr>
+        <td class="fw-semibold"><?= htmlspecialchars($csk['nama']) ?></td>
+        <td class="text-muted small"><?= htmlspecialchars($csk['alamat'] ?? '-') ?></td>
+        <td class="small text-muted"><?= date('d M Y', strtotime($csk['created_at'])) ?></td>
+        <td>
+          <form method="POST" onsubmit="return confirm('Hapus sekolah ini dari daftar?')">
+            <input type="hidden" name="action" value="del_sekolah">
+            <input type="hidden" name="sekolah_id" value="<?= $csk['id'] ?>">
+            <button class="btn btn-sm btn-outline-danger" title="Hapus"><i class="bi bi-trash"></i></button>
+          </form>
+        </td>
+      </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+<?php endif; ?>
+
 <!-- Modal Tambah/Edit Pendaftar -->
 <div class="modal fade" id="modalPendaftar" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
   <div class="modal-dialog modal-xl">
@@ -864,7 +932,7 @@ if ($edit_id_get > 0) {
                 </select>
                 <input type="text" id="fAsalManual" class="form-control mt-2 d-none" placeholder="Ketik nama sekolah" oninput="syncAsalManual()">
                 <input type="hidden" name="asal_sekolah" id="fAsal" value="<?= htmlspecialchars($formData['asal_sekolah'] ?? '') ?>">
-                <small class="text-muted">Tidak ada di daftar? Pilih <em>Lainnya</em> lalu isi manual. Daftar bisa ditambah di menu <strong>Kelola Sekolah</strong>.</small>
+                <small class="text-muted">Tidak ada di daftar? Pilih <em>Lainnya</em> lalu isi manual — sekolah baru otomatis tersimpan ke daftar.</small>
               </div>
               <div class="col-md-7">
                 <label class="form-label fw-semibold">Alamat Sekolah</label>

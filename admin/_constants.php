@@ -293,6 +293,7 @@ function ensure_sekolah_table(PDO $conn): void {
             created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         try { $conn->exec("ALTER TABLE sekolah_asal MODIFY alamat VARCHAR(500) NULL"); } catch (PDOException $e) {}
+        try { $conn->exec("ALTER TABLE sekolah_asal ADD COLUMN is_custom TINYINT(1) NOT NULL DEFAULT 0"); } catch (PDOException $e) {}
 
         $ins = $conn->prepare("INSERT INTO sekolah_asal (nama, alamat) VALUES (?, ?)");
         $cnt = (int)$conn->query("SELECT COUNT(*) FROM sekolah_asal")->fetchColumn();
