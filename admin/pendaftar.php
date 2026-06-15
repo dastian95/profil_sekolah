@@ -257,10 +257,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$err) {
                 // Tentukan gelombang
                 $conn->beginTransaction();
-                try {
                 if ($action === 'add') {
                     if (!$gelombang_aktif) {
                         $err = 'Tidak ada gelombang aktif. Atur tanggal gelombang di menu Pengaturan Gelombang.';
+                        $conn->rollBack();
                     } else {
                         $gel = (int)$gelombang_aktif['gelombang'];
                     }
@@ -272,7 +272,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $existing_status = $existing['status'] ?? 'diproses';
                 }
             }
-
             if (!$err) {
                 // Hitung data pendaftar
                 if ($has_raport) {
@@ -379,10 +378,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     header('Location: ' . $back_dash . '?page=pendaftar' . $glm_qs);
                     exit;
                 }
-                } catch (Exception $e) {
-                    $conn->rollBack();
+                } catch (Exception $err) {
+                    if ($conn->inTransaction()) $conn->rollBack();
                     $err = "Gagal menyimpan data: " . $e->getMessage();
-                }
             }
         }
     } elseif ($action === 'delete') {
