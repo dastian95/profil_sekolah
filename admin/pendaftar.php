@@ -127,18 +127,16 @@ try {
 try {
     $conn->exec("ALTER TABLE pendaftar MODIFY COLUMN sistem_pendidikan ENUM('reguler','pkbm','khusus') NOT NULL DEFAULT 'reguler'");
 } catch (PDOException $e) {}
-// Auto-migrate: TKA dipecah 2 mapel (MTK & B.Indonesia) — nilai_tka = rata-rata keduanya
-try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN tka_mtk DECIMAL(5,2) NULL AFTER nilai_tka"); } catch (PDOException $e) {}
-try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN tka_bindo DECIMAL(5,2) NULL AFTER tka_mtk"); } catch (PDOException $e) {}
-// Auto-migrate: zonasi & status orang tua (Gelombang 2)
-try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN kelurahan VARCHAR(100) NULL AFTER alamat"); } catch (PDOException $e) {}
-try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN jarak_km DECIMAL(5,2) NULL AFTER kelurahan"); } catch (PDOException $e) {}
-try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN status_ortu ENUM('tidak','yatim','piatu','yatim_piatu') NOT NULL DEFAULT 'tidak' AFTER jarak_km"); } catch (PDOException $e) {}
-// Auto-migrate: hasil tes buta warna & jalur seleksi Gelombang 2
-try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN buta_warna ENUM('belum','normal','buta_warna') NOT NULL DEFAULT 'belum' AFTER status_ortu"); } catch (PDOException $e) {}
-try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN jalur ENUM('zonasi','afirmasi','prestasi') NOT NULL DEFAULT 'prestasi' AFTER buta_warna"); } catch (PDOException $e) {}
-// Auto-migrate: alamat sekolah asal (terisi dari pilihan dropdown / manual)
-try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN alamat_sekolah VARCHAR(255) NULL AFTER asal_sekolah"); } catch (PDOException $e) {}
+// Auto-migrate kolom tambahan. TANPA klausa AFTER agar tiap kolom independen —
+// jika satu kolom acuan belum ada, penambahan kolom lain tetap berhasil (anti rantai-gagal).
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN tka_mtk DECIMAL(5,2) NULL"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN tka_bindo DECIMAL(5,2) NULL"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN kelurahan VARCHAR(100) NULL"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN jarak_km DECIMAL(5,2) NULL"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN status_ortu ENUM('tidak','yatim','piatu','yatim_piatu') NOT NULL DEFAULT 'tidak'"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN buta_warna ENUM('belum','normal','buta_warna') NOT NULL DEFAULT 'belum'"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN jalur ENUM('zonasi','afirmasi','prestasi') NOT NULL DEFAULT 'prestasi'"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN alamat_sekolah VARCHAR(255) NULL"); } catch (PDOException $e) {}
 
 // Daftar sekolah untuk dropdown Asal Sekolah
 ensure_sekolah_table($conn);
@@ -378,19 +376,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     header('Location: ' . $back_dash . '?page=pendaftar' . $glm_qs);
                     exit;
                 }
-
-                try {
-                    $conn->beginTransaction();
-
-                    // seluruh proses add/edit di sini
-
-                    $conn->commit();
-                } catch (Exception $e) {
-                    if ($conn->inTransaction()) {
-                        $conn->rollBack();
-                    }
-                    $err = "Gagal menyimpan data: " . $e->getMessage();
-                }
+            }
+        }
     } elseif ($action === 'delete') {
         $id = (int)$_POST['id'];
         $row = $conn->prepare("SELECT nama, no_pendaftaran FROM pendaftar WHERE id=?");
