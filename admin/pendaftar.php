@@ -256,6 +256,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $existing_status = 'diproses';
             if (!$err) {
                 // Tentukan gelombang
+                $conn->beginTransaction();
+                try {
                 if ($action === 'add') {
                     if (!$gelombang_aktif) {
                         $err = 'Tidak ada gelombang aktif. Atur tanggal gelombang di menu Pengaturan Gelombang.';
@@ -348,6 +350,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         } catch (Throwable) {}
                     }
 
+                    $conn->commit();
                     log_admin_action($conn, 'TAMBAH_PENDAFTAR', "Tambah pendaftar: {$d['nama']} ({$no}) [{$new_status}]" . ($autolink_note ? ' +autolink antrian' : ''));
                     $_SESSION['pend_flash_msg'] = "Pendaftar <strong>{$d['nama']}</strong> berhasil ditambahkan dengan nomor <strong>{$no}</strong>." . $autolink_note;
                     if (!empty($_POST['print_after_save'])) {
@@ -368,12 +371,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $sistem,$d['nilai_raport'],$d['nilai_tka'],$tka_mtk_sv,$tka_bindo_sv,$d['nilai_akhir'],$d['lolos_usia'],$new_status,$id]);
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
 
+                    $conn->commit();
                     log_admin_action($conn, 'EDIT_PENDAFTAR', "Edit pendaftar ID:{$id} — {$d['nama']} [{$new_status}]");
                     $_SESSION['pend_flash_msg'] = "Data <strong>{$d['nama']}</strong> berhasil diperbarui.";
                     $glm_qs = !empty($_SESSION['pend_active_gelombang']) ? '&gelombang=' . urlencode($_SESSION['pend_active_gelombang']) : '';
                     while (ob_get_level() > 0) ob_end_clean();
                     header('Location: ' . $back_dash . '?page=pendaftar' . $glm_qs);
                     exit;
+                }
+                } catch (Exception $e) {
+                    $conn->rollBack();
+                    $err = "Gagal menyimpan data: " . $e->getMessage();
                 }
             }
         }
@@ -2342,4 +2350,3 @@ document.querySelectorAll('.glm-tab-link').forEach(link => {
     setInterval(check, 5000);
 })();
 </script>
-
