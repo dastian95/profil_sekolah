@@ -2270,12 +2270,13 @@ function printBukti(r) {
   .m-ttd{text-align:center;width:200px;font-size:11px;}
   .m-ttd .m-line{border-top:1px solid #333;margin-top:48px;margin-bottom:4px;}
   .lembar.first{page-break-after:always;}
+  .rangkap-label{font-size:9px;color:#888;letter-spacing:.5px;text-align:right;margin-bottom:4px;text-transform:uppercase;}
   @page{size:215mm 330mm;margin:0;}
-  @media print{body{padding:14mm;}}
+  @media print{body{padding:14mm;}.rangkap-label{color:#aaa;}}
 </style></head>
 <body>
-  <div class="lembar first">${lembarKlasik}</div>
-  <div class="lembar">${lembarKlasik}</div>
+  <div class="lembar first"><div class="rangkap-label">Lembar 1 &mdash; Untuk Pendaftar</div>${lembarKlasik}</div>
+  <div class="lembar"><div class="rangkap-label">Lembar 2 &mdash; Arsip Sekolah</div>${lembarKlasik}</div>
 </body></html>`;
     // Cetak lewat iframe tersembunyi — tanpa popup "about:blank", auto-bersih setelah cetak
     const old = document.getElementById('printFrame');
