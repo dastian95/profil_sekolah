@@ -1915,10 +1915,8 @@ function resetForm() {
     document.querySelectorAll('.raport-cell').forEach(c => c.value = '');
     document.querySelectorAll('.pkbm-cell').forEach(c => c.value = '');
     document.querySelectorAll('.raport-avg-cell').forEach(c => c.value = '');
-    document.querySelectorAll('[id^="avgMp"], [id^="pkbmAvgRow"]').forEach(el => {el.textContent = '-'; });
-    ['rataTotal','rataTotalPKBM','rataTotalManual','displayRata','displayTka','displayAkhir'].forEach(id => {
-        const el = document.getElementById(id); if (el) el.textContent = '—';
-    });
+    document.querySelectorAll('[id^="avgMp"], [id^="pkbmAvgRow"]').forEach(el => {
+    el.textContent = '-'; });
     // Reset sistem ke Reguler
     const rReg = document.getElementById('sistemReguler');
     if (rReg) { rReg.checked = true; switchSistem('reguler'); }
