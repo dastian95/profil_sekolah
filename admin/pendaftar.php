@@ -2162,7 +2162,7 @@ function printBukti(r) {
     // ── Gaya 1: Klasik ─────────────────────────────────────────────
     const lembarKlasik = `
       <div class="header">
-        ${antri ? `<div class="antri-box"><div class="lbl">No. Antrian</div><div class="num">${antri.nomor}</div>${antri.meja ? `<div class="loket">${antri.meja}</div>` : ''}</div>` : ''}
+        ${antri ? `<div class="antri-box"><div class="lbl">Loket</div><div class="num">${antri.nomor}</div>${antri.meja ? `<div class="loket">${antri.meja}</div>` : ''}</div>` : ''}
         <h2>${esc(SCH_NAMA)}</h2>
         <p>${esc(SCH_ALAMAT)}</p>
         <h2 style="margin-top:8px;font-size:15px;">BUKTI TANDA DAFTAR SPMB</h2>
@@ -2193,7 +2193,7 @@ function printBukti(r) {
           <h2>${esc(SCH_NAMA)}</h2>
           <div class="m-addr">${esc(SCH_ALAMAT)}</div>
         </div>
-        ${antri ? `<div class="m-antri"><div class="lbl">No. Antrian</div><div class="num">${antri.nomor}</div>${antri.meja ? `<div class="loket">${antri.meja}</div>` : ''}</div>` : ''}
+        ${antri ? `<div class="m-antri"><div class="lbl">Loket</div><div class="num">${antri.nomor}</div>${antri.meja ? `<div class="loket">${antri.meja}</div>` : ''}</div>` : ''}
       </div>
       <div class="m-title">BUKTI TANDA DAFTAR SPMB &middot; T.P. ${tahunAjaran}</div>
       <div class="m-card">
