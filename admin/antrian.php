@@ -15,6 +15,8 @@ try { $conn->exec("ALTER TABLE antrian ADD COLUMN hasil ENUM('lulus','gagal') NU
 // Auto-migrate: unique key lama (tanggal,nomor) memblokir nomor yang sama di fase 2
 // → ganti dengan (tanggal,nomor,fase). Gagal harmless jika sudah dimigrate.
 try { $conn->exec("ALTER TABLE antrian DROP INDEX uk_tanggal_nomor, ADD UNIQUE KEY uk_tanggal_nomor_fase (tanggal, nomor, fase)"); } catch (PDOException) {}
+// Auto-migrate: presisi milidetik agar urutan panggilan antar-meja akurat (tekan hampir bersamaan)
+try { $conn->exec("ALTER TABLE antrian MODIFY dipanggil_at TIMESTAMP(3) NULL DEFAULT NULL"); } catch (PDOException) {}
 
 // ── POST Handler ──────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -60,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$today]);
         $next = $stmt->fetch();
         if ($next) {
-            $conn->prepare("UPDATE antrian SET meja_id=?, status='dipanggil', dipanggil_at=NOW() WHERE id=?")
+            $conn->prepare("UPDATE antrian SET meja_id=?, status='dipanggil', dipanggil_at=NOW(3) WHERE id=?")
                  ->execute([$meja_id, $next['id']]);
         }
         return $next;
