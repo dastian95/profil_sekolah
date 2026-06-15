@@ -2134,7 +2134,6 @@ function printBukti(r) {
 
     // ── Gaya 1: Klasik ─────────────────────────────────────────────
     const lembarKlasik = `
-      <div class="tag">Gaya 1 — Klasik</div>
       <div class="header">
         ${antri ? `<div class="antri-box"><div class="lbl">No. Antrian</div><div class="num">${antri.nomor}</div>${antri.meja ? `<div class="loket">${antri.meja}</div>` : ''}</div>` : ''}
         <h2>${esc(SCH_NAMA)}</h2>
@@ -2249,7 +2248,7 @@ function printBukti(r) {
 </style></head>
 <body>
   <div class="lembar first">${lembarKlasik}</div>
-  <div class="lembar">${lembarModern}</div>
+  <div class="lembar">${lembarKlasik}</div>
 </body></html>`;
     // Cetak lewat iframe tersembunyi — tanpa popup "about:blank", auto-bersih setelah cetak
     const old = document.getElementById('printFrame');
