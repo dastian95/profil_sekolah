@@ -52,10 +52,20 @@ function printBukti(r) {
         : (tkaOk
             ? '<span class="status-ok">&#10003; Telah diserahkan kepada panitia</span><br><small>Nilai TKA: ' + nilaiTkaTxt + '</small>'
             : '<small style="color:#c0392b;">Hasil TKA belum diserahkan kepada panitia</small>');
+    const bwVal  = r.buta_warna || 'belum';
+    const bwDone = bwVal !== 'belum';
+    const ketBw  = !bwDone
+        ? '<small style="color:#c0392b;">Hasil tes buta warna belum diserahkan kepada panitia</small>'
+        : (bwVal === 'normal'
+            ? '<span class="status-ok">&#10003; Normal (Tidak Buta Warna)</span>'
+            : (bwVal === 'buta_warna_parsial'
+                ? '<span class="status-fail">&#10007; Positif Buta Warna Parsial</span>'
+                : '<span class="status-fail">&#10007; Positif Buta Warna Total</span>'));
     const berkas = [
         { label:'Kartu Keluarga (KK) DKI Jakarta', sub:'Asli + fotokopi', on:kkOk, ket:ketKK },
         { label:'Hasil TKA', sub:'Fotokopi (jalur reguler)', on:(!isNoTka && tkaOk), ket:ketTka },
         { label:'Akta Kelahiran', sub:'Fotokopi', on:false, ket:'<small style="color:#6c757d;">Diserahkan dan diverifikasi oleh petugas pada saat pendaftaran</small>' },
+        { label:'Tes Buta Warna', sub:'Hasil pemeriksaan dokter', on:bwDone, ket:ketBw },
     ];
 
     // ── Gaya 1: Klasik ─────────────────────────────────────────────
