@@ -967,16 +967,16 @@ if ($edit_id_get > 0) {
               </div>
               <div class="col-md-5">
                 <label class="form-label fw-semibold">Asal Sekolah <span class="text-danger">*</span></label>
-                <select id="fAsalSelect" class="form-select" onchange="onAsalChange()">
-                  <option value="">— Pilih Sekolah —</option>
-                  <?php foreach ($sekolah_list as $sk): ?>
-                  <option value="<?= htmlspecialchars($sk['nama']) ?>" data-alamat="<?= htmlspecialchars($sk['alamat'] ?? '') ?>"><?= htmlspecialchars($sk['nama']) ?></option>
-                  <?php endforeach; ?>
-                  <option value="__manual__">Lainnya (isi manual)…</option>
-                </select>
-                <input type="text" id="fAsalManual" class="form-control mt-2 d-none" placeholder="Ketik nama sekolah" oninput="syncAsalManual()">
+                <div class="position-relative">
+                  <input type="text" id="fAsalSearch" class="form-control" autocomplete="off"
+                         placeholder="Ketik nama sekolah untuk mencari…"
+                         oninput="asalSearch()" onfocus="asalSearch()"
+                         value="<?= htmlspecialchars($formData['asal_sekolah'] ?? '') ?>">
+                  <div id="fAsalDropdown" class="list-group position-absolute w-100 shadow-sm border rounded bg-white"
+                       style="z-index:1090; max-height:240px; overflow-y:auto; display:none; top:100%; left:0;"></div>
+                </div>
                 <input type="hidden" name="asal_sekolah" id="fAsal" value="<?= htmlspecialchars($formData['asal_sekolah'] ?? '') ?>">
-                <small class="text-muted">Tidak ada di daftar? Pilih <em>Lainnya</em> lalu isi manual — sekolah baru otomatis tersimpan ke daftar.</small>
+                <small class="text-muted">Ketik untuk mencari sekolah yang sudah ada. Belum terdaftar? Lanjut ketik nama lengkapnya — otomatis tersimpan ke daftar.</small>
               </div>
               <div class="col-md-7">
                 <label class="form-label fw-semibold">Alamat Sekolah</label>
@@ -2007,7 +2007,7 @@ document.getElementById('formPendaftar').addEventListener('submit', function(e) 
         { el: document.getElementById('fNisn'),    label: 'NISN' },
         { el: document.getElementById('fJurusan'), label: 'Jurusan' },
         { el: document.getElementById('fTgl'),     label: 'Tanggal Lahir' },
-        { el: document.getElementById('fAsal'),    label: 'Asal Sekolah', focusEl: document.getElementById('fAsalSelect') },
+        { el: document.getElementById('fAsal'),    label: 'Asal Sekolah', focusEl: document.getElementById('fAsalSearch') },
     ];
     const kosong = fields.filter(f => !f.el.value.trim());
     if (kosong.length > 0) {
@@ -2038,63 +2038,73 @@ document.querySelectorAll('[data-bs-target="#tabDiri"], [data-bs-target="#tabRap
     btn.addEventListener('shown.bs.tab', updateSubmitBtn);
 });
 
-// ── Asal Sekolah: dropdown + alamat otomatis + fallback manual ───────────────
-function onAsalChange() {
-    const sel    = document.getElementById('fAsalSelect');
-    const manual = document.getElementById('fAsalManual');
-    const hidden = document.getElementById('fAsal');
-    const alamat = document.getElementById('fAlamatSekolah');
-    const val = sel.value;
-    sel.classList.remove('is-invalid');
-    if (val === '__manual__') {
-        manual.classList.remove('d-none');
-        manual.value = ''; hidden.value = '';
-        alamat.readOnly = false; alamat.value = ''; alamat.classList.remove('bg-light');
-        manual.focus();
-    } else if (val === '') {
-        manual.classList.add('d-none'); manual.value = '';
-        hidden.value = '';
-        alamat.readOnly = true; alamat.value = ''; alamat.classList.add('bg-light');
+// ── Asal Sekolah: search/autocomplete (ketik dulu, daftar cocok muncul) ───────
+const SEKOLAH_LIST = <?= json_encode($sekolah_list, JSON_HEX_TAG|JSON_UNESCAPED_UNICODE) ?>;
+function _asalEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function _asalAlamatEditable(editable){
+    const a = document.getElementById('fAlamatSekolah');
+    a.readOnly = !editable;
+    a.classList.toggle('bg-light', !editable);
+    a.placeholder = editable ? 'Isi alamat sekolah baru (opsional)' : 'Terisi otomatis saat sekolah dipilih';
+}
+function asalSearch(){
+    const inp = document.getElementById('fAsalSearch');
+    const dd  = document.getElementById('fAsalDropdown');
+    const q = inp.value.trim();
+    document.getElementById('fAsal').value = q;          // nilai disubmit mengikuti ketikan
+    inp.classList.remove('is-invalid');
+    // Cocok persis dengan sekolah yang ada → alamat dari data (readonly). Tidak cocok → sekolah baru, alamat bisa diisi.
+    const exact = SEKOLAH_LIST.find(s => (s.nama||'').toLowerCase() === q.toLowerCase());
+    if (exact) { document.getElementById('fAlamatSekolah').value = exact.alamat || ''; _asalAlamatEditable(false); }
+    else { _asalAlamatEditable(true); }
+    if (q.length < 1) { dd.style.display = 'none'; return; }
+    const ql = q.toLowerCase();
+    const matches = SEKOLAH_LIST.filter(s => (s.nama||'').toLowerCase().includes(ql)).slice(0, 40);
+    if (matches.length === 0) {
+        dd.innerHTML = '<div class="list-group-item small text-muted">Tidak ada yang cocok — &ldquo;'+_asalEsc(q)+'&rdquo; akan tersimpan sebagai sekolah baru.</div>';
     } else {
-        manual.classList.add('d-none'); manual.value = '';
-        hidden.value = val;
-        const opt = sel.options[sel.selectedIndex];
-        alamat.value = opt.getAttribute('data-alamat') || '';
-        alamat.readOnly = true; alamat.classList.add('bg-light');
+        dd.innerHTML = matches.map(s => {
+            const oi = SEKOLAH_LIST.indexOf(s);
+            return '<button type="button" class="list-group-item list-group-item-action py-1 px-2 text-start" onclick="asalPickIdx('+oi+')">'
+                 + '<div class="small fw-semibold">'+_asalEsc(s.nama)+'</div>'
+                 + (s.alamat ? '<div class="text-muted" style="font-size:.72rem;">'+_asalEsc(s.alamat)+'</div>' : '')
+                 + '</button>';
+        }).join('');
     }
+    dd.style.display = 'block';
 }
-function syncAsalManual() {
-    document.getElementById('fAsal').value = document.getElementById('fAsalManual').value;
+function asalPickIdx(i){
+    const s = SEKOLAH_LIST[i]; if (!s) return;
+    document.getElementById('fAsalSearch').value = s.nama;
+    document.getElementById('fAsal').value = s.nama;
+    document.getElementById('fAlamatSekolah').value = s.alamat || '';
+    _asalAlamatEditable(false);
+    document.getElementById('fAsalDropdown').style.display = 'none';
 }
-// Inisialisasi state Asal Sekolah dari data tersimpan (cocokkan ke dropdown, atau manual)
+// Inisialisasi state Asal Sekolah dari data tersimpan (edit / template / reset)
 function initAsal(nama, alamatSek) {
-    const sel    = document.getElementById('fAsalSelect');
-    const manual = document.getElementById('fAsalManual');
-    const hidden = document.getElementById('fAsal');
-    const alamat = document.getElementById('fAlamatSekolah');
     nama = nama || ''; alamatSek = alamatSek || '';
-    let matched = false;
-    for (const opt of sel.options) {
-        if (opt.value !== '' && opt.value !== '__manual__' && opt.value === nama) { matched = true; break; }
-    }
-    if (nama === '') {
-        sel.value = '';
-        manual.classList.add('d-none'); manual.value = '';
-        hidden.value = '';
-        alamat.value = ''; alamat.readOnly = true; alamat.classList.add('bg-light');
-    } else if (matched) {
-        sel.value = nama;
-        manual.classList.add('d-none'); manual.value = '';
-        hidden.value = nama;
-        alamat.value = alamatSek || (sel.options[sel.selectedIndex].getAttribute('data-alamat') || '');
-        alamat.readOnly = true; alamat.classList.add('bg-light');
-    } else {
-        sel.value = '__manual__';
-        manual.classList.remove('d-none'); manual.value = nama;
-        hidden.value = nama;
-        alamat.value = alamatSek; alamat.readOnly = false; alamat.classList.remove('bg-light');
-    }
+    document.getElementById('fAsalSearch').value = nama;
+    document.getElementById('fAsal').value = nama;
+    document.getElementById('fAsalDropdown').style.display = 'none';
+    const exact = SEKOLAH_LIST.find(s => (s.nama||'').toLowerCase() === nama.toLowerCase());
+    const alamat = document.getElementById('fAlamatSekolah');
+    if (nama === '') { alamat.value = ''; _asalAlamatEditable(false); }
+    else if (exact) { alamat.value = alamatSek || exact.alamat || ''; _asalAlamatEditable(false); }
+    else { alamat.value = alamatSek; _asalAlamatEditable(true); }
 }
+// Tutup dropdown saat klik di luar
+document.addEventListener('click', function(e){
+    const inp = document.getElementById('fAsalSearch');
+    const dd  = document.getElementById('fAsalDropdown');
+    if (!dd || !inp) return;
+    if (e.target !== inp && !dd.contains(e.target)) dd.style.display = 'none';
+});
+// Sinkronkan editability alamat dari nilai awal (mis. form re-render setelah error validasi)
+document.addEventListener('DOMContentLoaded', function(){
+    const f = document.getElementById('fAsal');
+    if (f) initAsal(f.value, document.getElementById('fAlamatSekolah').value);
+});
 
 function resetForm() {
     document.getElementById('modalTitle').textContent = 'Tambah Pendaftar';

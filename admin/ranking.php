@@ -62,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'prose
 
         // Urutan seleksi per jalur (string konstan — aman dipakai di ORDER BY)
         $order_by = [
-            'g1'       => 'nilai_raport DESC, nilai_tka DESC, usia DESC', // G1 (aturan dinas): rapor → TKA → usia
+            'g1'       => 'nilai_akhir DESC, usia DESC',   // G1: nilai akhir dulu, usia penentu seri
             'zonasi'   => 'jarak_km ASC, usia DESC, nilai_akhir DESC',
             'afirmasi' => 'usia DESC, nilai_akhir DESC',
             'prestasi' => 'nilai_akhir DESC, usia DESC',
@@ -97,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'prose
             $all_terima = [];
 
             if ($gelombang == 1) {
-                // Gelombang 1: satu daftar — rapor → TKA → usia (aturan dinas)
+                // Gelombang 1: satu daftar — nilai akhir → usia
                 $res = $ambilTerima($jurusan, $kuota_glm, 'g1');
                 $all_terima = $res['terima'];
             } else {
@@ -205,11 +205,9 @@ function rank_sort(array $list, string $key): array {
             return $b['usia'] <=> $a['usia'];
         }
         if ($key === 'g1') {
-            // Gelombang 1 (aturan dinas): rapor (Sidanira) dulu → TKA penentu seri → usia paling akhir
-            if ((float)$a['nilai_raport'] != (float)$b['nilai_raport'])
-                return (float)$b['nilai_raport'] <=> (float)$a['nilai_raport'];
-            if ((float)$a['nilai_tka'] != (float)$b['nilai_tka'])
-                return (float)$b['nilai_tka'] <=> (float)$a['nilai_tka'];
+            // Gelombang 1: nilai akhir tertinggi dulu → usia tertua penentu seri
+            if ((float)$a['nilai_akhir'] != (float)$b['nilai_akhir'])
+                return (float)$b['nilai_akhir'] <=> (float)$a['nilai_akhir'];
             return $b['usia'] <=> $a['usia'];
         }
         // 'afirmasi' → umur dulu (tertua), skor penentu seri
@@ -342,7 +340,7 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
     Status publish: <?= $g['is_published'] ? '<span class="badge bg-success">Published</span>' : '<span class="badge bg-secondary">Belum</span>' ?>
     <span class="ms-3 text-warning fw-semibold"><i class="bi bi-pin-fill me-1"></i>Siswa ber-PIN dijamin diterima & tidak tampil di publik</span>
     <?php if ((int)$fGel === 1): ?>
-    <div class="mt-1"><i class="bi bi-info-circle me-1"></i>Urutan: <strong>nilai rapor</strong> tertinggi menang, <strong>nilai TKA</strong> penentu seri, lalu <strong>usia</strong> tertua. KK &gt; 15 Juni 2025 = gugur.</div>
+    <div class="mt-1"><i class="bi bi-info-circle me-1"></i>Urutan: <strong>nilai akhir</strong> tertinggi menang, <strong>usia</strong> tertua penentu seri. KK &gt; 15 Juni 2025 = gugur.</div>
     <?php else: ?>
     <div class="mt-1"><i class="bi bi-info-circle me-1"></i>Kuota dibagi rata 3 jalur: <strong>Zonasi</strong> (jarak terdekat), <strong>Afirmasi</strong> (umur tertua), <strong>Prestasi</strong> (nilai tertinggi). Sisa kuota jalur dialihkan ke Prestasi. KK &gt; 15 Juni 2025 = gugur.</div>
     <?php endif; ?>

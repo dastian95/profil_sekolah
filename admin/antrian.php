@@ -467,9 +467,6 @@ $fase_color = [1 => '#2563eb', 2 => '#7c3aed'];
     <span class="stat-pill" style="background:#d1fae5;color:#065f46;">
         <i class="bi bi-check-circle"></i> <?= $lulus_fase1 ?> selesai &amp; bukti terbit
     </span>
-    <span class="stat-pill" style="background:#fee2e2;color:#991b1b;">
-        <i class="bi bi-x-circle"></i> <?= $gagal_fase1 ?> berkas tidak lengkap
-    </span>
 </div>
 
 <?php if (!$antrian_dibuka): ?>
@@ -504,16 +501,9 @@ $fase_color = [1 => '#2563eb', 2 => '#7c3aed'];
                         ? 'Selesaikan pelayanan SSG' . str_pad($current['nomor'], 3, '0', STR_PAD_LEFT) . '? Pastikan bukti sudah dicetak dan diberikan ke pendaftar.'
                         : 'PERHATIAN: nomor ini belum terhubung ke pendaftar. Selesaikan tanpa data?'; ?>
                     <button type="submit" class="btn-aksi-main btn-selesai" id="btnSelesai"
+                            style="font-size:1.3rem; padding:20px 56px; border-radius:16px;"
                             onclick="return trySelesai(<?= $current['id'] ?>, '<?= $selesai_confirm ?>', <?= $current_pendaftar ? 'true' : 'false' ?>)">
-                        <i class="bi bi-file-earmark-check me-2"></i>Selesai
-                    </button>
-                </form>
-                <form method="POST">
-                    <input type="hidden" name="action" value="gagal">
-                    <input type="hidden" name="antrian_id" value="<?= $current['id'] ?>">
-                    <button type="submit" class="btn-aksi-main btn-gagal"
-                            onclick="return confirm('Berkas tidak lengkap? Pendaftar diminta kembali saat berkas sudah lengkap.')">
-                        <i class="bi bi-x-lg me-2"></i>Berkas Tidak Lengkap
+                        <i class="bi bi-check-circle-fill me-2"></i>Selesaikan Pelayanan
                     </button>
                 </form>
             </div>
@@ -567,7 +557,16 @@ $fase_color = [1 => '#2563eb', 2 => '#7c3aed'];
                         <div class="mt-2"><span class="badge <?= $f2sb ?>"><?= $f2sl ?></span></div>
                     </div>
                 </div>
+                <?php $cur_print = $current_pendaftar;
+                      $cur_print['_antrian'] = [
+                          'nomor' => 'SSG' . str_pad($current['nomor'], 3, '0', STR_PAD_LEFT),
+                          'meja'  => ($my_meja['nama'] ?? '') ?: 'Loket ' . ($my_meja['nomor_meja'] ?? ''),
+                      ]; ?>
                 <div class="d-grid gap-2 mb-3">
+                    <button type="button" class="btn btn-sm fw-semibold text-white" style="background:linear-gradient(135deg,#0891b2,#06b6d4);"
+                            onclick='printBukti(<?= json_encode($cur_print, JSON_HEX_APOS|JSON_HEX_QUOT) ?>)'>
+                        <i class="bi bi-printer me-1"></i>Cetak Bukti
+                    </button>
                     <a href="?page=pendaftar" class="btn btn-outline-primary btn-sm">
                         <i class="bi bi-pencil me-1"></i>Edit Data Pendaftar
                     </a>
