@@ -430,8 +430,8 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
                 <th>Nama</th>
                 <th>NISN</th>
                 <th class="text-center">L/P</th>
-                <th class="text-center">Raport (70%)</th>
-                <th class="text-center">TKA (30%)</th>
+                <th class="text-center">Raport</th>
+                <th class="text-center">TKA</th>
                 <th class="text-center">Nilai Akhir</th>
                 <th class="text-center">Usia</th>
                 <th>Status</th>
@@ -579,11 +579,11 @@ function openViewModal(d) {
     <hr>
     <div class="row g-2 mb-3">
         <div class="col-md-4 text-center">
-            <div class="fw-semibold text-muted small">Nilai Raport ${(d.sistem_pendidikan==='khusus'||d.sistem_pendidikan==='pkbm') ? '(85%)' : '(70%)'}</div>
+            <div class="fw-semibold text-muted small">Nilai Raport</div>
             <div class="fs-4 fw-bold">${parseFloat(d.nilai_raport).toFixed(2)}</div>
         </div>
         <div class="col-md-4 text-center">
-            <div class="fw-semibold text-muted small">${(d.sistem_pendidikan==='khusus'||d.sistem_pendidikan==='pkbm') ? 'Nilai TKA (N/A)' : 'Nilai TKA (30%)'}</div>
+            <div class="fw-semibold text-muted small">${(d.sistem_pendidikan==='khusus'||d.sistem_pendidikan==='pkbm') ? 'Nilai TKA (N/A)' : 'Nilai TKA'}</div>
             <div class="fs-4 fw-bold">${parseFloat(d.nilai_tka).toFixed(2)}</div>
         </div>
         <div class="col-md-4 text-center">
