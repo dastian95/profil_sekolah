@@ -18,6 +18,18 @@ $page = $_GET['page'] ?? 'home';
 $admin_name = htmlspecialchars($_SESSION['admin_name'] ?? 'Admin');
 $admin_id   = (int)($_SESSION['admin_id'] ?? 0);
 
+// Identitas sekolah untuk kop bukti daftar (dipakai printBukti di sidebar meja) — ikut site_settings
+$sch_nama   = 'SMKS Laboratorium Jakarta';
+$sch_alamat = 'Jl. Rawa Jaya No.37, Duren Sawit, Jakarta Timur 13460';
+try {
+    $sq = $conn->query("SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('sekolah_nama','sekolah_alamat')");
+    foreach ($sq as $row) {
+        if (trim((string)$row['setting_value']) === '') continue;
+        if ($row['setting_key'] === 'sekolah_nama')   $sch_nama   = $row['setting_value'];
+        if ($row['setting_key'] === 'sekolah_alamat') $sch_alamat = $row['setting_value'];
+    }
+} catch (PDOException $e) {}
+
 // Semua halaman yang tersedia untuk admin biasa
 $all_pages = [
     'home'           => ['label' => 'Dashboard',            'icon' => 'bi-speedometer2',         'group' => 'Utama'],
@@ -135,7 +147,20 @@ if ($fw_meja_id) {
             if ($fw_ga && isset($fw_ga['buta_warna_wajib']) && (int)$fw_ga['buta_warna_wajib'] === 0) $fw_show_bw = false;
         } catch(Throwable) {}
 
-        $float_widget = ['meja' => $fw_meja, 'current' => $fw_current, 'pendaftar' => $fw_pendaftar, 'sisa' => $fw_sisa, 'show_buta_warna' => $fw_show_bw];
+        // Riwayat ringkas pengisian data di meja ini (Nama, NISN, Jurusan, Antrian) — terbaru di atas
+        $fw_riwayat = [];
+        try {
+            $fwr = $conn->prepare("SELECT p.*,
+                    (SELECT a.nomor FROM antrian a WHERE a.pendaftar_id=p.id AND a.meja_id=?
+                       ORDER BY a.fase DESC, a.id DESC LIMIT 1) AS antri_nomor
+                FROM pendaftar p
+                WHERE EXISTS (SELECT 1 FROM antrian a2 WHERE a2.pendaftar_id=p.id AND a2.meja_id=?)
+                ORDER BY p.id DESC LIMIT 50");
+            $fwr->execute([$fw_meja_id, $fw_meja_id]);
+            $fw_riwayat = $fwr->fetchAll();
+        } catch (Throwable) {}
+
+        $float_widget = ['meja' => $fw_meja, 'current' => $fw_current, 'pendaftar' => $fw_pendaftar, 'sisa' => $fw_sisa, 'show_buta_warna' => $fw_show_bw, 'riwayat' => $fw_riwayat];
     } catch(Throwable) {}
 }
 
@@ -461,7 +486,7 @@ foreach ($pages as $key => $info) {
 .f2-fab.linked { background: linear-gradient(135deg,#059669,#10b981); box-shadow: 0 4px 18px rgba(5,150,105,.35); }
 .f2-fab.linked:hover { box-shadow: 0 8px 28px rgba(5,150,105,.45); }
 .f2-fab .fab-nomor { background: rgba(255,255,255,.25); border-radius: 20px; padding: 2px 10px; font-size: .75rem; }
-.f2-offcanvas { width: min(420px, 94vw) !important; }
+.f2-offcanvas { width: 480px !important; }
 @media (max-width: 576px) {
     .f2-offcanvas { width: 100vw !important; }
     .f2-fab { bottom: 16px; right: 12px; padding: 10px 14px; font-size: .8rem; max-width: 92vw; }
@@ -556,6 +581,7 @@ foreach ($pages as $key => $info) {
         'akta' => ['Akta Kelahiran',       'bi-calendar-event',   '#fef3c7','#92400e'],
     ];
     if (!empty($float_widget['show_buta_warna'])) $fw_berkas['buta_warna'] = ['Tes Buta Warna', 'bi-eye', '#fce7f3', '#9d174d'];
+    $fw_berkas['bukti'] = ['Bukti sudah dicetak & diberikan ke pendaftar', 'bi-printer-fill', '#ede9fe', '#6d28d9'];
     foreach ($fw_berkas as $fwk => [$fwl, $fwi, $fwbg, $fwco]): ?>
     <label class="f2-berkas-row" id="f2BerkasRow_<?= $fwk ?>"
            onclick="f2ToggleBerkas(<?= (int)$fw_cur['id'] ?>, '<?= $fwk ?>', this)">
@@ -568,7 +594,16 @@ foreach ($pages as $key => $info) {
     <?php endforeach; ?>
     </div>
 
+    <?php $fw_print = $fw_pend;
+          $fw_print['_antrian'] = [
+              'nomor' => 'SSG' . str_pad($fw_cur['nomor'], 3, '0', STR_PAD_LEFT),
+              'meja'  => ($float_widget['meja']['nama'] ?? '') ?: 'Loket ' . ($float_widget['meja']['nomor_meja'] ?? ''),
+          ]; ?>
     <div class="d-grid gap-2 mb-3">
+        <button type="button" class="btn btn-sm fw-semibold text-white" style="background:linear-gradient(135deg,#0891b2,#06b6d4);"
+                onclick='printBukti(<?= json_encode($fw_print, JSON_HEX_APOS|JSON_HEX_QUOT) ?>)'>
+            <i class="bi bi-printer me-1"></i>Cetak Bukti
+        </button>
         <a href="?page=pendaftar" class="btn btn-outline-primary btn-sm">
             <i class="bi bi-pencil me-1"></i>Edit Data Pendaftar
         </a>
@@ -605,10 +640,13 @@ foreach ($pages as $key => $info) {
             <input type="hidden" name="antrian_id" value="<?= $fw_cur['id'] ?>">
             <input type="hidden" name="nomor" value="<?= $fw_cur['nomor'] ?>">
             <input type="hidden" name="redirect_to" value="<?= htmlspecialchars($page) ?>">
+            <?php $fw_selesai_msg = $fw_pend
+                ? 'Selesaikan pelayanan SSG' . str_pad($fw_cur['nomor'], 3, '0', STR_PAD_LEFT) . '? Pastikan bukti sudah dicetak dan diberikan ke pendaftar.'
+                : 'PERHATIAN: nomor ini belum terhubung ke pendaftar. Selesaikan tanpa data?'; ?>
             <button type="submit" class="btn btn-sm w-100 fw-semibold text-white"
                     style="background:linear-gradient(135deg,#7c3aed,#a855f7);"
-                    onclick="f2ClearBerkas(<?= $fw_cur['id'] ?>); return confirm('Selesai? Bukti pendaftaran akan dicetak dari Data Pendaftar.')">
-                <i class="bi bi-file-earmark-check me-1"></i>Selesai &amp; Cetak Bukti
+                    onclick="return f2TrySelesai(<?= $fw_cur['id'] ?>, '<?= $fw_selesai_msg ?>', <?= $fw_pend ? 'true' : 'false' ?>)">
+                <i class="bi bi-file-earmark-check me-1"></i>Selesai
             </button>
         </form>
         <form method="POST" action="admin_dashboard.php?page=antrian">
@@ -648,6 +686,55 @@ foreach ($pages as $key => $info) {
     </div>
     <?php endif; ?>
 
+    <?php if (!empty($float_widget['riwayat'])): ?>
+    <div class="px-3 pb-3 pt-1">
+        <div class="small fw-semibold text-uppercase mb-2 d-flex justify-content-between align-items-center" style="color:#7c3aed;letter-spacing:.3px;">
+            <span><i class="bi bi-clock-history me-1"></i>Riwayat Meja Ini</span>
+            <span class="badge bg-secondary"><?= count($float_widget['riwayat']) ?></span>
+        </div>
+        <div class="table-responsive" style="max-height:260px;overflow-y:auto;border:1px solid #e9d5ff;border-radius:8px;">
+        <table class="table table-sm table-hover mb-0" style="font-size:.76rem;">
+            <thead class="table-light" style="position:sticky;top:0;z-index:1;">
+                <tr><th>Nama</th><th>NISN</th><th>Jur.</th><th class="text-center">Antrian</th></tr>
+            </thead>
+            <tbody>
+            <?php foreach ($float_widget['riwayat'] as $rw):
+                $rw_print = $rw;
+                $rw_print['_antrian'] = [
+                    'nomor' => $rw['antri_nomor'] !== null ? 'SSG'.str_pad($rw['antri_nomor'],3,'0',STR_PAD_LEFT) : '',
+                    'meja'  => ($float_widget['meja']['nama'] ?? '') ?: 'Loket '.($float_widget['meja']['nomor_meja'] ?? ''),
+                ]; ?>
+                <tr style="cursor:pointer;" onclick="fwToggleAct(<?= (int)$rw['id'] ?>)" title="Klik untuk opsi Print / Hapus">
+                    <td><?= htmlspecialchars($rw['nama']) ?></td>
+                    <td><?= htmlspecialchars($rw['nisn']) ?></td>
+                    <td><?= JURUSAN_SHORT[$rw['jurusan']] ?? htmlspecialchars($rw['jurusan']) ?></td>
+                    <td class="text-center"><?= $rw['antri_nomor'] !== null ? 'SSG'.str_pad($rw['antri_nomor'],3,'0',STR_PAD_LEFT) : '&mdash;' ?></td>
+                </tr>
+                <tr id="fwAct_<?= (int)$rw['id'] ?>" style="display:none;background:#f5f0ff;">
+                    <td colspan="4" class="py-2">
+                        <div class="d-flex gap-2 justify-content-end align-items-center">
+                            <button type="button" class="btn btn-sm btn-outline-info py-0 px-2" onclick='printBukti(<?= json_encode($rw_print, JSON_HEX_APOS|JSON_HEX_QUOT) ?>)'>
+                                <i class="bi bi-printer me-1"></i>Print
+                            </button>
+                            <form method="POST" action="admin_dashboard.php?page=antrian" class="d-inline" onsubmit="return confirm('Hapus pendaftar ini? Detail raport akan ikut terhapus.')">
+                                <input type="hidden" name="action" value="delete_pendaftar">
+                                <input type="hidden" name="pendaftar_id" value="<?= (int)$rw['id'] ?>">
+                                <input type="hidden" name="redirect_to" value="<?= htmlspecialchars($page) ?>">
+                                <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2"><i class="bi bi-trash me-1"></i>Hapus</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        </div>
+        <a href="admin_dashboard.php?page=pendaftar&loket=<?= (int)$float_widget['meja']['id'] ?>" class="small text-decoration-none d-inline-block mt-2" style="color:#7c3aed;">
+            <i class="bi bi-box-arrow-up-right me-1"></i>Buka tabel lengkap di Data Pendaftar
+        </a>
+    </div>
+    <?php endif; ?>
+
     <div class="border-top text-center py-2 mt-auto" style="background:#fff;">
         <a href="admin_dashboard.php?page=antrian" class="small text-decoration-none" style="color:#7c3aed;">
             <i class="bi bi-grid-3x2-gap-fill me-1"></i>Buka Halaman Meja Antrian
@@ -673,11 +760,29 @@ function f2ApplyBerkasRow(key, checked) {
     if (ico) { ico.className = checked ? 'bi bi-check-circle-fill text-success' : 'bi bi-circle'; ico.style.color = checked ? '' : '#d1d5db'; }
 }
 function f2ClearBerkas(id) { localStorage.removeItem(f2BerkasKey(id)); }
+// Gerbang Selesai: pengaman 1 = wajib centang "Bukti sudah dicetak"; pengaman 2 = popup konfirmasi
+function f2TrySelesai(antrianId, msg, requireBukti) {
+    if (requireBukti) {
+        const data = f2LoadBerkas(antrianId);
+        if (!data.bukti) {
+            alert('Centang dulu "Bukti sudah dicetak & diberikan ke pendaftar" di Cek Berkas sebelum menyelesaikan.');
+            return false;
+        }
+    }
+    if (!confirm(msg)) return false;
+    f2ClearBerkas(antrianId);
+    return true;
+}
+// Toggle baris opsi (Print / Hapus) di tabel Riwayat sidebar
+function fwToggleAct(id) {
+    const el = document.getElementById('fwAct_' + id);
+    if (el) el.style.display = (el.style.display === 'none' || !el.style.display) ? 'table-row' : 'none';
+}
 
 <?php if ($float_widget['current'] && $float_widget['pendaftar']): ?>
 document.addEventListener('DOMContentLoaded', () => {
     const data = f2LoadBerkas(<?= $float_widget['current']['id'] ?>);
-    ['kk','tka','akta','buta_warna'].forEach(k => f2ApplyBerkasRow(k, !!data[k]));
+    ['kk','tka','akta','buta_warna','bukti'].forEach(k => f2ApplyBerkasRow(k, !!data[k]));
 });
 <?php endif; ?>
 
@@ -711,6 +816,9 @@ if (sidebar) {
     if (saved !== null) sidebar.scrollTop = parseInt(saved, 10) || 0;
     sidebar.addEventListener('scroll', () => sessionStorage.setItem(sbKey, sidebar.scrollTop));
 }
+
+// Fungsi cetak Bukti Tanda Daftar — sumber bersama, tersedia di semua halaman (sidebar meja & tabel)
+<?php include __DIR__ . '/admin/_bukti_print.php'; ?>
 </script>
 </body>
 </html>

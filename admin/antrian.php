@@ -5,6 +5,18 @@ if (empty($_SESSION['admin_id']) && empty($_SESSION['is_super'])) {
 
 $today = date('Y-m-d');
 
+// Identitas sekolah untuk kop bukti daftar — ikut Konten Website (site_settings)
+$sch_nama   = 'SMKS Laboratorium Jakarta';
+$sch_alamat = 'Jl. Rawa Jaya No.37, Duren Sawit, Jakarta Timur 13460';
+try {
+    $sq = $conn->query("SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('sekolah_nama','sekolah_alamat')");
+    foreach ($sq as $row) {
+        if (trim((string)$row['setting_value']) === '') continue;
+        if ($row['setting_key'] === 'sekolah_nama')   $sch_nama   = $row['setting_value'];
+        if ($row['setting_key'] === 'sekolah_alamat') $sch_alamat = $row['setting_value'];
+    }
+} catch (PDOException $e) {}
+
 $mejas_aktif = $conn->query("SELECT * FROM meja WHERE is_active=1 ORDER BY fase, nomor_meja")->fetchAll();
 
 // Auto-migrate: pendaftar_id di antrian
@@ -44,6 +56,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $redir_antrian('page=antrian');
     }
 
+    // Hapus pendaftar dari tabel Riwayat (panel Meja Antrian / sidebar meja)
+    if ($action === 'delete_pendaftar') {
+        $pid = (int)($_POST['pendaftar_id'] ?? 0);
+        // Kembali ke halaman asal (sidebar bisa dipanggil dari halaman mana saja)
+        $back_page = preg_match('/^[a-z_]+$/', $_POST['redirect_to'] ?? '') ? $_POST['redirect_to'] : 'antrian';
+        if ($pid) {
+            try {
+                $info = $conn->prepare("SELECT nama, no_pendaftaran FROM pendaftar WHERE id=?");
+                $info->execute([$pid]);
+                $del = $info->fetch();
+                try { $conn->prepare("DELETE FROM pendaftar_raport WHERE pendaftar_id=?")->execute([$pid]); } catch (Throwable) {}
+                $conn->prepare("DELETE FROM pendaftar WHERE id=?")->execute([$pid]);
+                if ($del) log_admin_action($conn, 'HAPUS_PENDAFTAR', "Hapus dari Meja Antrian: {$del['nama']} ({$del['no_pendaftaran']})");
+            } catch (Throwable) {}
+        }
+        $redir_antrian('page=' . $back_page);
+    }
+
     $meja_id   = (int)($_SESSION['antrian_meja_id'] ?? 0);
     $meja_fase = (int)($_SESSION['antrian_meja_fase'] ?? 1);
     if (!$meja_id) { $redir_antrian('page=antrian'); }
@@ -68,31 +98,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         return $next;
     };
 
-    // ── SELESAI: berkas OK + data terinput → bukti dari Data Pendaftar ────────
-    // ('lulus' = alias lama, perilaku sama — fase sudah digabung)
+    // ── SELESAI: pelayanan selesai. Cetak bukti kini MANUAL (tombol Cetak Bukti),
+    //    tidak lagi auto-print di sini. ('lulus' = alias lama, perilaku sama) ──────
     if ($action === 'selesai' || $action === 'lulus') {
         $cur_id    = (int)$_POST['antrian_id'];
         $back_page = in_array($_POST['redirect_to'] ?? '', ['pendaftar','antrian']) ? $_POST['redirect_to'] : 'antrian';
-        $print_pendaftar_id = 0;
         $conn->beginTransaction();
         try {
-            // Ambil pendaftar yang terhubung untuk cetak bukti
-            $pq = $conn->prepare("SELECT pendaftar_id FROM antrian WHERE id=? AND meja_id=?");
-            $pq->execute([$cur_id, $meja_id]);
-            $print_pendaftar_id = (int)($pq->fetchColumn() ?: 0);
-
             $conn->prepare("UPDATE antrian SET status='selesai', hasil='lulus', selesai_at=NOW()
                             WHERE id=? AND meja_id=? AND status='dipanggil'")
                  ->execute([$cur_id, $meja_id]);
             $ambilBerikutnya();
             $conn->commit();
         } catch(Throwable $e) { $conn->rollBack(); }
-
-        if ($print_pendaftar_id > 0) {
-            // Bukti pendaftaran diambil dari Data Pendaftar (auto-print di sana)
-            $_SESSION['pend_print_id'] = $print_pendaftar_id;
-            $redir_antrian('page=pendaftar');
-        }
         $redir_antrian('page=' . $back_page);
     }
 
@@ -216,22 +234,34 @@ try {
     $meja_stat = $ms->fetchAll();
 } catch(Throwable) {}
 
-// Riwayat hari ini (meja ini) + preview nomor berikutnya
-$riwayat = [];
+// Preview nomor berikutnya
 $next_up = [];
 if ($my_meja_id) {
     try {
-        $rh = $conn->prepare("SELECT nomor, status, hasil, selesai_at FROM antrian
-            WHERE tanggal=? AND meja_id=? AND status IN ('selesai','skip')
-            ORDER BY selesai_at DESC LIMIT 8");
-        $rh->execute([$today, $my_meja_id]);
-        $riwayat = $rh->fetchAll();
-
         $nu = $conn->prepare("SELECT nomor FROM antrian
             WHERE tanggal=? AND status='menunggu' ORDER BY nomor ASC LIMIT 3");
         $nu->execute([$today]);
         $next_up = $nu->fetchAll(PDO::FETCH_COLUMN);
     } catch(Throwable) {}
+}
+
+// History pengisian data untuk meja ini — tabel seperti Data Pendaftar,
+// otomatis terfilter ke loket ini & urut terbaru di atas.
+$riwayat_pendaftar = [];
+$riwayat_limit = 100;
+if ($my_meja_id) {
+    try {
+        $rpq = $conn->prepare("SELECT p.*,
+                (SELECT a.nomor FROM antrian a
+                   WHERE a.pendaftar_id=p.id AND a.meja_id=?
+                   ORDER BY a.fase DESC, a.id DESC LIMIT 1) AS antri_nomor
+            FROM pendaftar p
+            WHERE EXISTS (SELECT 1 FROM antrian a2 WHERE a2.pendaftar_id=p.id AND a2.meja_id=?)
+            ORDER BY p.id DESC
+            LIMIT $riwayat_limit");
+        $rpq->execute([$my_meja_id, $my_meja_id]);
+        $riwayat_pendaftar = $rpq->fetchAll();
+    } catch (PDOException) {}
 }
 
 // Cek buta warna: sembunyikan dari checklist hanya jika gelombang aktif set buta_warna_wajib=0
@@ -471,11 +501,11 @@ $fase_color = [1 => '#2563eb', 2 => '#7c3aed'];
                     <input type="hidden" name="antrian_id" value="<?= $current['id'] ?>">
                     <input type="hidden" name="nomor" value="<?= $current['nomor'] ?>">
                     <?php $selesai_confirm = $current_pendaftar
-                        ? 'Selesai? Bukti pendaftaran akan dicetak dari Data Pendaftar.'
-                        : 'PERHATIAN: belum ada pendaftar terhubung ke nomor ini — selesaikan TANPA cetak bukti?'; ?>
+                        ? 'Selesaikan pelayanan SSG' . str_pad($current['nomor'], 3, '0', STR_PAD_LEFT) . '? Pastikan bukti sudah dicetak dan diberikan ke pendaftar.'
+                        : 'PERHATIAN: nomor ini belum terhubung ke pendaftar. Selesaikan tanpa data?'; ?>
                     <button type="submit" class="btn-aksi-main btn-selesai" id="btnSelesai"
-                            onclick="clearBerkas(<?= $current['id'] ?>); return confirm('<?= $selesai_confirm ?>')">
-                        <i class="bi bi-file-earmark-check me-2"></i>Selesai<?= $current_pendaftar ? ' &amp; Cetak Bukti' : '' ?>
+                            onclick="return trySelesai(<?= $current['id'] ?>, '<?= $selesai_confirm ?>', <?= $current_pendaftar ? 'true' : 'false' ?>)">
+                        <i class="bi bi-file-earmark-check me-2"></i>Selesai
                     </button>
                 </form>
                 <form method="POST">
@@ -574,6 +604,8 @@ $fase_color = [1 => '#2563eb', 2 => '#7c3aed'];
                     'akta' => ['Akta Kelahiran',      'bi-calendar-event',     '#fef3c7', '#92400e'],
                 ];
                 if ($show_buta_warna) $f2_berkas['buta_warna'] = ['Tes Buta Warna', 'bi-eye', '#fce7f3', '#9d174d'];
+                // Langkah terakhir: konfirmasi bukti sudah dicetak & diserahkan (centang, bukan tombol print)
+                $f2_berkas['bukti'] = ['Bukti sudah dicetak & diberikan ke pendaftar', 'bi-printer-fill', '#ede9fe', '#6d28d9'];
                 foreach ($f2_berkas as $bk => [$bl, $bi, $bbg, $bco]): ?>
                 <label class="f2p-berkas-row" id="berkasRow_<?= $bk ?>"
                        onclick="toggleBerkas(<?= (int)$current['id'] ?>, '<?= $bk ?>', this)">
@@ -614,29 +646,89 @@ $fase_color = [1 => '#2563eb', 2 => '#7c3aed'];
 </div>
 <?php endif; ?>
 
-<!-- ══ RIWAYAT HARI INI — MEJA INI ══════════════════════════════════════════ -->
-<?php if (!empty($riwayat)): ?>
+<!-- ══ RIWAYAT PENGISIAN DATA — MEJA INI (tabel seperti Data Pendaftar) ═══════ -->
 <div class="card mt-4 no-print">
-    <div class="card-header">
-        <i class="bi bi-clock-history me-2"></i>Riwayat Hari Ini — Meja Anda
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span class="fw-semibold">
+            <i class="bi bi-clock-history me-2"></i>Riwayat Pengisian Data — Meja Anda
+            <span class="badge bg-secondary ms-1"><?= count($riwayat_pendaftar) ?></span>
+            <span class="text-muted small ms-1 fw-normal">terbaru di atas</span>
+        </span>
+        <a href="?page=pendaftar&loket=<?= $my_meja_id ?>" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-box-arrow-up-right me-1"></i>Buka di Data Pendaftar
+        </a>
     </div>
-    <div class="card-body py-2">
-        <div class="d-flex flex-wrap gap-2">
-        <?php foreach ($riwayat as $rw):
-            if ($rw['status'] === 'skip') { $rw_cls = 'bg-warning text-dark'; $rw_lbl = 'Skip'; }
-            elseif (($rw['hasil'] ?? '') === 'gagal') { $rw_cls = 'bg-danger'; $rw_lbl = 'Tidak Lengkap'; }
-            else { $rw_cls = 'bg-success'; $rw_lbl = 'Selesai'; }
-        ?>
-            <div class="border rounded-3 px-3 py-2 d-flex align-items-center gap-2" style="background:#f8fafc;">
-                <span class="fw-bold" style="font-size:.85rem;">SSG<?= str_pad($rw['nomor'], 3, '0', STR_PAD_LEFT) ?></span>
-                <span class="badge <?= $rw_cls ?>" style="font-size:.65rem;"><?= $rw_lbl ?></span>
-                <span class="text-muted" style="font-size:.7rem;"><?= $rw['selesai_at'] ? date('H:i', strtotime($rw['selesai_at'])) : '' ?></span>
-            </div>
-        <?php endforeach; ?>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+        <table class="table table-hover table-sm mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>No. Daftar</th><th>Nama</th><th class="text-center">Antrian</th>
+                    <th>NISN</th><th class="text-center">L/P</th><th>Jurusan</th>
+                    <th class="text-center">Glm</th><th class="text-center">Raport</th>
+                    <th class="text-center">TKA</th><th class="text-center">Nilai Akhir</th>
+                    <th class="text-center">Usia</th><th>Status</th><th class="text-end">Aksi</th>
+                </tr>
+            </thead>
+            <tbody>
+            <?php if (empty($riwayat_pendaftar)): ?>
+                <tr><td colspan="13" class="text-center py-4 text-muted">Belum ada pendaftar yang datanya diisi dari meja ini.</td></tr>
+            <?php else: foreach ($riwayat_pendaftar as $rp):
+                $rp_badge = STATUS_BADGE[$rp['status']] ?? 'bg-warning text-dark';
+                $rp_gugur = empty($rp['lolos_usia']);
+                // Data untuk cetak bukti (sertakan info loket/antrian)
+                $rp_print = $rp;
+                $rp_print['_antrian'] = $rp['antri_nomor'] !== null ? [
+                    'nomor' => 'SSG' . str_pad($rp['antri_nomor'], 3, '0', STR_PAD_LEFT),
+                    'meja'  => ($my_meja['nama'] ?? '') ?: 'Loket ' . ($my_meja['nomor_meja'] ?? ''),
+                ] : null;
+            ?>
+                <tr class="<?= $rp_gugur ? 'table-secondary text-muted' : '' ?>">
+                    <td><?= htmlspecialchars($rp['no_pendaftaran']) ?></td>
+                    <td>
+                        <?= htmlspecialchars($rp['nama']) ?>
+                        <?php if ($rp_gugur): ?><i class="bi bi-exclamation-circle text-danger" title="Gugur: usia > 21"></i><?php endif; ?>
+                        <?php if (($rp['sistem_pendidikan'] ?? '') === 'khusus'): ?>
+                          <span class="badge bg-warning text-dark ms-1">Khusus</span>
+                        <?php elseif (($rp['sistem_pendidikan'] ?? '') === 'pkbm'): ?>
+                          <span class="badge bg-info text-dark ms-1">PKBM</span>
+                        <?php endif; ?>
+                    </td>
+                    <td class="text-center">
+                        <?php if ($rp['antri_nomor'] !== null): ?>
+                            <span class="badge bg-secondary-subtle text-secondary-emphasis">SSG<?= str_pad($rp['antri_nomor'], 3, '0', STR_PAD_LEFT) ?></span>
+                        <?php else: ?><span class="text-muted">&mdash;</span><?php endif; ?>
+                    </td>
+                    <td><?= htmlspecialchars($rp['nisn']) ?></td>
+                    <td class="text-center"><?= htmlspecialchars($rp['jenis_kelamin']) ?></td>
+                    <td><?= JURUSAN_SHORT[$rp['jurusan']] ?? htmlspecialchars($rp['jurusan']) ?></td>
+                    <td class="text-center"><?= (int)$rp['gelombang'] ?></td>
+                    <td class="text-center"><?= number_format($rp['nilai_raport'], 2) ?></td>
+                    <td class="text-center"><?= number_format($rp['nilai_tka'], 2) ?></td>
+                    <td class="text-center fw-bold text-success"><?= number_format($rp['nilai_akhir'], 2) ?></td>
+                    <td class="text-center"><?= (int)$rp['usia'] ?></td>
+                    <td><span class="badge <?= $rp_badge ?>"><?= STATUS_LABEL[$rp['status']] ?? ucfirst($rp['status']) ?></span></td>
+                    <td class="text-end" style="white-space:nowrap;">
+                        <button type="button" class="btn btn-sm btn-outline-info py-0 px-2 me-1" onclick='printBukti(<?= json_encode($rp_print, JSON_HEX_APOS|JSON_HEX_QUOT) ?>)' title="Cetak Bukti"><i class="bi bi-printer"></i></button>
+                        <a href="?page=pendaftar&edit_id=<?= $rp['id'] ?>" class="btn btn-sm btn-outline-primary py-0 px-2 me-1" title="Buka & edit di Data Pendaftar"><i class="bi bi-pencil"></i></a>
+                        <form method="POST" class="d-inline" onsubmit="return confirm('Hapus pendaftar ini? Detail raport akan ikut terhapus.')">
+                            <input type="hidden" name="action" value="delete_pendaftar">
+                            <input type="hidden" name="pendaftar_id" value="<?= $rp['id'] ?>">
+                            <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" title="Hapus Pendaftar"><i class="bi bi-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+            <?php endforeach; endif; ?>
+            </tbody>
+        </table>
         </div>
     </div>
+    <?php if (count($riwayat_pendaftar) >= $riwayat_limit): ?>
+    <div class="card-footer small text-muted">
+        Menampilkan <?= $riwayat_limit ?> data terbaru. <a href="?page=pendaftar&loket=<?= $my_meja_id ?>">Lihat semua di Data Pendaftar &raquo;</a>
+    </div>
+    <?php endif; ?>
 </div>
-<?php endif; ?>
 
 <!-- ══ BOARD SEMUA MEJA ═══════════════════════════════════════════════════ -->
 <?php if (!empty($meja_stat)): ?>
@@ -706,13 +798,26 @@ function applyBerkasRow(key, checked) {
 const BERKAS_AUTO = <?= json_encode($berkas_auto) ?>;
 function initBerkas(antrianId) {
     const data = loadBerkas(antrianId);
-    ['kk','tka','akta','buta_warna'].forEach(k => {
+    ['kk','tka','akta','buta_warna','bukti'].forEach(k => {
         const checked = (data[k] !== undefined) ? !!data[k] : !!BERKAS_AUTO[k];
         applyBerkasRow(k, checked);
     });
 }
 function clearBerkas(antrianId) {
     localStorage.removeItem(berkasKey(antrianId));
+}
+// Gerbang Selesai: pengaman 1 = wajib centang "Bukti sudah dicetak"; pengaman 2 = popup konfirmasi
+function trySelesai(antrianId, msg, requireBukti) {
+    if (requireBukti) {
+        const data = loadBerkas(antrianId);
+        if (!data.bukti) {
+            alert('Centang dulu "Bukti sudah dicetak & diberikan ke pendaftar" di Cek Berkas sebelum menyelesaikan.');
+            return false;
+        }
+    }
+    if (!confirm(msg)) return false;
+    clearBerkas(antrianId);
+    return true;
 }
 function unlinkPendaftar(antrianId) {
     if (!confirm('Ganti pendaftar yang terhubung ke nomor ini?')) return;
@@ -727,5 +832,4 @@ function unlinkPendaftar(antrianId) {
 <?php if ($current): ?>
 document.addEventListener('DOMContentLoaded', () => initBerkas(<?= $current['id'] ?>));
 <?php endif; ?>
-
 </script>
