@@ -689,62 +689,55 @@ function buildRaportTablePKBM(raport) {
 
 <?php if (!empty($_GET['just_processed'])): ?>
 <style>
-@keyframes rankRowIn {
-    0%   { opacity:0; transform:translateX(-18px); }
-    100% { opacity:1; transform:translateX(0); }
-}
 @keyframes badgePop {
-    0%   { transform:scale(0.2) rotateY(90deg); opacity:0; }
-    60%  { transform:scale(1.25) rotateY(0deg); opacity:1; }
-    100% { transform:scale(1); }
+    0%   { transform:scale(0) rotate(-20deg); opacity:0; }
+    55%  { transform:scale(1.35) rotate(4deg);  opacity:1; }
+    75%  { transform:scale(0.9)  rotate(-2deg); }
+    100% { transform:scale(1)   rotate(0deg);   opacity:1; }
 }
-@keyframes rowFlashTerima {
-    0%,100% { background-color:inherit; }
-    50%     { background-color:#bbf7d0; }
+@keyframes badgeGlowTerima {
+    0%,100% { box-shadow:none; }
+    50%     { box-shadow:0 0 0 5px rgba(34,197,94,.35), 0 0 18px rgba(34,197,94,.5); }
 }
-@keyframes rowFlashGugur {
-    0%,100% { background-color:inherit; }
-    50%     { background-color:#fecaca; }
+@keyframes badgeShakeGugur {
+    0%,100% { transform:scale(1) rotate(0deg); }
+    25%     { transform:scale(1) rotate(-6deg); }
+    75%     { transform:scale(1) rotate(6deg); }
 }
-.rank-anim-row { opacity:0; }
-.rank-anim-row.rr-in { animation: rankRowIn .28s ease forwards; }
-.rank-badge.bp-hide { opacity:0; transform:scale(0.2); display:inline-block; }
-.rank-badge.bp-pop  { animation: badgePop .38s cubic-bezier(.34,1.56,.64,1) forwards; }
-.rank-anim-row.flash-terima { animation: rowFlashTerima .5s ease .28s; }
-.rank-anim-row.flash-gugur  { animation: rowFlashGugur  .5s ease .28s; }
+.rank-badge { display:inline-block; }
+.rank-badge.bp-hidden { opacity:0; transform:scale(0); }
+.rank-badge.bp-terima {
+    animation: badgePop .45s cubic-bezier(.34,1.56,.64,1) forwards,
+                badgeGlowTerima .7s ease .35s;
+}
+.rank-badge.bp-gugur {
+    animation: badgePop .35s ease forwards,
+                badgeShakeGugur .4s ease .3s;
+}
+.rank-badge.bp-other { animation: badgePop .35s ease forwards; }
 </style>
 <script>
 (function(){
-    // Hanya jalankan sekali (bersihkan param dari URL agar refresh tidak re-trigger)
     const url = new URL(location.href);
     url.searchParams.delete('just_processed');
-    history.replaceState(null,'', url.toString());
+    history.replaceState(null, '', url.toString());
 
-    const rows = Array.from(document.querySelectorAll('.rank-anim-row'))
-                      .filter(r => !r.style.display || r.style.display !== 'none');
+    const badges = Array.from(document.querySelectorAll('.rank-anim-row'))
+        .filter(r => getComputedStyle(r).display !== 'none')
+        .map(r => ({ el: r.querySelector('.rank-badge'), stat: r.dataset.rstat }))
+        .filter(x => x.el);
 
     // Sembunyikan semua badge dulu
-    rows.forEach(r => {
-        const b = r.querySelector('.rank-badge');
-        if (b) { b.classList.add('bp-hide'); }
-    });
+    badges.forEach(x => x.el.classList.add('bp-hidden'));
 
-    const STEP = 48; // ms antar baris
-    rows.forEach((r, i) => {
+    const STEP = 52;
+    badges.forEach((x, i) => {
         setTimeout(() => {
-            // Slide baris masuk
-            r.classList.add('rr-in');
-            // Pop badge
-            const b = r.querySelector('.rank-badge');
-            if (b) {
-                b.classList.remove('bp-hide');
-                b.classList.add('bp-pop');
-            }
-            // Flash warna per status
-            const st = r.dataset.rstat;
-            if (st === 'terima') r.classList.add('flash-terima');
-            else if (st === 'gugur') r.classList.add('flash-gugur');
-        }, 350 + i * STEP);
+            x.el.classList.remove('bp-hidden');
+            if (x.stat === 'terima')      x.el.classList.add('bp-terima');
+            else if (x.stat === 'gugur')  x.el.classList.add('bp-gugur');
+            else                          x.el.classList.add('bp-other');
+        }, 300 + i * STEP);
     });
 })();
 </script>
