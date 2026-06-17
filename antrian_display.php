@@ -143,7 +143,7 @@ if (isset($_GET['json'])) {
             text-shadow: 0 0 80px rgba(124,58,237,.8), 0 0 160px rgba(124,58,237,.4);
             font-variant-numeric: tabular-nums;
         }
-        .current-number.flash { animation: numberFlash .6s ease; }
+        .current-number.flash { animation: numberFlash 1.1s ease; }
         @keyframes numberFlash {
             0%   { transform: scale(1);    opacity: 1; }
             25%  { transform: scale(1.08); opacity: .7; color: #fde68a; }
@@ -727,7 +727,7 @@ function speakOnce(text) {
     const u    = new SpeechSynthesisUtterance(text);
     if (ttsVoice) u.voice = ttsVoice;
     u.lang   = ttsVoice ? ttsVoice.lang : 'id-ID';
-    u.rate   = 0.95;   // sedikit lebih cepat, tetap jelas
+    u.rate   = 0.82;
     u.pitch  = 1.0;    // natural, tidak perlu naikkan kalau sudah pilih suara perempuan
     u.volume = 1.0;
     speechSynthesis.speak(u);
@@ -756,7 +756,7 @@ function pumpQueue() {
     const u = new SpeechSynthesisUtterance(item.text);
     if (ttsVoice) u.voice = ttsVoice;
     u.lang = ttsVoice ? ttsVoice.lang : 'id-ID';
-    u.rate = 0.95; u.pitch = 1.0; u.volume = 1.0;
+    u.rate = 0.82; u.pitch = 1.0; u.volume = 1.0;
     const advance = () => {
         speaking = false;
         item.repeatLeft--;
@@ -964,7 +964,7 @@ function refreshData() {
                     const numEl  = document.getElementById('current-number');
                     const deskEl = document.getElementById('current-desk');
                     const faseEl = document.getElementById('current-fase');
-                    if (numEl)  { numEl.textContent = pad3(newNum); numEl.classList.add('flash'); setTimeout(() => numEl.classList.remove('flash'), 700); }
+                    if (numEl)  { numEl.textContent = pad3(newNum); numEl.classList.add('flash'); setTimeout(() => numEl.classList.remove('flash'), 1200); }
                     if (deskEl) { deskEl.textContent = latest.nama_meja || ('Loket ' + latest.nomor_meja); }
                     if (faseEl) { faseEl.textContent = FASE_LABEL[latest.fase] || ''; }
                 }

@@ -11,6 +11,7 @@ foreach ([
     "ALTER TABLE announcements ADD COLUMN expire_at DATETIME NULL AFTER publish_at",
     "ALTER TABLE announcements ADD COLUMN target_gelombang TINYINT NULL AFTER expire_at",
     "ALTER TABLE announcements ADD COLUMN urutan TINYINT NOT NULL DEFAULT 0 AFTER target_gelombang",
+    "ALTER TABLE announcements ADD COLUMN updated_at DATETIME NULL AFTER created_at",
 ] as $_asql) {
     try { $conn->exec($_asql); } catch(PDOException) {}
 }
@@ -29,6 +30,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (int)$_POST['id'];
         $conn->prepare("UPDATE announcements SET is_active = 1 - is_active WHERE id=?")->execute([$id]);
         $msg = '<div class="alert alert-info">Status pengumuman diperbarui.</div>';
+    } elseif ($action === 'edit') {
+        $id = (int)$_POST['id'];
+        // Cek window 3 jam dari created_at
+        $chk = $conn->prepare("SELECT created_at FROM announcements WHERE id=?");
+        $chk->execute([$id]);
+        $row = $chk->fetch();
+        if ($row && (time() - strtotime($row['created_at'])) <= 10800) {
+            $publish_at = trim($_POST['publish_at'] ?? '') ?: null;
+            $expire_at  = trim($_POST['expire_at']  ?? '') ?: null;
+            $target_glm = trim($_POST['target_gelombang'] ?? '') !== '' ? (int)$_POST['target_gelombang'] : null;
+            $urutan     = (int)($_POST['urutan'] ?? 0);
+            $conn->prepare("UPDATE announcements SET title=?, message=?, type=?, publish_at=?, expire_at=?, target_gelombang=?, urutan=?, updated_at=NOW() WHERE id=?")
+                 ->execute([trim($_POST['title']), trim($_POST['message']), $_POST['type'], $publish_at, $expire_at, $target_glm, $urutan, $id]);
+            $msg = '<div class="alert alert-success">Pengumuman berhasil diperbarui.</div>';
+        } else {
+            $msg = '<div class="alert alert-danger">Tidak dapat mengedit — sudah lebih dari 3 jam sejak dibuat.</div>';
+        }
     } elseif ($action === 'delete') {
         $conn->prepare("DELETE FROM announcements WHERE id=?")->execute([(int)$_POST['id']]);
         $msg = '<div class="alert alert-warning">Pengumuman dihapus.</div>';
@@ -147,8 +165,21 @@ $type_colors = ['info'=>'primary','warning'=>'warning','danger'=>'danger','succe
                     <span class="badge bg-secondary">Nonaktif</span>
                 <?php endif; ?>
             </td>
-            <td class="small text-muted"><?= date('d/m/Y', strtotime($a['created_at'])) ?></td>
+            <td class="small text-muted">
+                <?= date('d/m/Y H:i', strtotime($a['created_at'])) ?>
+                <?php if ($a['updated_at']): ?>
+                    <div class="text-muted" style="font-size:.7rem;">diedit <?= date('H:i', strtotime($a['updated_at'])) ?></div>
+                <?php endif; ?>
+            </td>
             <td>
+                <?php $canEdit = (time() - strtotime($a['created_at'])) <= 10800; ?>
+                <?php if ($canEdit): ?>
+                <button class="btn btn-sm btn-outline-primary py-0 px-1 me-1"
+                        onclick="openEditAnn(<?= htmlspecialchars(json_encode($a), ENT_QUOTES) ?>)"
+                        title="Edit (tersedia 3 jam)">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <?php endif; ?>
                 <form method="POST" class="d-inline">
                     <input type="hidden" name="action" value="toggle">
                     <input type="hidden" name="id" value="<?= $a['id'] ?>">
@@ -169,3 +200,81 @@ $type_colors = ['info'=>'primary','warning'=>'warning','danger'=>'danger','succe
     </div>
     </div>
 </div>
+
+<!-- Modal Edit Pengumuman -->
+<div class="modal fade" id="modalEditAnn" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="POST">
+        <input type="hidden" name="action" value="edit">
+        <input type="hidden" name="id" id="eAnnId">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Pengumuman</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label">Judul</label>
+              <input type="text" name="title" id="eAnnTitle" class="form-control" required>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Tipe</label>
+              <select name="type" id="eAnnType" class="form-select">
+                <option value="info">Info</option>
+                <option value="success">Sukses</option>
+                <option value="warning">Peringatan</option>
+                <option value="danger">Penting</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Isi Pengumuman</label>
+              <textarea name="message" id="eAnnMessage" class="form-control" rows="2" required></textarea>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Tayang Mulai</label>
+              <input type="datetime-local" name="publish_at" id="eAnnPublish" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Kadaluarsa</label>
+              <input type="datetime-local" name="expire_at" id="eAnnExpire" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Target Gelombang</label>
+              <select name="target_gelombang" id="eAnnGlm" class="form-select form-select-sm">
+                <option value="">Semua</option>
+                <option value="1">Gelombang 1</option>
+                <option value="2">Gelombang 2</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Urutan</label>
+              <input type="number" name="urutan" id="eAnnUrutan" class="form-control form-control-sm" min="0">
+            </div>
+          </div>
+          <div class="alert alert-warning mt-3 py-2 small mb-0">
+            <i class="bi bi-clock me-1"></i>Edit hanya tersedia dalam <strong>3 jam</strong> sejak pengumuman dibuat.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-save me-1"></i>Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function openEditAnn(a) {
+    document.getElementById('eAnnId').value      = a.id;
+    document.getElementById('eAnnTitle').value   = a.title;
+    document.getElementById('eAnnType').value    = a.type;
+    document.getElementById('eAnnMessage').value = a.message;
+    document.getElementById('eAnnPublish').value = a.publish_at ? a.publish_at.replace(' ','T').slice(0,16) : '';
+    document.getElementById('eAnnExpire').value  = a.expire_at  ? a.expire_at.replace(' ','T').slice(0,16)  : '';
+    document.getElementById('eAnnGlm').value     = a.target_gelombang || '';
+    document.getElementById('eAnnUrutan').value  = a.urutan || 0;
+    new bootstrap.Modal(document.getElementById('modalEditAnn')).show();
+}
+</script>

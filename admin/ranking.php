@@ -135,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'prose
     // PRG: redirect setelah proses agar refresh tidak mengulang seleksi
     $_SESSION['flash_ranking'] = $msg;
     while (ob_get_level() > 0) ob_end_clean();
-    header('Location: ' . (!empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php') . '?page=ranking&gelombang=' . $gelombang);
+    header('Location: ' . (!empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php') . '?page=ranking&gelombang=' . $gelombang . '&just_processed=1');
     exit;
 }
 
@@ -251,7 +251,7 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
     }
     $td = $variant === 'gugur' ? 'text-danger' : '';
     ?>
-    <tr class="<?= $trClass ?>" style="<?= $style ?>">
+    <tr class="rank-anim-row <?= $trClass ?>" data-rstat="<?= htmlspecialchars($variant==='gugur'?'gugur':$r['status']) ?>" style="<?= $style ?>">
         <td class="text-center small <?= $td ?>"><?= $variant==='gugur' ? '—' : $rank ?></td>
         <td class="small <?= $td ?>"><?= htmlspecialchars($r['no_pendaftaran']) ?></td>
         <td class="<?= $td ?>">
@@ -267,7 +267,7 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
         <td class="text-center <?= $td ?>"><?= number_format($r['nilai_tka'], 2) ?></td>
         <td class="text-center fw-bold <?= $td ?>"><?= number_format($r['nilai_akhir'], 2) ?></td>
         <td class="text-center small <?= $td ?> <?= $variant==='gugur'?'fw-bold':'' ?>"><?= $r['usia'] ?> thn</td>
-        <td><span class="badge <?= $variant==='gugur'?'bg-danger':$badge ?>"><?= $variant==='gugur'?'Gugur':$label ?></span></td>
+        <td><span class="badge rank-badge <?= $variant==='gugur'?'bg-danger':$badge ?>" data-label="<?= $variant==='gugur'?'Gugur':htmlspecialchars($label) ?>"><?= $variant==='gugur'?'Gugur':$label ?></span></td>
         <td class="text-center">
             <div class="d-flex gap-1 justify-content-center">
                 <button class="btn btn-xs btn-outline-<?= $variant==='gugur'?'danger':'primary' ?> py-0 px-1" style="font-size:0.75rem"
@@ -686,3 +686,66 @@ function buildRaportTablePKBM(raport) {
     return buildSection('Kelompok Umum', mapelUmum) + buildSection('Kelompok Khusus', mapelKhusus);
 }
 </script>
+
+<?php if (!empty($_GET['just_processed'])): ?>
+<style>
+@keyframes rankRowIn {
+    0%   { opacity:0; transform:translateX(-18px); }
+    100% { opacity:1; transform:translateX(0); }
+}
+@keyframes badgePop {
+    0%   { transform:scale(0.2) rotateY(90deg); opacity:0; }
+    60%  { transform:scale(1.25) rotateY(0deg); opacity:1; }
+    100% { transform:scale(1); }
+}
+@keyframes rowFlashTerima {
+    0%,100% { background-color:inherit; }
+    50%     { background-color:#bbf7d0; }
+}
+@keyframes rowFlashGugur {
+    0%,100% { background-color:inherit; }
+    50%     { background-color:#fecaca; }
+}
+.rank-anim-row { opacity:0; }
+.rank-anim-row.rr-in { animation: rankRowIn .28s ease forwards; }
+.rank-badge.bp-hide { opacity:0; transform:scale(0.2); display:inline-block; }
+.rank-badge.bp-pop  { animation: badgePop .38s cubic-bezier(.34,1.56,.64,1) forwards; }
+.rank-anim-row.flash-terima { animation: rowFlashTerima .5s ease .28s; }
+.rank-anim-row.flash-gugur  { animation: rowFlashGugur  .5s ease .28s; }
+</style>
+<script>
+(function(){
+    // Hanya jalankan sekali (bersihkan param dari URL agar refresh tidak re-trigger)
+    const url = new URL(location.href);
+    url.searchParams.delete('just_processed');
+    history.replaceState(null,'', url.toString());
+
+    const rows = Array.from(document.querySelectorAll('.rank-anim-row'))
+                      .filter(r => !r.style.display || r.style.display !== 'none');
+
+    // Sembunyikan semua badge dulu
+    rows.forEach(r => {
+        const b = r.querySelector('.rank-badge');
+        if (b) { b.classList.add('bp-hide'); }
+    });
+
+    const STEP = 48; // ms antar baris
+    rows.forEach((r, i) => {
+        setTimeout(() => {
+            // Slide baris masuk
+            r.classList.add('rr-in');
+            // Pop badge
+            const b = r.querySelector('.rank-badge');
+            if (b) {
+                b.classList.remove('bp-hide');
+                b.classList.add('bp-pop');
+            }
+            // Flash warna per status
+            const st = r.dataset.rstat;
+            if (st === 'terima') r.classList.add('flash-terima');
+            else if (st === 'gugur') r.classList.add('flash-gugur');
+        }, 350 + i * STEP);
+    });
+})();
+</script>
+<?php endif; ?>

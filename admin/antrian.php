@@ -156,6 +156,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $redir_antrian('page=' . $back_page);
     }
 
+    // ── Panggil Ulang: update dipanggil_at agar display re-announce ─────────────
+    if ($action === 'recall') {
+        $cur_id    = (int)$_POST['antrian_id'];
+        $back_page = in_array($_POST['redirect_to'] ?? '', ['pendaftar','antrian']) ? $_POST['redirect_to'] : 'antrian';
+        $conn->prepare("UPDATE antrian SET dipanggil_at=NOW() WHERE id=? AND meja_id=? AND status='dipanggil'")
+             ->execute([$cur_id, $meja_id]);
+        $redir_antrian('page=' . $back_page);
+    }
+
     // ── Hubungkan / lepas pendaftar dari nomor antrian ────────────────────────
     if ($action === 'link_pendaftar') {
         $cur_id  = (int)$_POST['antrian_id'];
@@ -507,7 +516,15 @@ $fase_color = [1 => '#2563eb', 2 => '#7c3aed'];
                     </button>
                 </form>
             </div>
-            <div class="d-flex gap-2 justify-content-center">
+            <div class="d-flex gap-2 justify-content-center flex-wrap">
+                <form method="POST">
+                    <input type="hidden" name="action" value="recall">
+                    <input type="hidden" name="antrian_id" value="<?= $current['id'] ?>">
+                    <input type="hidden" name="redirect_to" value="antrian">
+                    <button type="submit" class="btn btn-outline-primary">
+                        <i class="bi bi-megaphone-fill me-1"></i>Panggil Ulang
+                    </button>
+                </form>
                 <form method="POST">
                     <input type="hidden" name="action" value="skip">
                     <input type="hidden" name="antrian_id" value="<?= $current['id'] ?>">
