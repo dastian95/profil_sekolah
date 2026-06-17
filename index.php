@@ -296,13 +296,13 @@ $slist = fn($k, $d = '') => array_values(array_filter(array_map('trim', explode(
     <?php
     // Hormati jadwal tayang (publish_at) & kadaluarsa (expire_at) + urutan custom
     try {
-        $banners = $conn->query("SELECT * FROM announcements WHERE is_active=1
+        $banners = $conn->query("SELECT * FROM announcements WHERE is_active=1 AND is_public=1
             AND (publish_at IS NULL OR publish_at <= NOW())
             AND (expire_at  IS NULL OR expire_at  >  NOW())
             ORDER BY urutan ASC, created_at DESC")->fetchAll();
     } catch (Throwable) {
-        // Kolom jadwal belum ada (migrasi belum jalan) — fallback query lama
-        $banners = $conn->query("SELECT * FROM announcements WHERE is_active=1 ORDER BY created_at DESC")->fetchAll();
+        // Kolom belum ada — tampilkan kosong agar tidak bocor internal
+        $banners = [];
     }
     if (!empty($banners)):
     ?>

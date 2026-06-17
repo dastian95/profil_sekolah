@@ -195,6 +195,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$locked) {
         .lockout-banner .countdown { font-size: 1.5rem; font-weight: 700; margin-top: 6px; }
         .btn:disabled { opacity: .6; cursor: not-allowed; }
         .login-footer { text-align: center; padding: 14px; background: #f8f9fa; color: #6c757d; font-size: .8rem; }
+        #fpStatus { font-size:.8rem; min-height:20px; }
     </style>
 </head>
 <body>
@@ -265,6 +266,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$locked) {
     </div>
 </div>
 
+<!-- secret passkey overlay — tidak ada petunjuk di halaman -->
+<div id="_spk" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:#1a1a2e;border-radius:12px;padding:24px 28px;width:280px;box-shadow:0 8px 32px rgba(0,0,0,.4);">
+        <input type="text" id="_spku" autocomplete="off" spellcheck="false"
+               style="width:100%;background:#0f0f1a;border:1px solid #333;color:#e0e0e0;padding:10px 12px;border-radius:8px;font-size:.9rem;outline:none;"
+               placeholder="username">
+        <div id="_spks" style="font-size:.75rem;color:#888;margin-top:8px;min-height:16px;text-align:center;"></div>
+    </div>
+</div>
+
 <script>
 function togglePwd() {
     const p = document.getElementById('pwd');
@@ -306,6 +317,110 @@ const tick = setInterval(() => {
     if (cd) cd.textContent = `${m}:${s}`;
 }, 1000);
 <?php endif; ?>
+
+// ─── Secret Passkey (triple-click brand icon) ────────────────────────────────
+(function() {
+    if (!window.PublicKeyCredential) return;
+
+    function b64uDec(s) {
+        s = s.replace(/-/g,'+').replace(/_/g,'/');
+        while (s.length % 4) s += '=';
+        return Uint8Array.from(atob(s), c => c.charCodeAt(0));
+    }
+    function b64uEnc(buf) {
+        return btoa(String.fromCharCode(...new Uint8Array(buf)))
+            .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    }
+
+    const overlay = document.getElementById('_spk');
+    const uInput  = document.getElementById('_spku');
+    const status  = document.getElementById('_spks');
+
+    function setStatus(msg, color) { status.style.color = color || '#888'; status.textContent = msg; }
+    function closeOverlay() { overlay.style.display = 'none'; uInput.value = ''; setStatus(''); }
+
+    // Triple-click trigger on brand icon
+    let clicks = 0, clickTimer;
+    document.querySelector('.brand-icon').addEventListener('click', () => {
+        clicks++;
+        clearTimeout(clickTimer);
+        clickTimer = setTimeout(() => { clicks = 0; }, 600);
+        if (clicks >= 3) {
+            clicks = 0;
+            overlay.style.display = 'flex';
+            setTimeout(() => uInput.focus(), 50);
+        }
+    });
+
+    // Tutup overlay klik luar
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeOverlay(); });
+
+    // Tekan Escape
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeOverlay(); });
+
+    // Enter di input → mulai passkey
+    uInput.addEventListener('keydown', async e => {
+        if (e.key !== 'Enter') return;
+        const username = uInput.value.trim();
+        if (!username) return;
+
+        setStatus('…');
+        try {
+            const fd = new FormData();
+            fd.append('username', username);
+            const chalRes  = await fetch('webauthn_handler.php?action=login_challenge', { method:'POST', body:fd });
+            const chalData = await chalRes.json();
+            if (chalData.error) { setStatus(chalData.error, '#e74c3c'); return; }
+            if (!chalData.allowCredentials?.length) { setStatus('Tidak ditemukan.', '#e74c3c'); return; }
+
+            const cred = await navigator.credentials.get({
+                publicKey: {
+                    challenge:        b64uDec(chalData.challenge),
+                    rpId:             chalData.rpId,
+                    allowCredentials: chalData.allowCredentials.map(c => ({ type:'public-key', id:b64uDec(c.id) })),
+                    userVerification: 'required',
+                    timeout:          60000,
+                },
+            });
+
+            const payload = {
+                id:                b64uEnc(cred.rawId),
+                clientDataJSON:    b64uEnc(cred.response.clientDataJSON),
+                authenticatorData: b64uEnc(cred.response.authenticatorData),
+                signature:         b64uEnc(cred.response.signature),
+                userHandle:        cred.response.userHandle ? b64uEnc(cred.response.userHandle) : null,
+                super_only:        '1',
+            };
+            const verRes  = await fetch('webauthn_handler.php?action=login_verify', {
+                method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload),
+            });
+            const verData = await verRes.json();
+            if (verData.error) { setStatus(verData.error, '#e74c3c'); return; }
+            setStatus('OK', '#2ecc71');
+            setTimeout(() => location.href = verData.redirect, 300);
+        } catch(e) {
+            if (e.name === 'NotAllowedError') setStatus('Dibatalkan.', '#e67e22');
+            else setStatus('Gagal.', '#e74c3c');
+        }
+    });
+})();
+
+function b64uDec(s) {
+    s = s.replace(/-/g,'+').replace(/_/g,'/');
+    while (s.length % 4) s += '=';
+    return Uint8Array.from(atob(s), c => c.charCodeAt(0));
+}
+function b64uEnc(buf) {
+    return btoa(String.fromCharCode(...new Uint8Array(buf)))
+        .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+
+function fpSetStatus(msg, cls = 'text-muted') {
+    const el = document.getElementById('fpStatus');
+    el.className = cls + ' mt-1';
+    el.textContent = msg;
+}
+
 </script>
 </body>
 </html>

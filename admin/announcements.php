@@ -12,6 +12,7 @@ foreach ([
     "ALTER TABLE announcements ADD COLUMN target_gelombang TINYINT NULL AFTER expire_at",
     "ALTER TABLE announcements ADD COLUMN urutan TINYINT NOT NULL DEFAULT 0 AFTER target_gelombang",
     "ALTER TABLE announcements ADD COLUMN updated_at DATETIME NULL AFTER created_at",
+    "ALTER TABLE announcements ADD COLUMN is_public TINYINT(1) NOT NULL DEFAULT 0 AFTER is_active",
 ] as $_asql) {
     try { $conn->exec($_asql); } catch(PDOException) {}
 }
@@ -23,8 +24,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $expire_at  = trim($_POST['expire_at']  ?? '') ?: null;
         $target_glm = trim($_POST['target_gelombang'] ?? '') !== '' ? (int)$_POST['target_gelombang'] : null;
         $urutan     = (int)($_POST['urutan'] ?? 0);
-        $stmt = $conn->prepare("INSERT INTO announcements (title, message, type, publish_at, expire_at, target_gelombang, urutan) VALUES (?,?,?,?,?,?,?)");
-        $stmt->execute([trim($_POST['title']), trim($_POST['message']), $_POST['type'], $publish_at, $expire_at, $target_glm, $urutan]);
+        $is_public  = isset($_POST['is_public']) ? 1 : 0;
+        $stmt = $conn->prepare("INSERT INTO announcements (title, message, type, publish_at, expire_at, target_gelombang, urutan, is_public) VALUES (?,?,?,?,?,?,?,?)");
+        $stmt->execute([trim($_POST['title']), trim($_POST['message']), $_POST['type'], $publish_at, $expire_at, $target_glm, $urutan, $is_public]);
         $msg = '<div class="alert alert-success">Pengumuman berhasil ditambahkan.</div>';
     } elseif ($action === 'toggle') {
         $id = (int)$_POST['id'];
@@ -41,8 +43,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $expire_at  = trim($_POST['expire_at']  ?? '') ?: null;
             $target_glm = trim($_POST['target_gelombang'] ?? '') !== '' ? (int)$_POST['target_gelombang'] : null;
             $urutan     = (int)($_POST['urutan'] ?? 0);
-            $conn->prepare("UPDATE announcements SET title=?, message=?, type=?, publish_at=?, expire_at=?, target_gelombang=?, urutan=?, updated_at=NOW() WHERE id=?")
-                 ->execute([trim($_POST['title']), trim($_POST['message']), $_POST['type'], $publish_at, $expire_at, $target_glm, $urutan, $id]);
+            $is_public  = isset($_POST['is_public']) ? 1 : 0;
+            $conn->prepare("UPDATE announcements SET title=?, message=?, type=?, publish_at=?, expire_at=?, target_gelombang=?, urutan=?, is_public=?, updated_at=NOW() WHERE id=?")
+                 ->execute([trim($_POST['title']), trim($_POST['message']), $_POST['type'], $publish_at, $expire_at, $target_glm, $urutan, $is_public, $id]);
             $msg = '<div class="alert alert-success">Pengumuman berhasil diperbarui.</div>';
         } else {
             $msg = '<div class="alert alert-danger">Tidak dapat mengedit — sudah lebih dari 3 jam sejak dibuat.</div>';
@@ -109,6 +112,12 @@ $type_colors = ['info'=>'primary','warning'=>'warning','danger'=>'danger','succe
                     <input type="number" name="urutan" class="form-control form-control-sm" value="0" min="0">
                 </div>
                 <div class="col-12">
+                    <div class="form-check mb-2">
+                        <input type="checkbox" name="is_public" id="addIsPublic" class="form-check-input" value="1">
+                        <label class="form-check-label" for="addIsPublic">
+                            <i class="bi bi-globe me-1"></i>Tampilkan di halaman publik (website)
+                        </label>
+                    </div>
                     <button type="submit" class="btn btn-primary btn-sm">
                         <i class="bi bi-plus-lg me-1"></i>Tambah
                     </button>
@@ -124,7 +133,7 @@ $type_colors = ['info'=>'primary','warning'=>'warning','danger'=>'danger','succe
     <div class="table-responsive">
     <table class="table table-hover mb-0 align-middle">
         <thead>
-            <tr><th>#</th><th>Judul</th><th>Tipe</th><th>Jadwal</th><th>Target</th><th>Status</th><th>Dibuat</th><th class="text-end">Aksi</th></tr>
+            <tr><th>#</th><th>Judul</th><th>Tipe</th><th>Jadwal</th><th>Target</th><th>Publik</th><th>Status</th><th>Dibuat</th><th class="text-end">Aksi</th></tr>
         </thead>
         <tbody>
         <?php if (empty($list)): ?>
@@ -152,6 +161,13 @@ $type_colors = ['info'=>'primary','warning'=>'warning','danger'=>'danger','succe
                     <span class="badge bg-secondary">Glm <?= $a['target_gelombang'] ?></span>
                 <?php else: ?>
                     <span class="text-muted">Semua</span>
+                <?php endif; ?>
+            </td>
+            <td class="text-center">
+                <?php if ($a['is_public'] ?? 0): ?>
+                    <span class="badge bg-success" title="Tampil di website"><i class="bi bi-globe"></i></span>
+                <?php else: ?>
+                    <span class="badge bg-secondary" title="Internal admin saja"><i class="bi bi-lock"></i></span>
                 <?php endif; ?>
             </td>
             <td>
@@ -252,6 +268,14 @@ $type_colors = ['info'=>'primary','warning'=>'warning','danger'=>'danger','succe
               <input type="number" name="urutan" id="eAnnUrutan" class="form-control form-control-sm" min="0">
             </div>
           </div>
+          <div class="col-12">
+            <div class="form-check">
+                <input type="checkbox" name="is_public" id="eAnnIsPublic" class="form-check-input" value="1">
+                <label class="form-check-label" for="eAnnIsPublic">
+                    <i class="bi bi-globe me-1"></i>Tampilkan di halaman publik (website)
+                </label>
+            </div>
+          </div>
           <div class="alert alert-warning mt-3 py-2 small mb-0">
             <i class="bi bi-clock me-1"></i>Edit hanya tersedia dalam <strong>3 jam</strong> sejak pengumuman dibuat.
           </div>
@@ -274,7 +298,8 @@ function openEditAnn(a) {
     document.getElementById('eAnnPublish').value = a.publish_at ? a.publish_at.replace(' ','T').slice(0,16) : '';
     document.getElementById('eAnnExpire').value  = a.expire_at  ? a.expire_at.replace(' ','T').slice(0,16)  : '';
     document.getElementById('eAnnGlm').value     = a.target_gelombang || '';
-    document.getElementById('eAnnUrutan').value  = a.urutan || 0;
+    document.getElementById('eAnnUrutan').value    = a.urutan || 0;
+    document.getElementById('eAnnIsPublic').checked = !!(a.is_public && parseInt(a.is_public));
     new bootstrap.Modal(document.getElementById('modalEditAnn')).show();
 }
 </script>
