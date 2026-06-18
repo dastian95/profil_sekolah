@@ -864,11 +864,8 @@ if ($edit_id_get > 0) {
                   <small class="text-muted">Jalur khusus (Yatim/Piatu, Anak Guru, ABK) masing-masing punya kuota tersendiri. Sisa kuota dialihkan ke Reguler.</small>
                 </div>
               </div>
-              <!-- Isi berbeda sesuai jalur yang dipilih -->
-
-              <!-- Jalur REGULER: kelurahan + info zonasi -->
-              <div id="jalurBoxReguler" class="border-top pt-3">
-                <div class="fw-semibold small text-uppercase mb-2" style="color:#92400e;"><i class="bi bi-people-fill me-1"></i>Data Reguler</div>
+              <!-- Kelurahan + Jarak — berlaku untuk SEMUA jalur G2 (dipakai untuk ranking zonasi) -->
+              <div class="border-top pt-3 mb-2">
                 <div class="row g-3">
                   <div class="col-md-7">
                     <label class="form-label fw-semibold small mb-1">Kelurahan Domisili (sesuai KK)</label>
@@ -891,19 +888,26 @@ if ($edit_id_get > 0) {
                   <div class="col-md-5">
                     <label class="form-label fw-semibold small mb-1">Jarak ke Sekolah</label>
                     <input type="text" id="fJarak" class="form-control form-control-sm bg-light" readonly placeholder="—">
-                    <small class="text-muted">Garis lurus, dihitung otomatis.</small>
+                    <small class="text-muted">Garis lurus, otomatis. <strong>Semua jalur</strong> diurutkan jarak terdekat.</small>
                   </div>
                 </div>
-                <div class="alert alert-info border small mt-2 mb-0 py-2">
+              </div>
+
+              <!-- Isi berbeda sesuai jalur yang dipilih -->
+
+              <!-- Jalur REGULER -->
+              <div id="jalurBoxReguler" class="border-top pt-3">
+                <div class="fw-semibold small text-uppercase mb-2" style="color:#92400e;"><i class="bi bi-people-fill me-1"></i>Reguler</div>
+                <div class="alert alert-info border small mb-0 py-2">
                   <i class="bi bi-geo-alt-fill me-1"></i>
-                  Pendaftar dari <strong>Kec. Duren Sawit</strong> mendapat prioritas <strong>Zonasi</strong> di ranking Reguler. Isi kelurahan untuk deteksi otomatis.
+                  Ranking: <strong>Nilai Akhir</strong> (Raport+TKA) — pendaftar dari <strong>Kec. Duren Sawit</strong> diprioritaskan (Zonasi).
                 </div>
               </div>
 
               <!-- Jalur YATIM/PIATU -->
               <div id="jalurBoxYatimPiatu" class="border-top pt-3">
-                <div class="fw-semibold small text-uppercase mb-2" style="color:#92400e;"><i class="bi bi-heart-fill me-1"></i>Data Yatim &amp; Piatu</div>
-                <div class="row g-3">
+                <div class="fw-semibold small text-uppercase mb-2" style="color:#92400e;"><i class="bi bi-heart-fill me-1"></i>Yatim &amp; Piatu</div>
+                <div class="row g-3 mb-2">
                   <div class="col-md-7">
                     <label class="form-label fw-semibold small mb-1">Status Orang Tua</label>
                     <select name="status_ortu" id="fStatusOrtu" class="form-select form-select-sm">
@@ -913,15 +917,15 @@ if ($edit_id_get > 0) {
                     </select>
                   </div>
                 </div>
-                <small class="text-muted d-block mt-2">Kuota 4 slot. Ranking berdasarkan nilai raport → usia.</small>
+                <small class="text-muted">Kuota maks. 4 slot. Ranking: <strong>jarak terdekat</strong> ke sekolah (isi kelurahan di atas).</small>
               </div>
 
               <!-- Jalur ANAK GURU -->
               <div id="jalurBoxAnakGuru" class="border-top pt-3">
                 <div class="fw-semibold small text-uppercase mb-2" style="color:#92400e;"><i class="bi bi-mortarboard-fill me-1"></i>Anak Guru</div>
-                <div class="alert alert-light border small mb-0">
+                <div class="alert alert-light border small mb-0 py-2">
                   <i class="bi bi-info-circle me-1 text-warning"></i>
-                  Kuota <strong>4 slot</strong>. Ranking berdasarkan nilai raport → usia.
+                  Kuota maks. <strong>4 slot</strong>. Ranking: <strong>jarak terdekat</strong> ke sekolah (isi kelurahan di atas).
                   Verifikasi status anak guru dilakukan terpisah oleh pihak sekolah.
                 </div>
               </div>
@@ -935,7 +939,7 @@ if ($edit_id_get > 0) {
                     <input type="number" name="nilai_khusus" id="fNilaiKhusus" class="form-control form-control-sm"
                            min="0" max="100" step="0.01" placeholder="0.00"
                            value="<?= htmlspecialchars($formData['nilai_khusus'] ?? '') ?>">
-                    <small class="text-muted">Skor penilaian khusus ABK. Ranking dalam kuota ABK (8 slot) berdasarkan nilai ini.</small>
+                    <small class="text-muted">Kuota maks. 8 slot. Dinilai manual oleh sekolah — ranking berdasarkan nilai ini.</small>
                   </div>
                 </div>
               </div>

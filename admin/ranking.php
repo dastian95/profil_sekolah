@@ -65,10 +65,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'prose
             fn($k) => $conn->quote($k), array_keys(KELURAHAN_ZONASI['Duren Sawit'] ?? [])
         ));
         $order_by = [
-            'g1'          => 'nilai_akhir DESC, usia DESC',
-            'g2_special'  => 'nilai_raport DESC, usia DESC',
-            'g2_abk'      => 'COALESCE(nilai_khusus, 0) DESC, usia DESC',
-            'g2_reguler'  => "(CASE WHEN kelurahan IN ({$kel_ds_sql}) THEN 1 ELSE 0 END) DESC, nilai_raport DESC, usia DESC",
+            'g1'         => 'nilai_akhir DESC, usia DESC',
+            'g2_jarak'   => 'COALESCE(jarak_km, 9999) ASC, usia DESC',
+            'g2_abk'     => 'COALESCE(nilai_khusus, 0) DESC, usia DESC',
+            'g2_reguler' => "(CASE WHEN kelurahan IN ({$kel_ds_sql}) THEN 1 ELSE 0 END) DESC, nilai_akhir DESC, usia DESC",
         ];
 
         // Helper: ambil ID terima untuk satu segmen (pinned dijamin lolos lebih dulu)
@@ -104,18 +104,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'prose
                 $res = $ambilTerima($jurusan, $kuota_glm, 'g1');
                 $all_terima = $res['terima'];
             } else {
-                // Gelombang 2: kuota khusus per kategori, sisa ke Reguler
-                $ryp = $ambilTerima($jurusan, 4, 'g2_special', 'yatim_piatu');
-                $rag = $ambilTerima($jurusan, 4, 'g2_special', 'anak_guru');
-                $rab = $ambilTerima($jurusan, 8, 'g2_abk',     'abk');
+                // Gelombang 2: Yatim/Piatu & Anak Guru → jarak terdekat
+                //              ABK → nilai_khusus (dinilai manual sekolah)
+                //              Reguler → nilai_akhir (raport+TKA), Duren Sawit diprioritaskan
+                // Jika Reguler tidak cukup isi sisa slot, overflow prioritas masuk
+                $ryp = $ambilTerima($jurusan, 4, 'g2_jarak', 'yatim_piatu');
+                $rag = $ambilTerima($jurusan, 4, 'g2_jarak', 'anak_guru');
+                $rab = $ambilTerima($jurusan, 8, 'g2_abk',   'abk');
                 $special_accepted = count($ryp['terima']) + count($rag['terima']) + count($rab['terima']);
                 $kuota_reguler = max(0, $kuota_glm - $special_accepted);
                 $rr = $ambilTerima($jurusan, $kuota_reguler, 'g2_reguler', 'reguler');
+
+                // Overflow: jika reguler tidak cukup, isi sisa dari prioritas yg belum masuk
+                $overflow_ids = [];
+                if ($rr['unfilled'] > 0) {
+                    $already = array_merge($ryp['terima'], $rag['terima'], $rab['terima'], $rr['terima']);
+                    if ($already) {
+                        $excl = implode(',', array_fill(0, count($already), '?'));
+                        $stOvf = $conn->prepare("SELECT id FROM pendaftar
+                            WHERE gelombang=? AND jurusan=? AND lolos_usia=1 AND is_pinned=0
+                            AND status='diproses' AND jalur IN ('yatim_piatu','anak_guru','abk')
+                            AND id NOT IN ({$excl})
+                            ORDER BY COALESCE(jarak_km, 9999) ASC, usia DESC
+                            LIMIT ?");
+                        $stOvf->execute(array_merge([$gelombang, $jurusan], $already, [$rr['unfilled']]));
+                    } else {
+                        $stOvf = $conn->prepare("SELECT id FROM pendaftar
+                            WHERE gelombang=? AND jurusan=? AND lolos_usia=1 AND is_pinned=0
+                            AND status='diproses' AND jalur IN ('yatim_piatu','anak_guru','abk')
+                            ORDER BY COALESCE(jarak_km, 9999) ASC, usia DESC
+                            LIMIT ?");
+                        $stOvf->execute([$gelombang, $jurusan, $rr['unfilled']]);
+                    }
+                    $overflow_ids = $stOvf->fetchAll(PDO::FETCH_COLUMN);
+                }
+
                 // Tandai catatan per jalur
                 foreach ([
                     [$ryp['terima'], 'Diterima jalur Yatim/Piatu'],
                     [$rag['terima'], 'Diterima jalur Anak Guru'],
                     [$rab['terima'], 'Diterima jalur ABK'],
+                    [$overflow_ids,  'Diterima jalur Prioritas (overflow)'],
                 ] as [$ids, $cat]) {
                     if ($ids) {
                         $in = implode(',', array_fill(0, count($ids), '?'));
@@ -123,7 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'prose
                              ->execute(array_merge([$cat], $ids));
                     }
                 }
-                $all_terima = array_merge($ryp['terima'], $rag['terima'], $rab['terima'], $rr['terima']);
+                $all_terima = array_merge($ryp['terima'], $rag['terima'], $rab['terima'], $rr['terima'], $overflow_ids);
             }
 
             if ($all_terima) {
@@ -211,9 +240,10 @@ function rank_sort(array $list, string $key): array {
                 return (float)$b['nilai_akhir'] <=> (float)$a['nilai_akhir'];
             return $b['usia'] <=> $a['usia'];
         }
-        if ($key === 'g2_special') {
-            if ((float)$a['nilai_raport'] != (float)$b['nilai_raport'])
-                return (float)$b['nilai_raport'] <=> (float)$a['nilai_raport'];
+        if ($key === 'g2_jarak') {
+            $ja = isset($a['jarak_km']) && $a['jarak_km'] !== null ? (float)$a['jarak_km'] : 9999;
+            $jb = isset($b['jarak_km']) && $b['jarak_km'] !== null ? (float)$b['jarak_km'] : 9999;
+            if ($ja != $jb) return $ja <=> $jb;
             return $b['usia'] <=> $a['usia'];
         }
         if ($key === 'g2_abk') {
@@ -227,8 +257,8 @@ function rank_sort(array $list, string $key): array {
             $za = in_array($a['kelurahan'] ?? '', $kel_ds, true) ? 1 : 0;
             $zb = in_array($b['kelurahan'] ?? '', $kel_ds, true) ? 1 : 0;
             if ($za != $zb) return $zb <=> $za;
-            if ((float)$a['nilai_raport'] != (float)$b['nilai_raport'])
-                return (float)$b['nilai_raport'] <=> (float)$a['nilai_raport'];
+            if ((float)$a['nilai_akhir'] != (float)$b['nilai_akhir'])
+                return (float)$b['nilai_akhir'] <=> (float)$a['nilai_akhir'];
             return $b['usia'] <=> $a['usia'];
         }
         // fallback: raport → usia
@@ -364,7 +394,7 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
     <?php if ((int)$fGel === 1): ?>
     <div class="mt-1"><i class="bi bi-info-circle me-1"></i>Urutan: <strong>nilai akhir</strong> tertinggi menang, <strong>usia</strong> tertua penentu seri. KK &gt; 15 Juni 2025 = gugur.</div>
     <?php else: ?>
-    <div class="mt-1"><i class="bi bi-info-circle me-1"></i>Kuota khusus per jurusan: <strong>Yatim/Piatu</strong> 4 · <strong>Anak Guru</strong> 4 · <strong>ABK</strong> 8 (total maks. 16). Sisa ke <strong>Reguler</strong> — Zonasi (Kec. Duren Sawit) diprioritaskan. Ranking: raport → usia. KK &gt; 15 Juni 2025 = gugur.</div>
+    <div class="mt-1"><i class="bi bi-info-circle me-1"></i>Kuota prioritas: <strong>Yatim/Piatu</strong> 4 · <strong>Anak Guru</strong> 4 (ranking jarak terdekat) · <strong>ABK</strong> 8 (nilai khusus manual). Sisa ke <strong>Reguler</strong> (Nilai Akhir, Zonasi Duren Sawit unggul). Overflow prioritas isi slot kosong jika Reguler kurang. KK &gt; 15 Juni 2025 = gugur.</div>
     <?php endif; ?>
 </div>
 <?php endif; ?>
@@ -406,8 +436,8 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
                         + min(8, count($byJalur['abk']));
         $kuotaR = max(0, $kuota_glm - $special_accept);
         $segments = [
-            ['key'=>'yatim_piatu','label'=>'Jalur Yatim & Piatu','icon'=>'bi-heart-fill','color'=>'danger','info'=>'ortu','list'=>rank_sort($byJalur['yatim_piatu'],'g2_special'),'kuota'=>4],
-            ['key'=>'anak_guru',  'label'=>'Jalur Anak Guru',    'icon'=>'bi-mortarboard-fill','color'=>'warning','info'=>'','list'=>rank_sort($byJalur['anak_guru'],'g2_special'),'kuota'=>4],
+            ['key'=>'yatim_piatu','label'=>'Jalur Yatim & Piatu','icon'=>'bi-heart-fill','color'=>'danger','info'=>'jarak','list'=>rank_sort($byJalur['yatim_piatu'],'g2_jarak'),'kuota'=>4],
+            ['key'=>'anak_guru',  'label'=>'Jalur Anak Guru',    'icon'=>'bi-mortarboard-fill','color'=>'warning','info'=>'jarak','list'=>rank_sort($byJalur['anak_guru'],'g2_jarak'),'kuota'=>4],
             ['key'=>'abk',        'label'=>'Jalur ABK',          'icon'=>'bi-person-wheelchair','color'=>'info','info'=>'abk','list'=>rank_sort($byJalur['abk'],'g2_abk'),'kuota'=>8],
             ['key'=>'reguler',    'label'=>'Jalur Reguler',      'icon'=>'bi-people-fill','color'=>'success','info'=>'zonasi','list'=>rank_sort($byJalur['reguler'],'g2_reguler'),'kuota'=>$kuotaR],
         ];
@@ -420,6 +450,10 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
     // Builder badge info untuk kolom Nama
     $kel_ds_labels = array_keys(KELURAHAN_ZONASI['Duren Sawit'] ?? []);
     $mkInfo = function (array $r, string $type) use ($kel_ds_labels): string {
+        if ($type === 'jarak') {
+            $j = isset($r['jarak_km']) && $r['jarak_km'] !== null ? number_format((float)$r['jarak_km'], 2) . ' km' : '—';
+            return '<span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle"><i class="bi bi-geo-alt me-1"></i>' . $j . '</span>';
+        }
         if ($type === 'zonasi') {
             $iz = in_array($r['kelurahan'] ?? '', $kel_ds_labels, true);
             if ($iz) return '<span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle"><i class="bi bi-geo-alt-fill me-1"></i>Zonasi</span>';
