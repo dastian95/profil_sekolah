@@ -189,6 +189,10 @@ $action = $_GET['action'] ?? '';
 // ── register_challenge ────────────────────────────────────────────────────────
 if ($action === 'register_challenge') {
     if (!isset($_SESSION['admin_id'])) json_err('Belum login', 401);
+    // Superadmin: hanya akun utama (id=1) yang boleh daftarkan passkey
+    if (!empty($_SESSION['is_super']) && (int)($_SESSION['super_acc_id'] ?? 0) !== 1) {
+        json_err('Fitur ini hanya tersedia untuk superadmin utama.', 403);
+    }
 
     $challenge = random_bytes(32);
     $_SESSION['wau_reg_chal'] = b64u_enc($challenge);

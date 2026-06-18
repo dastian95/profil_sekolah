@@ -452,7 +452,8 @@ try {
 <?php endif; ?>
 <?php endif; // is_primary_super — Kelola Akun ?>
 
-<!-- ══ Login Sidik Jari / WebAuthn ══════════════════════════════════════════ -->
+<?php if ($acc_id === 1): ?>
+<!-- ══ Login Sidik Jari / WebAuthn — hanya superadmin utama ═════════════════ -->
 <div class="card mt-4" style="max-width:560px">
     <div class="card-header fw-semibold">
         <i class="bi bi-fingerprint me-2 text-primary"></i>Login Sidik Jari (WebAuthn)
@@ -602,6 +603,7 @@ async function deleteWauCred(id, btn) {
     } catch(e) { btn.disabled = false; alert('Gagal: ' + e.message); }
 }
 </script>
+<?php endif; // acc_id === 1 — WebAuthn hanya superadmin utama ?>
 
 <script>
 function toggleEye(inputId, iconId) {
