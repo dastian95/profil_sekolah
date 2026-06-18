@@ -61,11 +61,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'prose
         }
 
         // Urutan seleksi per jalur (string konstan — aman dipakai di ORDER BY)
+        $kel_ds_sql = implode(',', array_map(
+            fn($k) => $conn->quote($k), array_keys(KELURAHAN_ZONASI['Duren Sawit'] ?? [])
+        ));
         $order_by = [
-            'g1'       => 'nilai_akhir DESC, usia DESC',   // G1: nilai akhir dulu, usia penentu seri
-            'zonasi'   => 'jarak_km ASC, usia DESC, nilai_akhir DESC',
-            'afirmasi' => 'usia DESC, nilai_akhir DESC',
-            'prestasi' => 'nilai_akhir DESC, usia DESC',
+            'g1'          => 'nilai_akhir DESC, usia DESC',
+            'g2_special'  => 'nilai_raport DESC, usia DESC',
+            'g2_abk'      => 'COALESCE(nilai_khusus, 0) DESC, usia DESC',
+            'g2_reguler'  => "(CASE WHEN kelurahan IN ({$kel_ds_sql}) THEN 1 ELSE 0 END) DESC, nilai_raport DESC, usia DESC",
         ];
 
         // Helper: ambil ID terima untuk satu segmen (pinned dijamin lolos lebih dulu)
@@ -101,15 +104,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'prose
                 $res = $ambilTerima($jurusan, $kuota_glm, 'g1');
                 $all_terima = $res['terima'];
             } else {
-                // Gelombang 2: multi-jalur, kuota dibagi rata 3
-                $base = intdiv($kuota_glm, 3);
-                $leftover = $kuota_glm - ($base * 3); // sisa pembagian → ke Prestasi
-                // Zonasi & Afirmasi dulu; slot kosong dialihkan ke Prestasi
-                $rz = $ambilTerima($jurusan, $base, 'zonasi',   'zonasi');
-                $ra = $ambilTerima($jurusan, $base, 'afirmasi', 'afirmasi');
-                $kuota_prestasi = $base + $leftover + $rz['unfilled'] + $ra['unfilled'];
-                $rp = $ambilTerima($jurusan, $kuota_prestasi, 'prestasi', 'prestasi');
-                $all_terima = array_merge($rz['terima'], $ra['terima'], $rp['terima']);
+                // Gelombang 2: kuota khusus per kategori, sisa ke Reguler
+                $ryp = $ambilTerima($jurusan, 4, 'g2_special', 'yatim_piatu');
+                $rag = $ambilTerima($jurusan, 4, 'g2_special', 'anak_guru');
+                $rab = $ambilTerima($jurusan, 8, 'g2_abk',     'abk');
+                $special_accepted = count($ryp['terima']) + count($rag['terima']) + count($rab['terima']);
+                $kuota_reguler = max(0, $kuota_glm - $special_accepted);
+                $rr = $ambilTerima($jurusan, $kuota_reguler, 'g2_reguler', 'reguler');
+                // Tandai catatan per jalur
+                foreach ([
+                    [$ryp['terima'], 'Diterima jalur Yatim/Piatu'],
+                    [$rag['terima'], 'Diterima jalur Anak Guru'],
+                    [$rab['terima'], 'Diterima jalur ABK'],
+                ] as [$ids, $cat]) {
+                    if ($ids) {
+                        $in = implode(',', array_fill(0, count($ids), '?'));
+                        $conn->prepare("UPDATE pendaftar SET catatan=? WHERE id IN ({$in})")
+                             ->execute(array_merge([$cat], $ids));
+                    }
+                }
+                $all_terima = array_merge($ryp['terima'], $rag['terima'], $rab['terima'], $rr['terima']);
             }
 
             if ($all_terima) {
@@ -192,27 +206,35 @@ function rank_gugur_reason(array $r, string $cutoff): string {
 function rank_sort(array $list, string $key): array {
     usort($list, function ($a, $b) use ($key) {
         if ($a['is_pinned'] != $b['is_pinned']) return ($b['is_pinned'] <=> $a['is_pinned']);
-        if ($key === 'zonasi') {
-            $ja = isset($a['jarak_km']) ? (float)$a['jarak_km'] : 9999;
-            $jb = isset($b['jarak_km']) ? (float)$b['jarak_km'] : 9999;
-            if ($ja != $jb) return $ja <=> $jb;                       // terdekat menang
-            if ($a['usia'] != $b['usia']) return $b['usia'] <=> $a['usia'];
-            return (float)$b['nilai_akhir'] <=> (float)$a['nilai_akhir'];
-        }
-        if ($key === 'prestasi') {
-            if ((float)$a['nilai_akhir'] != (float)$b['nilai_akhir'])
-                return (float)$b['nilai_akhir'] <=> (float)$a['nilai_akhir']; // skor tertinggi
-            return $b['usia'] <=> $a['usia'];
-        }
         if ($key === 'g1') {
-            // Gelombang 1: nilai akhir tertinggi dulu → usia tertua penentu seri
             if ((float)$a['nilai_akhir'] != (float)$b['nilai_akhir'])
                 return (float)$b['nilai_akhir'] <=> (float)$a['nilai_akhir'];
             return $b['usia'] <=> $a['usia'];
         }
-        // 'afirmasi' → umur dulu (tertua), skor penentu seri
-        if ($a['usia'] != $b['usia']) return $b['usia'] <=> $a['usia'];
-        return (float)$b['nilai_akhir'] <=> (float)$a['nilai_akhir'];
+        if ($key === 'g2_special') {
+            if ((float)$a['nilai_raport'] != (float)$b['nilai_raport'])
+                return (float)$b['nilai_raport'] <=> (float)$a['nilai_raport'];
+            return $b['usia'] <=> $a['usia'];
+        }
+        if ($key === 'g2_abk') {
+            $nka = (float)($a['nilai_khusus'] ?? 0);
+            $nkb = (float)($b['nilai_khusus'] ?? 0);
+            if ($nka != $nkb) return $nkb <=> $nka;
+            return $b['usia'] <=> $a['usia'];
+        }
+        if ($key === 'g2_reguler') {
+            $kel_ds = array_keys(KELURAHAN_ZONASI['Duren Sawit'] ?? []);
+            $za = in_array($a['kelurahan'] ?? '', $kel_ds, true) ? 1 : 0;
+            $zb = in_array($b['kelurahan'] ?? '', $kel_ds, true) ? 1 : 0;
+            if ($za != $zb) return $zb <=> $za;
+            if ((float)$a['nilai_raport'] != (float)$b['nilai_raport'])
+                return (float)$b['nilai_raport'] <=> (float)$a['nilai_raport'];
+            return $b['usia'] <=> $a['usia'];
+        }
+        // fallback: raport → usia
+        if ((float)$a['nilai_raport'] != (float)$b['nilai_raport'])
+            return (float)$b['nilai_raport'] <=> (float)$a['nilai_raport'];
+        return $b['usia'] <=> $a['usia'];
     });
     return $list;
 }
@@ -226,9 +248,9 @@ function rank_row_json(array $r, array $raport_map): string {
         'nilai_raport'=>$r['nilai_raport'],'nilai_tka'=>$r['nilai_tka'],'nilai_akhir'=>$r['nilai_akhir'],
         'lolos_usia'=>$r['lolos_usia'],'is_pinned'=>$r['is_pinned'],'status'=>$r['status'],
         'catatan'=>$r['catatan'],'gelombang'=>$r['gelombang'],
-        'jalur'=>$r['jalur'] ?? 'prestasi','jarak_km'=>$r['jarak_km'] ?? null,
+        'jalur'=>$r['jalur'] ?? 'reguler','jarak_km'=>$r['jarak_km'] ?? null,
         'status_ortu'=>$r['status_ortu'] ?? 'tidak','buta_warna'=>$r['buta_warna'] ?? 'belum',
-        'kelurahan'=>$r['kelurahan'] ?? null,
+        'kelurahan'=>$r['kelurahan'] ?? null,'nilai_khusus'=>$r['nilai_khusus'] ?? null,
         'raport'=>$raport_map[$r['id']] ?? [],
     ], JSON_UNESCAPED_UNICODE);
 }
@@ -342,7 +364,7 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
     <?php if ((int)$fGel === 1): ?>
     <div class="mt-1"><i class="bi bi-info-circle me-1"></i>Urutan: <strong>nilai akhir</strong> tertinggi menang, <strong>usia</strong> tertua penentu seri. KK &gt; 15 Juni 2025 = gugur.</div>
     <?php else: ?>
-    <div class="mt-1"><i class="bi bi-info-circle me-1"></i>Kuota dibagi rata 3 jalur: <strong>Zonasi</strong> (jarak terdekat), <strong>Afirmasi</strong> (umur tertua), <strong>Prestasi</strong> (nilai tertinggi). Sisa kuota jalur dialihkan ke Prestasi. KK &gt; 15 Juni 2025 = gugur.</div>
+    <div class="mt-1"><i class="bi bi-info-circle me-1"></i>Kuota khusus per jurusan: <strong>Yatim/Piatu</strong> 4 · <strong>Anak Guru</strong> 4 · <strong>ABK</strong> 8 (total maks. 16). Sisa ke <strong>Reguler</strong> — Zonasi (Kec. Duren Sawit) diprioritaskan. Ranking: raport → usia. KK &gt; 15 Juni 2025 = gugur.</div>
     <?php endif; ?>
 </div>
 <?php endif; ?>
@@ -371,23 +393,23 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
     $gugur_arr = array_values(array_filter($list, fn($r) =>  rank_is_gugur($r, $KK_CUTOFF)));
     $jurusan_id = preg_replace('/[^a-z0-9]/', '', strtolower($short[$jurusan]));
 
-    // Susun segmen: G1 = satu daftar; G2 = tiga jalur dgn kuota dibagi rata (sisa → Prestasi)
+    // Susun segmen: G1 = satu daftar; G2 = empat jalur (3 khusus + Reguler)
     if ((int)$fGel === 2) {
-        $byJalur = ['zonasi' => [], 'afirmasi' => [], 'prestasi' => []];
+        $byJalur = ['yatim_piatu' => [], 'anak_guru' => [], 'abk' => [], 'reguler' => []];
         foreach ($eligible as $r) {
-            $jl = $r['jalur'] ?? 'prestasi';
-            if (!isset($byJalur[$jl])) $jl = 'prestasi';
+            $jl = $r['jalur'] ?? 'reguler';
+            if (!isset($byJalur[$jl])) $jl = 'reguler';
             $byJalur[$jl][] = $r;
         }
-        $base = intdiv($kuota_glm, 3);
-        $leftover = $kuota_glm - $base * 3;
-        $unfilledZ = max(0, $base - count($byJalur['zonasi']));
-        $unfilledA = max(0, $base - count($byJalur['afirmasi']));
-        $kuotaP = $base + $leftover + $unfilledZ + $unfilledA;
+        $special_accept = min(4, count($byJalur['yatim_piatu']))
+                        + min(4, count($byJalur['anak_guru']))
+                        + min(8, count($byJalur['abk']));
+        $kuotaR = max(0, $kuota_glm - $special_accept);
         $segments = [
-            ['key'=>'zonasi','label'=>'Jalur Zonasi','icon'=>'bi-geo-alt-fill','color'=>'primary','info'=>'jarak','list'=>rank_sort($byJalur['zonasi'],'zonasi'),'kuota'=>$base],
-            ['key'=>'afirmasi','label'=>'Jalur Afirmasi (Yatim/Piatu)','icon'=>'bi-heart-fill','color'=>'danger','info'=>'ortu','list'=>rank_sort($byJalur['afirmasi'],'afirmasi'),'kuota'=>$base],
-            ['key'=>'prestasi','label'=>'Jalur Prestasi','icon'=>'bi-trophy-fill','color'=>'success','info'=>'','list'=>rank_sort($byJalur['prestasi'],'prestasi'),'kuota'=>$kuotaP],
+            ['key'=>'yatim_piatu','label'=>'Jalur Yatim & Piatu','icon'=>'bi-heart-fill','color'=>'danger','info'=>'ortu','list'=>rank_sort($byJalur['yatim_piatu'],'g2_special'),'kuota'=>4],
+            ['key'=>'anak_guru',  'label'=>'Jalur Anak Guru',    'icon'=>'bi-mortarboard-fill','color'=>'warning','info'=>'','list'=>rank_sort($byJalur['anak_guru'],'g2_special'),'kuota'=>4],
+            ['key'=>'abk',        'label'=>'Jalur ABK',          'icon'=>'bi-person-wheelchair','color'=>'info','info'=>'abk','list'=>rank_sort($byJalur['abk'],'g2_abk'),'kuota'=>8],
+            ['key'=>'reguler',    'label'=>'Jalur Reguler',      'icon'=>'bi-people-fill','color'=>'success','info'=>'zonasi','list'=>rank_sort($byJalur['reguler'],'g2_reguler'),'kuota'=>$kuotaR],
         ];
     } else {
         $segments = [
@@ -395,15 +417,22 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
         ];
     }
 
-    // Builder badge info (jarak / status ortu) untuk kolom Nama
-    $mkInfo = function (array $r, string $type): string {
-        if ($type === 'jarak') {
-            $j = isset($r['jarak_km']) && $r['jarak_km'] !== null ? number_format($r['jarak_km'], 2) . ' km' : '—';
-            return '<span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle"><i class="bi bi-geo-alt me-1"></i>' . $j . '</span>';
+    // Builder badge info untuk kolom Nama
+    $kel_ds_labels = array_keys(KELURAHAN_ZONASI['Duren Sawit'] ?? []);
+    $mkInfo = function (array $r, string $type) use ($kel_ds_labels): string {
+        if ($type === 'zonasi') {
+            $iz = in_array($r['kelurahan'] ?? '', $kel_ds_labels, true);
+            if ($iz) return '<span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle"><i class="bi bi-geo-alt-fill me-1"></i>Zonasi</span>';
+            return '';
         }
         if ($type === 'ortu') {
             $lbl = STATUS_ORTU_LABEL[$r['status_ortu'] ?? 'tidak'] ?? '-';
             return '<span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle"><i class="bi bi-heart me-1"></i>' . htmlspecialchars($lbl) . '</span>';
+        }
+        if ($type === 'abk') {
+            $nk = $r['nilai_khusus'] ?? null;
+            $nkStr = $nk !== null ? number_format((float)$nk, 2) : '—';
+            return '<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"><i class="bi bi-star me-1"></i>' . $nkStr . '</span>';
         }
         return '';
     };
@@ -568,8 +597,9 @@ function openViewModal(d) {
                 <tr><th class="text-muted fw-normal">Alamat</th><td>${esc(d.alamat) || '-'}</td></tr>
                 <tr><th class="text-muted fw-normal">Status</th><td><span class="badge ${badge}">${d.status}</span></td></tr>
                 ${d.gelombang == 2 ? `<tr><th class="text-muted fw-normal">Jalur</th><td>${jalurLabel(d.jalur)}</td></tr>` : ''}
-                ${d.gelombang == 2 ? `<tr><th class="text-muted fw-normal">Jarak Zonasi</th><td>${d.jarak_km != null && d.jarak_km !== '' ? parseFloat(d.jarak_km).toFixed(2) + ' km' : '-'}</td></tr>` : ''}
-                ${d.gelombang == 2 ? `<tr><th class="text-muted fw-normal">Status Ortu</th><td>${ortuLabel(d.status_ortu)}</td></tr>` : ''}
+                ${d.gelombang == 2 && d.jalur === 'reguler' ? `<tr><th class="text-muted fw-normal">Zonasi</th><td>${d.kelurahan ? esc(d.kelurahan) : '-'}</td></tr>` : ''}
+                ${d.gelombang == 2 && d.jalur === 'yatim_piatu' ? `<tr><th class="text-muted fw-normal">Status Ortu</th><td>${ortuLabel(d.status_ortu)}</td></tr>` : ''}
+                ${d.gelombang == 2 && d.jalur === 'abk' ? `<tr><th class="text-muted fw-normal">Nilai Khusus ABK</th><td>${d.nilai_khusus != null ? parseFloat(d.nilai_khusus).toFixed(2) : '-'}</td></tr>` : ''}
                 <tr><th class="text-muted fw-normal">Tes Buta Warna</th><td>${bwLabel(d.buta_warna)}</td></tr>
             </table>
         </div>
@@ -613,8 +643,13 @@ function esc(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function jalurLabel(j) {
-    const m = { zonasi: '<span class="badge bg-primary">Zonasi</span>', afirmasi: '<span class="badge bg-danger">Afirmasi</span>', prestasi: '<span class="badge bg-success">Prestasi</span>' };
-    return m[j] || '<span class="badge bg-success">Prestasi</span>';
+    const m = {
+        reguler:     '<span class="badge bg-success">Reguler</span>',
+        yatim_piatu: '<span class="badge bg-danger">Yatim/Piatu</span>',
+        anak_guru:   '<span class="badge bg-warning text-dark">Anak Guru</span>',
+        abk:         '<span class="badge bg-info text-dark">ABK</span>',
+    };
+    return m[j] || '<span class="badge bg-secondary">' + (j || 'Reguler') + '</span>';
 }
 function ortuLabel(s) {
     const m = { tidak: 'Lengkap', yatim: 'Yatim', piatu: 'Piatu', yatim_piatu: 'Yatim & Piatu' };

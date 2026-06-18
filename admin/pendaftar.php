@@ -139,7 +139,12 @@ try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN buta_warna ENUM('belum','nor
 try { $conn->exec("ALTER TABLE pendaftar MODIFY COLUMN buta_warna ENUM('belum','normal','buta_warna','buta_warna_parsial','buta_warna_total') NOT NULL DEFAULT 'belum'"); } catch (PDOException $e) {}
 try { $conn->exec("UPDATE pendaftar SET buta_warna='buta_warna_parsial' WHERE buta_warna='buta_warna'"); } catch (PDOException $e) {}
 try { $conn->exec("ALTER TABLE pendaftar MODIFY COLUMN buta_warna ENUM('belum','normal','buta_warna_parsial','buta_warna_total') NOT NULL DEFAULT 'belum'"); } catch (PDOException $e) {}
-try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN jalur ENUM('zonasi','afirmasi','prestasi') NOT NULL DEFAULT 'prestasi'"); } catch (PDOException $e) {}
+// Migrasi jalur ke sistem G2 baru: reguler / yatim_piatu / anak_guru / abk
+try { $conn->exec("ALTER TABLE pendaftar MODIFY COLUMN jalur ENUM('zonasi','afirmasi','prestasi','reguler','yatim_piatu','anak_guru','abk') NOT NULL DEFAULT 'reguler'"); } catch (PDOException $e) {}
+try { $conn->exec("UPDATE pendaftar SET jalur='yatim_piatu' WHERE jalur='afirmasi'"); } catch (PDOException $e) {}
+try { $conn->exec("UPDATE pendaftar SET jalur='reguler' WHERE jalur IN ('zonasi','prestasi')"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE pendaftar MODIFY COLUMN jalur ENUM('reguler','yatim_piatu','anak_guru','abk') NOT NULL DEFAULT 'reguler'"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN nilai_khusus DECIMAL(5,2) NULL"); } catch (PDOException $e) {}
 try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN alamat_sekolah VARCHAR(255) NULL"); } catch (PDOException $e) {}
 try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN raport_mode VARCHAR(20) NOT NULL DEFAULT 'matrix'"); } catch (PDOException $e) {}
 // Recalculate nilai_akhir PKBM/Khusus: bobot lama 0.85 → 0.70 (hanya record yang masih pakai bobot lama)
@@ -273,8 +278,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ? $_POST['status_ortu'] : 'tidak';
             $buta_warna   = in_array($_POST['buta_warna'] ?? '', ['belum','normal','buta_warna_parsial','buta_warna_total'], true)
                 ? $_POST['buta_warna'] : 'belum';
-            $jalur        = in_array($_POST['jalur'] ?? '', ['zonasi','afirmasi','prestasi'], true)
-                ? $_POST['jalur'] : 'prestasi';
+            $jalur        = in_array($_POST['jalur'] ?? '', ['reguler','yatim_piatu','anak_guru','abk'], true)
+                ? $_POST['jalur'] : 'reguler';
+            $nilai_khusus = ($jalur === 'abk' && ($_POST['nilai_khusus'] ?? '') !== '')
+                ? min(100, max(0, (float)$_POST['nilai_khusus'])) : null;
             $alamat_sekolah = trim($_POST['alamat_sekolah'] ?? '') ?: null;
             $zon          = $kelurahan_in !== '' ? zonasi_lookup($kelurahan_in) : null;
             $kelurahan_sv = $zon ? $kelurahan_in : null;
@@ -356,10 +363,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($action === 'add') {
                     $no = generateNoPendaftaran($conn, $d['gelombang']);
                     $stmt = $conn->prepare("INSERT INTO pendaftar
-                        (no_pendaftaran,gelombang,nama,nisn,tanggal_lahir,usia,jenis_kelamin,asal_sekolah,alamat_sekolah,no_telp,tgl_kk,alamat,kelurahan,jarak_km,status_ortu,buta_warna,jalur,jurusan,sistem_pendidikan,nilai_raport,nilai_tka,tka_mtk,tka_bindo,nilai_akhir,lolos_usia,status,raport_mode)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+                        (no_pendaftaran,gelombang,nama,nisn,tanggal_lahir,usia,jenis_kelamin,asal_sekolah,alamat_sekolah,no_telp,tgl_kk,alamat,kelurahan,jarak_km,status_ortu,buta_warna,jalur,nilai_khusus,jurusan,sistem_pendidikan,nilai_raport,nilai_tka,tka_mtk,tka_bindo,nilai_akhir,lolos_usia,status,raport_mode)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
                     $stmt->execute([$no,$d['gelombang'],$d['nama'],$d['nisn'],$d['tanggal_lahir'],$d['usia'],
-                        $d['jenis_kelamin'],$d['asal_sekolah'],$alamat_sekolah,$d['no_telp'],$tgl_kk,$d['alamat'],$kelurahan_sv,$jarak_sv,$status_ortu,$buta_warna,$jalur,$d['jurusan'],
+                        $d['jenis_kelamin'],$d['asal_sekolah'],$alamat_sekolah,$d['no_telp'],$tgl_kk,$d['alamat'],$kelurahan_sv,$jarak_sv,$status_ortu,$buta_warna,$jalur,$nilai_khusus,$d['jurusan'],
                         $sistem,$d['nilai_raport'],$d['nilai_tka'],$tka_mtk_sv,$tka_bindo_sv,$d['nilai_akhir'],$d['lolos_usia'],$new_status,$input_mode]);
                     $id = (int)$conn->lastInsertId();
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
@@ -407,10 +414,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $id = (int)$_POST['id'];
                     $stmt = $conn->prepare("UPDATE pendaftar SET
                         gelombang=?,nama=?,nisn=?,tanggal_lahir=?,usia=?,jenis_kelamin=?,asal_sekolah=?,alamat_sekolah=?,
-                        no_telp=?,tgl_kk=?,alamat=?,kelurahan=?,jarak_km=?,status_ortu=?,buta_warna=?,jalur=?,jurusan=?,sistem_pendidikan=?,nilai_raport=?,nilai_tka=?,tka_mtk=?,tka_bindo=?,nilai_akhir=?,lolos_usia=?,status=?,raport_mode=?
+                        no_telp=?,tgl_kk=?,alamat=?,kelurahan=?,jarak_km=?,status_ortu=?,buta_warna=?,jalur=?,nilai_khusus=?,jurusan=?,sistem_pendidikan=?,nilai_raport=?,nilai_tka=?,tka_mtk=?,tka_bindo=?,nilai_akhir=?,lolos_usia=?,status=?,raport_mode=?
                         WHERE id=?");
                     $stmt->execute([$d['gelombang'],$d['nama'],$d['nisn'],$d['tanggal_lahir'],$d['usia'],
-                        $d['jenis_kelamin'],$d['asal_sekolah'],$alamat_sekolah,$d['no_telp'],$tgl_kk,$d['alamat'],$kelurahan_sv,$jarak_sv,$status_ortu,$buta_warna,$jalur,$d['jurusan'],
+                        $d['jenis_kelamin'],$d['asal_sekolah'],$alamat_sekolah,$d['no_telp'],$tgl_kk,$d['alamat'],$kelurahan_sv,$jarak_sv,$status_ortu,$buta_warna,$jalur,$nilai_khusus,$d['jurusan'],
                         $sistem,$d['nilai_raport'],$d['nilai_tka'],$tka_mtk_sv,$tka_bindo_sv,$d['nilai_akhir'],$d['lolos_usia'],$new_status,$input_mode,$id]);
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
 
@@ -833,7 +840,7 @@ if ($edit_id_get > 0) {
           <div class="tab-pane fade" id="tabJalur">
             <div class="border rounded-3 p-3" style="background:#fffbeb;border-color:#fcd34d !important;">
               <div class="fw-bold small text-uppercase mb-3" style="color:#92400e;letter-spacing:.4px;">
-                <i class="bi bi-signpost-split-fill me-1"></i>Gelombang 2 — Jalur Seleksi, Zonasi &amp; Status Orang Tua
+                <i class="bi bi-signpost-split-fill me-1"></i>Gelombang 2 — Jalur Seleksi
               </div>
               <div class="row g-3 mb-2">
                 <div class="col-md-12">
@@ -841,11 +848,12 @@ if ($edit_id_get > 0) {
                   <div class="btn-group w-100" role="group" id="jalurGroup">
                     <?php
                     $jalur_opts = [
-                      'zonasi'   => ['Zonasi', 'bi-geo-alt-fill', 'Berdasarkan jarak terdekat'],
-                      'afirmasi' => ['Afirmasi', 'bi-heart-fill', 'Yatim / Piatu'],
-                      'prestasi' => ['Prestasi', 'bi-trophy-fill', 'Berdasarkan nilai'],
+                      'reguler'     => ['Reguler', 'bi-people-fill', 'Kuota reguler — Zonasi (Duren Sawit) diprioritaskan'],
+                      'yatim_piatu' => ['Yatim/Piatu', 'bi-heart-fill', 'Kuota khusus Yatim &amp; Piatu (maks. 4)'],
+                      'anak_guru'   => ['Anak Guru', 'bi-mortarboard-fill', 'Kuota khusus Anak Guru (maks. 4)'],
+                      'abk'         => ['ABK', 'bi-person-wheelchair', 'Anak Berkebutuhan Khusus (maks. 8)'],
                     ];
-                    $jalur_cur = $formData['jalur'] ?? 'prestasi';
+                    $jalur_cur = $formData['jalur'] ?? 'reguler';
                     foreach ($jalur_opts as $jl_k => [$jl_l, $jl_i, $jl_d]): ?>
                     <input type="radio" class="btn-check" name="jalur" id="jalur_<?= $jl_k ?>" value="<?= $jl_k ?>" <?= $jalur_cur === $jl_k ? 'checked' : '' ?> onchange="onJalurChange()">
                     <label class="btn btn-outline-warning" for="jalur_<?= $jl_k ?>" title="<?= $jl_d ?>">
@@ -853,13 +861,14 @@ if ($edit_id_get > 0) {
                     </label>
                     <?php endforeach; ?>
                   </div>
-                  <small class="text-muted">Pilih jalur penerimaan pendaftar ini. Tiap jalur punya kuota sendiri (dibagi rata).</small>
+                  <small class="text-muted">Jalur khusus (Yatim/Piatu, Anak Guru, ABK) masing-masing punya kuota tersendiri. Sisa kuota dialihkan ke Reguler.</small>
                 </div>
               </div>
               <!-- Isi berbeda sesuai jalur yang dipilih -->
-              <!-- Jalur ZONASI: kelurahan + jarak -->
-              <div id="jalurBoxZonasi" class="border-top pt-3">
-                <div class="fw-semibold small text-uppercase mb-2" style="color:#92400e;"><i class="bi bi-geo-alt-fill me-1"></i>Data Zonasi (jarak terdekat)</div>
+
+              <!-- Jalur REGULER: kelurahan + info zonasi -->
+              <div id="jalurBoxReguler" class="border-top pt-3">
+                <div class="fw-semibold small text-uppercase mb-2" style="color:#92400e;"><i class="bi bi-people-fill me-1"></i>Data Reguler</div>
                 <div class="row g-3">
                   <div class="col-md-7">
                     <label class="form-label fw-semibold small mb-1">Kelurahan Domisili (sesuai KK)</label>
@@ -882,14 +891,18 @@ if ($edit_id_get > 0) {
                   <div class="col-md-5">
                     <label class="form-label fw-semibold small mb-1">Jarak ke Sekolah</label>
                     <input type="text" id="fJarak" class="form-control form-control-sm bg-light" readonly placeholder="—">
-                    <small class="text-muted">Garis lurus, dihitung otomatis. Makin dekat makin diutamakan.</small>
+                    <small class="text-muted">Garis lurus, dihitung otomatis.</small>
                   </div>
+                </div>
+                <div class="alert alert-info border small mt-2 mb-0 py-2">
+                  <i class="bi bi-geo-alt-fill me-1"></i>
+                  Pendaftar dari <strong>Kec. Duren Sawit</strong> mendapat prioritas <strong>Zonasi</strong> di ranking Reguler. Isi kelurahan untuk deteksi otomatis.
                 </div>
               </div>
 
-              <!-- Jalur AFIRMASI: status orang tua -->
-              <div id="jalurBoxAfirmasi" class="border-top pt-3">
-                <div class="fw-semibold small text-uppercase mb-2" style="color:#92400e;"><i class="bi bi-heart-fill me-1"></i>Data Afirmasi (Yatim / Piatu)</div>
+              <!-- Jalur YATIM/PIATU -->
+              <div id="jalurBoxYatimPiatu" class="border-top pt-3">
+                <div class="fw-semibold small text-uppercase mb-2" style="color:#92400e;"><i class="bi bi-heart-fill me-1"></i>Data Yatim &amp; Piatu</div>
                 <div class="row g-3">
                   <div class="col-md-7">
                     <label class="form-label fw-semibold small mb-1">Status Orang Tua</label>
@@ -898,18 +911,32 @@ if ($edit_id_get > 0) {
                       <option value="<?= $so_k ?>" <?= ($formData['status_ortu'] ?? 'tidak') === $so_k ? 'selected' : '' ?>><?= htmlspecialchars($so_l) ?></option>
                       <?php endforeach; ?>
                     </select>
-                    <small class="text-muted">Jalur Afirmasi mengutamakan pendaftar yatim/piatu (yang lebih tua diutamakan).</small>
                   </div>
+                </div>
+                <small class="text-muted d-block mt-2">Kuota 4 slot. Ranking berdasarkan nilai raport → usia.</small>
+              </div>
+
+              <!-- Jalur ANAK GURU -->
+              <div id="jalurBoxAnakGuru" class="border-top pt-3">
+                <div class="fw-semibold small text-uppercase mb-2" style="color:#92400e;"><i class="bi bi-mortarboard-fill me-1"></i>Anak Guru</div>
+                <div class="alert alert-light border small mb-0">
+                  <i class="bi bi-info-circle me-1 text-warning"></i>
+                  Kuota <strong>4 slot</strong>. Ranking berdasarkan nilai raport → usia.
+                  Verifikasi status anak guru dilakukan terpisah oleh pihak sekolah.
                 </div>
               </div>
 
-              <!-- Jalur PRESTASI: info -->
-              <div id="jalurBoxPrestasi" class="border-top pt-3">
-                <div class="fw-semibold small text-uppercase mb-2" style="color:#92400e;"><i class="bi bi-trophy-fill me-1"></i>Data Prestasi (nilai)</div>
-                <div class="alert alert-light border small mb-0">
-                  <i class="bi bi-info-circle me-1 text-warning"></i>
-                  Jalur Prestasi dinilai dari <strong>Nilai Akhir</strong> (Raport &amp; TKA). Tidak ada data tambahan di sini —
-                  cukup lengkapi <strong>Data Diri</strong> &amp; <strong>Detail Raport</strong>. Nilai tertinggi diutamakan.
+              <!-- Jalur ABK -->
+              <div id="jalurBoxAbk" class="border-top pt-3">
+                <div class="fw-semibold small text-uppercase mb-2" style="color:#92400e;"><i class="bi bi-person-wheelchair me-1"></i>ABK (Anak Berkebutuhan Khusus)</div>
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label class="form-label fw-semibold small mb-1">Nilai Khusus ABK <span class="text-danger">*</span></label>
+                    <input type="number" name="nilai_khusus" id="fNilaiKhusus" class="form-control form-control-sm"
+                           min="0" max="100" step="0.01" placeholder="0.00"
+                           value="<?= htmlspecialchars($formData['nilai_khusus'] ?? '') ?>">
+                    <small class="text-muted">Skor penilaian khusus ABK. Ranking dalam kuota ABK (8 slot) berdasarkan nilai ini.</small>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1921,11 +1948,11 @@ function updateJarakZonasi() {
     const j = sel.options[sel.selectedIndex]?.dataset.jarak || '';
     out.value = j !== '' ? j + ' km' : '';
 }
-// Tampilkan isi sesuai jalur seleksi yang dipilih (Zonasi/Afirmasi/Prestasi)
+// Tampilkan isi sesuai jalur seleksi yang dipilih
 function onJalurChange() {
     const sel = document.querySelector('input[name="jalur"]:checked');
-    const jl = sel ? sel.value : 'prestasi';
-    const boxes = { zonasi: 'jalurBoxZonasi', afirmasi: 'jalurBoxAfirmasi', prestasi: 'jalurBoxPrestasi' };
+    const jl = sel ? sel.value : 'reguler';
+    const boxes = { reguler: 'jalurBoxReguler', yatim_piatu: 'jalurBoxYatimPiatu', anak_guru: 'jalurBoxAnakGuru', abk: 'jalurBoxAbk' };
     Object.entries(boxes).forEach(([k, id]) => {
         const el = document.getElementById(id);
         if (el) el.style.display = (k === jl) ? '' : 'none';
@@ -2145,11 +2172,13 @@ function resetForm() {
     if (_kel) _kel.value = '';
     const _so = document.getElementById('fStatusOrtu');
     if (_so) _so.value = 'tidak';
-    const _jl = document.getElementById('jalur_prestasi');
+    const _jl = document.getElementById('jalur_reguler');
     if (_jl) _jl.checked = true;
     onJalurChange();
     const _bw = document.getElementById('fButaWarna');
     if (_bw) _bw.value = 'belum';
+    const _nkr = document.getElementById('fNilaiKhusus');
+    if (_nkr) _nkr.value = '';
     updateJarakZonasi();
     // Tampilkan section G2 bila gelombang aktif = 2 ATAU admin sedang melihat tab Gelombang 2
     setG2Section(<?= ($active_glm === '2' || ($gelombang_aktif && (int)$gelombang_aktif['gelombang'] === 2)) ? 2 : 0 ?>);
@@ -2228,11 +2257,13 @@ function editForm(d) {
     if (_kel) _kel.value = d.kelurahan || '';
     const _so = document.getElementById('fStatusOrtu');
     if (_so) _so.value = d.status_ortu || 'tidak';
-    const _jl = document.getElementById('jalur_' + (d.jalur || 'prestasi'));
+    const _jl = document.getElementById('jalur_' + (d.jalur || 'reguler'));
     if (_jl) _jl.checked = true;
     onJalurChange();
     const _bw = document.getElementById('fButaWarna');
     if (_bw) _bw.value = d.buta_warna || 'belum';
+    const _nk = document.getElementById('fNilaiKhusus');
+    if (_nk) _nk.value = (d.nilai_khusus !== null && d.nilai_khusus !== undefined) ? d.nilai_khusus : '';
     updateJarakZonasi();
     setG2Section(d.gelombang);
 
