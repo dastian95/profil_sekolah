@@ -779,6 +779,13 @@ if ($edit_id_get > 0) {
                         <input type="hidden" name="ke_glm" value="2">
                         <button type="submit" class="btn btn-sm btn-outline-warning" title="Pindah ke Gelombang 2"><i class="bi bi-arrow-right-circle"></i></button>
                     </form>
+                    <?php elseif ((int)$r['gelombang'] === 2): ?>
+                    <form method="POST" class="d-inline me-1" onsubmit="return confirm('Kembalikan <?= htmlspecialchars(addslashes($r['nama'])) ?> ke Gelombang 1?\nNomor pendaftaran akan berubah dan status direset ke Diproses.')">
+                        <input type="hidden" name="action" value="pindah_glm">
+                        <input type="hidden" name="id" value="<?= $r['id'] ?>">
+                        <input type="hidden" name="ke_glm" value="1">
+                        <button type="submit" class="btn btn-sm btn-outline-secondary" title="Kembalikan ke Gelombang 1"><i class="bi bi-arrow-left-circle"></i></button>
+                    </form>
                     <?php endif; ?>
                     <form method="POST" class="d-inline" onsubmit="return confirm('Hapus pendaftar ini? Detail raport akan ikut terhapus.')">
                         <input type="hidden" name="action" value="delete">
