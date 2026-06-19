@@ -460,6 +460,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         while (ob_get_level() > 0) ob_end_clean();
         header('Location: ' . $back_dash . '?page=pendaftar' . $glm_qs);
         exit;
+    } elseif ($action === 'pindah_glm') {
+        $id     = (int)$_POST['id'];
+        $ke_glm = (int)($_POST['ke_glm'] ?? 2);
+        $row    = $conn->prepare("SELECT nama, no_pendaftaran, gelombang FROM pendaftar WHERE id=?");
+        $row->execute([$id]);
+        $cur = $row->fetch();
+        if ($cur && (int)$cur['gelombang'] !== $ke_glm) {
+            $no_baru = generateNoPendaftaran($conn, $ke_glm);
+            $conn->prepare("UPDATE pendaftar
+                SET gelombang=?, no_pendaftaran=?, jalur='reguler', status='diproses', catatan=NULL
+                WHERE id=?")
+                ->execute([$ke_glm, $no_baru, $id]);
+            log_admin_action($conn, 'PINDAH_GELOMBANG',
+                "Pindah {$cur['nama']} ({$cur['no_pendaftaran']}) → Glm {$ke_glm} ({$no_baru})");
+            $_SESSION['pend_flash_msg'] = "Pendaftar <strong>{$cur['nama']}</strong> dipindahkan ke Gelombang {$ke_glm} dengan nomor <strong>{$no_baru}</strong>.";
+        }
+        $_SESSION['pend_active_gelombang'] = (string)$ke_glm;
+        while (ob_get_level() > 0) ob_end_clean();
+        header('Location: ' . $back_dash . '?page=pendaftar&gelombang=' . $ke_glm);
+        exit;
     } elseif ($action === 'del_sekolah') {
         $sk_id = (int)($_POST['sekolah_id'] ?? 0);
         if ($sk_id) {
@@ -751,7 +771,15 @@ if ($edit_id_get > 0) {
                 <td class="text-end">
                     <?php $r_print = $r; $r_print['_antrian'] = $antrian_per_pendaftar[$r['id']] ?? null; ?>
                     <button class="btn btn-sm btn-outline-info me-1" onclick='printBukti(<?= json_encode($r_print, JSON_HEX_APOS|JSON_HEX_QUOT) ?>)' title="Cetak Bukti"><i class="bi bi-printer"></i></button>
-                    <button class="btn btn-sm btn-outline-primary" onclick='editForm(<?= json_encode($r_with_raport, JSON_HEX_APOS|JSON_HEX_QUOT) ?>)' title="Edit"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-sm btn-outline-primary me-1" onclick='editForm(<?= json_encode($r_with_raport, JSON_HEX_APOS|JSON_HEX_QUOT) ?>)' title="Edit"><i class="bi bi-pencil"></i></button>
+                    <?php if ((int)$r['gelombang'] === 1): ?>
+                    <form method="POST" class="d-inline me-1" onsubmit="return confirm('Pindahkan <?= htmlspecialchars(addslashes($r['nama'])) ?> ke Gelombang 2?\nNomor pendaftaran akan berubah dan status direset ke Diproses.')">
+                        <input type="hidden" name="action" value="pindah_glm">
+                        <input type="hidden" name="id" value="<?= $r['id'] ?>">
+                        <input type="hidden" name="ke_glm" value="2">
+                        <button type="submit" class="btn btn-sm btn-outline-warning" title="Pindah ke Gelombang 2"><i class="bi bi-arrow-right-circle"></i></button>
+                    </form>
+                    <?php endif; ?>
                     <form method="POST" class="d-inline" onsubmit="return confirm('Hapus pendaftar ini? Detail raport akan ikut terhapus.')">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="id" value="<?= $r['id'] ?>">
