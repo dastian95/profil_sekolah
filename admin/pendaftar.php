@@ -300,7 +300,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Tentukan gelombang
                 $conn->beginTransaction();
                 if ($action === 'add') {
-                    if (!$gelombang_aktif) {
+                    // Pakai gelombang yang sedang dibuka admin (dari hidden input),
+                    // bukan semata-mata gelombang aktif berdasarkan tanggal
+                    $post_glm = (int)($_POST['gelombang'] ?? 0);
+                    if ($post_glm > 0) {
+                        $gel = $post_glm;
+                    } elseif (!$gelombang_aktif) {
                         $err = 'Tidak ada gelombang aktif. Atur tanggal gelombang di menu Pengaturan Gelombang.';
                         $conn->rollBack();
                     } else {
