@@ -13,6 +13,34 @@ $gel_rows = $conn->query("SELECT * FROM gelombang ORDER BY gelombang")->fetchAll
 $gel_map  = [];
 foreach ($gel_rows as $g) $gel_map[$g['gelombang']] = $g;
 
+// ── Pindah Gelombang (superadmin) ────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pindah_glm'
+    && !empty($_SESSION['is_super'])) {
+    $pgl_id   = (int)$_POST['id'];
+    $ke_glm   = (int)($_POST['ke_glm'] ?? 2);
+    $fGelRed  = (int)($_POST['gelombang'] ?? $ke_glm);
+    $row      = $conn->prepare("SELECT nama, no_pendaftaran, gelombang FROM pendaftar WHERE id=?");
+    $row->execute([$pgl_id]);
+    $cur = $row->fetch();
+    if ($cur && (int)$cur['gelombang'] !== $ke_glm) {
+        // generateNoPendaftaran ada di pendaftar.php — buat inline di sini
+        $tahunP = date('Y');
+        $prefP  = "SPMB-{$tahunP}-G{$ke_glm}-";
+        $lastP  = $conn->prepare("SELECT MAX(CAST(RIGHT(no_pendaftaran,4) AS UNSIGNED)) FROM pendaftar WHERE gelombang=? AND no_pendaftaran LIKE ?");
+        $lastP->execute([$ke_glm, $prefP . '%']);
+        $seqP   = (int)$lastP->fetchColumn() + 1;
+        $noBaru = $prefP . str_pad($seqP, 4, '0', STR_PAD_LEFT);
+        $conn->prepare("UPDATE pendaftar SET gelombang=?, no_pendaftaran=?, jalur='reguler', status='diproses', catatan=NULL WHERE id=?")
+             ->execute([$ke_glm, $noBaru, $pgl_id]);
+        log_admin_action($conn, 'PINDAH_GELOMBANG',
+            "Ranking: pindah {$cur['nama']} ({$cur['no_pendaftaran']}) → Glm {$ke_glm} ({$noBaru})");
+        $_SESSION['flash_ranking'] = "<div class='alert alert-success'>Pendaftar <strong>{$cur['nama']}</strong> dipindahkan ke Gelombang {$ke_glm} (<strong>{$noBaru}</strong>).</div>";
+    }
+    while (ob_get_level() > 0) ob_end_clean();
+    header('Location: ' . (!empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php') . "?page=ranking&gelombang={$ke_glm}");
+    exit;
+}
+
 // ── Pin / Unpin ───────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pin') {
     $pin_id  = (int)$_POST['pendaftar_id'];
@@ -567,6 +595,81 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
     </div>
 </div>
 <?php endforeach; ?>
+
+<?php if (!empty($_SESSION['is_super'])): ?>
+<?php
+// ── Semua Data Gugur — hanya superadmin ─────────────────────────────────────
+$gugur_all = [];
+try {
+    $gWhere = ['gelombang=?', 'status=\'gugur\'']; $gParams = [$fGel];
+    if ($fJurusan) { $gWhere[] = 'jurusan=?'; $gParams[] = $fJurusan; }
+    $gStmt = $conn->prepare("SELECT * FROM pendaftar WHERE " . implode(' AND ', $gWhere) . " ORDER BY jurusan, catatan, nama");
+    $gStmt->execute($gParams);
+    $gugur_all = $gStmt->fetchAll();
+} catch (PDOException $e) {}
+?>
+<?php if (!empty($gugur_all)): ?>
+<div class="card mb-4 border-danger">
+    <div class="card-header bg-danger bg-opacity-10 d-flex align-items-center justify-content-between">
+        <span class="fw-semibold text-danger">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>Semua Data Gugur — Gelombang <?= $fGel ?>
+            <span class="badge bg-danger ms-2"><?= count($gugur_all) ?></span>
+        </span>
+        <button class="btn btn-sm btn-outline-danger" onclick="toggleRows('gugur-all-rows','chev-gugur-all')">
+            <i class="bi bi-chevron-down me-1" id="chev-gugur-all"></i>Tampilkan
+        </button>
+    </div>
+    <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0">
+        <thead class="table-danger">
+            <tr>
+                <th>#</th>
+                <th>No. Daftar</th>
+                <th>Nama</th>
+                <th>Jurusan</th>
+                <th class="text-center">Glm</th>
+                <th class="text-center">Nilai Akhir</th>
+                <th class="text-center">Usia</th>
+                <th>Alasan Gugur</th>
+                <th class="text-center">Pindah</th>
+            </tr>
+        </thead>
+        <tbody>
+        <?php foreach ($gugur_all as $i => $gr): ?>
+        <tr class="gugur-all-rows" style="display:none; background:#fff5f5;">
+            <td class="text-muted small"><?= $i + 1 ?></td>
+            <td class="small"><?= htmlspecialchars($gr['no_pendaftaran']) ?></td>
+            <td><?= htmlspecialchars($gr['nama']) ?></td>
+            <td><span class="badge bg-secondary"><?= htmlspecialchars($short[$gr['jurusan']] ?? $gr['jurusan']) ?></span></td>
+            <td class="text-center"><?= $gr['gelombang'] ?></td>
+            <td class="text-center"><?= number_format((float)$gr['nilai_akhir'], 2) ?></td>
+            <td class="text-center"><?= $gr['usia'] ?></td>
+            <td class="small text-danger"><?= htmlspecialchars($gr['catatan'] ?? 'Gugur') ?></td>
+            <td class="text-center">
+                <?php if ((int)$gr['gelombang'] === 1): ?>
+                <form method="POST" class="d-inline" onsubmit="return confirm('Pindahkan <?= htmlspecialchars(addslashes($gr['nama'])) ?> ke Gelombang 2?')">
+                    <input type="hidden" name="action" value="pindah_glm">
+                    <input type="hidden" name="id" value="<?= $gr['id'] ?>">
+                    <input type="hidden" name="ke_glm" value="2">
+                    <button type="submit" class="btn btn-xs btn-outline-warning py-0 px-1" title="Pindah ke G2" style="font-size:.75rem"><i class="bi bi-arrow-right-circle"></i> G2</button>
+                </form>
+                <?php elseif ((int)$gr['gelombang'] === 2): ?>
+                <form method="POST" class="d-inline" onsubmit="return confirm('Kembalikan <?= htmlspecialchars(addslashes($gr['nama'])) ?> ke Gelombang 1?')">
+                    <input type="hidden" name="action" value="pindah_glm">
+                    <input type="hidden" name="id" value="<?= $gr['id'] ?>">
+                    <input type="hidden" name="ke_glm" value="1">
+                    <button type="submit" class="btn btn-xs btn-outline-secondary py-0 px-1" title="Kembalikan ke G1" style="font-size:.75rem"><i class="bi bi-arrow-left-circle"></i> G1</button>
+                </form>
+                <?php endif; ?>
+            </td>
+        </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+    </div>
+</div>
+<?php endif; ?>
+<?php endif; // is_super ?>
 
 <!-- ── Modal View Detail Pendaftar ──────────────────────────────────────────── -->
 <div class="modal fade" id="modalViewPendaftar" tabindex="-1" aria-labelledby="modalViewLabel" aria-hidden="true">

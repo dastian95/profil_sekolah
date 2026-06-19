@@ -772,6 +772,7 @@ if ($edit_id_get > 0) {
                     <?php $r_print = $r; $r_print['_antrian'] = $antrian_per_pendaftar[$r['id']] ?? null; ?>
                     <button class="btn btn-sm btn-outline-info me-1" onclick='printBukti(<?= json_encode($r_print, JSON_HEX_APOS|JSON_HEX_QUOT) ?>)' title="Cetak Bukti"><i class="bi bi-printer"></i></button>
                     <button class="btn btn-sm btn-outline-primary me-1" onclick='editForm(<?= json_encode($r_with_raport, JSON_HEX_APOS|JSON_HEX_QUOT) ?>)' title="Edit"><i class="bi bi-pencil"></i></button>
+                    <?php if (!empty($_SESSION['is_super'])): ?>
                     <?php if ((int)$r['gelombang'] === 1): ?>
                     <form method="POST" class="d-inline me-1" onsubmit="return confirm('Pindahkan <?= htmlspecialchars(addslashes($r['nama'])) ?> ke Gelombang 2?\nNomor pendaftaran akan berubah dan status direset ke Diproses.')">
                         <input type="hidden" name="action" value="pindah_glm">
@@ -787,6 +788,7 @@ if ($edit_id_get > 0) {
                         <button type="submit" class="btn btn-sm btn-outline-secondary" title="Kembalikan ke Gelombang 1"><i class="bi bi-arrow-left-circle"></i></button>
                     </form>
                     <?php endif; ?>
+                    <?php endif; // is_super ?>
                     <form method="POST" class="d-inline" onsubmit="return confirm('Hapus pendaftar ini? Detail raport akan ikut terhapus.')">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="id" value="<?= $r['id'] ?>">
