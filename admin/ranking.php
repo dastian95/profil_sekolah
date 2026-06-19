@@ -13,6 +13,38 @@ $gel_rows = $conn->query("SELECT * FROM gelombang ORDER BY gelombang")->fetchAll
 $gel_map  = [];
 foreach ($gel_rows as $g) $gel_map[$g['gelombang']] = $g;
 
+// ── Pindah Semua Gugur ke Gelombang lain (superadmin) ────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pindah_glm_semua'
+    && !empty($_SESSION['is_super'])) {
+    $dari_glm = (int)($_POST['dari_glm'] ?? 1);
+    $ke_glm   = (int)($_POST['ke_glm']   ?? 2);
+    $jur_fil  = $_POST['jurusan'] ?? '';
+    $tahunP   = date('Y');
+    $prefP    = "SPMB-{$tahunP}-G{$ke_glm}-";
+
+    $whr = ['gelombang=?', "status='gugur'"];
+    $prm = [$dari_glm];
+    if ($jur_fil) { $whr[] = 'jurusan=?'; $prm[] = $jur_fil; }
+    $rows = $conn->prepare("SELECT id, nama, no_pendaftaran FROM pendaftar WHERE " . implode(' AND ', $whr));
+    $rows->execute($prm);
+    $semua = $rows->fetchAll();
+
+    $pindah = 0;
+    foreach ($semua as $row) {
+        $lastP = $conn->prepare("SELECT MAX(CAST(RIGHT(no_pendaftaran,4) AS UNSIGNED)) FROM pendaftar WHERE gelombang=? AND no_pendaftaran LIKE ?");
+        $lastP->execute([$ke_glm, $prefP . '%']);
+        $noBaru = $prefP . str_pad((int)$lastP->fetchColumn() + 1, 4, '0', STR_PAD_LEFT);
+        $conn->prepare("UPDATE pendaftar SET gelombang=?, no_pendaftaran=?, jalur='reguler', status='diproses', catatan=NULL WHERE id=?")
+             ->execute([$ke_glm, $noBaru, $row['id']]);
+        $pindah++;
+    }
+    log_admin_action($conn, 'PINDAH_GLM_SEMUA', "Pindah {$pindah} pendaftar gugur Glm {$dari_glm} → Glm {$ke_glm}" . ($jur_fil ? " ({$jur_fil})" : ''));
+    $_SESSION['flash_ranking'] = "<div class='alert alert-success'><strong>{$pindah}</strong> pendaftar gugur dipindahkan ke Gelombang {$ke_glm}.</div>";
+    while (ob_get_level() > 0) ob_end_clean();
+    header('Location: ' . (!empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php') . "?page=ranking&gelombang={$ke_glm}");
+    exit;
+}
+
 // ── Pindah Gelombang (superadmin) ────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pindah_glm'
     && !empty($_SESSION['is_super'])) {
@@ -615,9 +647,28 @@ try {
             <i class="bi bi-exclamation-triangle-fill me-2"></i>Semua Data Gugur — Gelombang <?= $fGel ?>
             <span class="badge bg-danger ms-2"><?= count($gugur_all) ?></span>
         </span>
-        <button class="btn btn-sm btn-outline-danger" onclick="toggleRows('gugur-all-rows','chev-gugur-all')">
-            <i class="bi bi-chevron-down me-1" id="chev-gugur-all"></i>Tampilkan
-        </button>
+        <div class="d-flex gap-2 align-items-center">
+            <?php if ((int)$fGel === 1): ?>
+            <form method="POST" class="d-inline" onsubmit="return confirm('Pindahkan SEMUA <?= count($gugur_all) ?> data gugur ke Gelombang 2?\nStatus akan direset ke Diproses.')">
+                <input type="hidden" name="action" value="pindah_glm_semua">
+                <input type="hidden" name="dari_glm" value="1">
+                <input type="hidden" name="ke_glm" value="2">
+                <?php if ($fJurusan): ?><input type="hidden" name="jurusan" value="<?= htmlspecialchars($fJurusan) ?>"><?php endif; ?>
+                <button type="submit" class="btn btn-sm btn-warning"><i class="bi bi-arrow-right-circle-fill me-1"></i>Pindah Semua ke G2</button>
+            </form>
+            <?php elseif ((int)$fGel === 2): ?>
+            <form method="POST" class="d-inline" onsubmit="return confirm('Kembalikan SEMUA <?= count($gugur_all) ?> data gugur ke Gelombang 1?\nStatus akan direset ke Diproses.')">
+                <input type="hidden" name="action" value="pindah_glm_semua">
+                <input type="hidden" name="dari_glm" value="2">
+                <input type="hidden" name="ke_glm" value="1">
+                <?php if ($fJurusan): ?><input type="hidden" name="jurusan" value="<?= htmlspecialchars($fJurusan) ?>"><?php endif; ?>
+                <button type="submit" class="btn btn-sm btn-secondary"><i class="bi bi-arrow-left-circle-fill me-1"></i>Kembalikan Semua ke G1</button>
+            </form>
+            <?php endif; ?>
+            <button class="btn btn-sm btn-outline-danger" onclick="toggleRows('gugur-all-rows','chev-gugur-all')">
+                <i class="bi bi-chevron-down me-1" id="chev-gugur-all"></i>Tampilkan
+            </button>
+        </div>
     </div>
     <div class="table-responsive">
     <table class="table table-sm table-hover mb-0">
