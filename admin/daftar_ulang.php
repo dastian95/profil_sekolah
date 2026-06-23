@@ -187,6 +187,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $redir();
     }
 
+    // Edit data siswa yang sudah selesai daftar ulang
+    if ($action === 'simpan_edit_du') {
+        $pend_id = (int)$_POST['pendaftar_id'];
+        if ($pend_id) {
+            $fields_du = [
+                'nis','nik','no_kk','kewarganegaraan','tahun_lulus','kip_kjp_kps',
+                'tempat_lahir','agama','email','anak_ke','alamat_lengkap',
+                'rt','rw','kecamatan','kabupaten','provinsi','kode_pos',
+                'nama_ayah','nik_ayah','pendidikan_ayah','pekerjaan_ayah','penghasilan_ayah','telp_ayah','alamat_ayah',
+                'nama_ibu','nik_ibu','pendidikan_ibu','pekerjaan_ibu','penghasilan_ibu','telp_ibu','alamat_ibu',
+                'nama_wali','hubungan_wali','nik_wali','pendidikan_wali','pekerjaan_wali','penghasilan_wali','telp_wali','alamat_wali',
+            ];
+            $int_fields = ['anak_ke','tahun_lulus'];
+            $set = []; $params_du = [];
+            foreach ($fields_du as $f) {
+                if (isset($_POST[$f])) {
+                    $v = trim($_POST[$f]);
+                    if (in_array($f, $int_fields)) {
+                        $set[] = "$f=?"; $params_du[] = $v !== '' ? (int)$v : null;
+                    } else {
+                        $set[] = "$f=?"; $params_du[] = $v !== '' ? $v : null;
+                    }
+                }
+            }
+            if ($set) {
+                $params_du[] = $pend_id;
+                try {
+                    $conn->prepare("UPDATE pendaftar SET ".implode(', ',$set)." WHERE id=? AND status='terima' AND daftar_ulang='sudah'")
+                         ->execute($params_du);
+                } catch(Throwable $e) {}
+            }
+        }
+        $redir();
+    }
+
     if ($action === 'skip_du') {
         $ant_id = (int)$_POST['antrian_id'];
         $conn->beginTransaction();
@@ -480,7 +515,11 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
                 <div class="text-muted" style="font-size:.7rem;"><?= htmlspecialchars($s['no_pendaftaran']) ?> &middot; <?= JURUSAN_SHORT[$s['jurusan']] ?? '' ?></div>
             </div>
             <?php if ($sudah): ?>
-            <button type="button" class="btn btn-xs btn-outline-success py-0 px-1" style="font-size:.72rem;" title="Sudah DU — Cetak SPTJM"
+            <button type="button" class="btn btn-xs btn-outline-primary py-0 px-1" style="font-size:.72rem;" title="Edit data DU"
+                onclick="bukaEditDU(<?= htmlspecialchars(json_encode($s, JSON_HEX_QUOT|JSON_HEX_APOS|JSON_UNESCAPED_UNICODE), ENT_QUOTES) ?>)">
+                <i class="bi bi-pencil"></i>
+            </button>
+            <button type="button" class="btn btn-xs btn-outline-success py-0 px-1" style="font-size:.72rem;" title="Cetak SPTJM"
                 onclick="cetakSPTJM(<?= htmlspecialchars(json_encode($s, JSON_HEX_QUOT|JSON_HEX_APOS|JSON_UNESCAPED_UNICODE), ENT_QUOTES) ?>)">
                 <i class="bi bi-printer"></i>
             </button>
@@ -700,6 +739,100 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
 </div><!-- /row -->
 <?php endif; ?>
 
+<!-- ── Modal Edit Data DU ─────────────────────────────────────────────────── -->
+<div class="modal fade" id="modalEditDU" tabindex="-1" aria-labelledby="modalEditDULabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title" id="modalEditDULabel"><i class="bi bi-pencil-square me-1"></i>Edit Data Daftar Ulang</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" id="formEditDU">
+        <input type="hidden" name="action" value="simpan_edit_du">
+        <input type="hidden" name="pendaftar_id" id="edit_pendaftar_id">
+        <div class="modal-body p-0">
+          <!-- Info siswa readonly -->
+          <div class="px-3 pt-3 pb-2 bg-light border-bottom d-flex gap-3 small" id="edit_info_siswa">
+          </div>
+          <!-- Tabs -->
+          <ul class="nav nav-tabs nav-fill px-3 pt-2 bg-white border-bottom-0 small" id="editTabs">
+            <li class="nav-item"><a class="nav-link active py-1" href="#ed1" data-bs-toggle="tab">A. Data Siswa</a></li>
+            <li class="nav-item"><a class="nav-link py-1" href="#ed2" data-bs-toggle="tab">B. Orang Tua/Wali</a></li>
+          </ul>
+          <div class="tab-content p-3">
+            <!-- Tab A -->
+            <div class="tab-pane fade show active" id="ed1">
+              <div class="row g-2">
+                <div class="col-4"><label class="form-label mb-0 small">NIS</label><input type="text" name="nis" id="e_nis" class="form-control form-control-sm"></div>
+                <div class="col-4"><label class="form-label mb-0 small">NIK Siswa</label><input type="text" name="nik" id="e_nik" class="form-control form-control-sm" maxlength="16"></div>
+                <div class="col-4"><label class="form-label mb-0 small">No. KK</label><input type="text" name="no_kk" id="e_no_kk" class="form-control form-control-sm" maxlength="16"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Kewarganegaraan</label><input type="text" name="kewarganegaraan" id="e_kewarganegaraan" class="form-control form-control-sm"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Agama</label>
+                  <select name="agama" id="e_agama" class="form-select form-select-sm">
+                    <option value="">— Pilih —</option>
+                    <?php foreach ($agama_opts as $ag): ?><option value="<?= $ag ?>"><?= $ag ?></option><?php endforeach; ?>
+                  </select></div>
+                <div class="col-4"><label class="form-label mb-0 small">Anak Ke-</label><input type="number" name="anak_ke" id="e_anak_ke" class="form-control form-control-sm" min="1" max="20"></div>
+                <div class="col-5"><label class="form-label mb-0 small">Tempat Lahir</label><input type="text" name="tempat_lahir" id="e_tempat_lahir" class="form-control form-control-sm"></div>
+                <div class="col-3"><label class="form-label mb-0 small">Tahun Lulus SMP</label><input type="number" name="tahun_lulus" id="e_tahun_lulus" class="form-control form-control-sm" min="2000" max="2030"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Email</label><input type="email" name="email" id="e_email" class="form-control form-control-sm"></div>
+                <div class="col-12"><label class="form-label mb-0 small">Alamat Lengkap</label><textarea name="alamat_lengkap" id="e_alamat_lengkap" class="form-control form-control-sm" rows="2"></textarea></div>
+                <div class="col-2"><label class="form-label mb-0 small">RT</label><input type="text" name="rt" id="e_rt" class="form-control form-control-sm" maxlength="5"></div>
+                <div class="col-2"><label class="form-label mb-0 small">RW</label><input type="text" name="rw" id="e_rw" class="form-control form-control-sm" maxlength="5"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Kecamatan</label><input type="text" name="kecamatan" id="e_kecamatan" class="form-control form-control-sm"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Kabupaten/Kota</label><input type="text" name="kabupaten" id="e_kabupaten" class="form-control form-control-sm"></div>
+                <div class="col-5"><label class="form-label mb-0 small">Provinsi</label><input type="text" name="provinsi" id="e_provinsi" class="form-control form-control-sm"></div>
+                <div class="col-3"><label class="form-label mb-0 small">Kode Pos</label><input type="text" name="kode_pos" id="e_kode_pos" class="form-control form-control-sm" maxlength="10"></div>
+                <div class="col-4"><label class="form-label mb-0 small">KIP/KJP/KPS</label><input type="text" name="kip_kjp_kps" id="e_kip_kjp_kps" class="form-control form-control-sm"></div>
+              </div>
+            </div>
+            <!-- Tab B -->
+            <div class="tab-pane fade" id="ed2">
+              <div class="small fw-bold text-uppercase text-muted mb-2">1. Ayah</div>
+              <div class="row g-2 mb-3">
+                <div class="col-7"><label class="form-label mb-0 small">Nama Ayah</label><input type="text" name="nama_ayah" id="e_nama_ayah" class="form-control form-control-sm"></div>
+                <div class="col-5"><label class="form-label mb-0 small">NIK Ayah</label><input type="text" name="nik_ayah" id="e_nik_ayah" class="form-control form-control-sm" maxlength="16"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Pendidikan</label><select name="pendidikan_ayah" id="e_pendidikan_ayah" class="form-select form-select-sm"><option value="">—</option><?php foreach($pend_opts as $po): ?><option value="<?=$po?>"><?=$po?></option><?php endforeach;?></select></div>
+                <div class="col-4"><label class="form-label mb-0 small">Pekerjaan</label><input type="text" name="pekerjaan_ayah" id="e_pekerjaan_ayah" class="form-control form-control-sm"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Penghasilan/Bln</label><input type="text" name="penghasilan_ayah" id="e_penghasilan_ayah" class="form-control form-control-sm"></div>
+                <div class="col-4"><label class="form-label mb-0 small">No. HP</label><input type="text" name="telp_ayah" id="e_telp_ayah" class="form-control form-control-sm"></div>
+                <div class="col-8"><label class="form-label mb-0 small">Alamat Ayah</label><input type="text" name="alamat_ayah" id="e_alamat_ayah" class="form-control form-control-sm"></div>
+              </div>
+              <hr class="my-2">
+              <div class="small fw-bold text-uppercase text-muted mb-2">2. Ibu</div>
+              <div class="row g-2 mb-3">
+                <div class="col-7"><label class="form-label mb-0 small">Nama Ibu</label><input type="text" name="nama_ibu" id="e_nama_ibu" class="form-control form-control-sm"></div>
+                <div class="col-5"><label class="form-label mb-0 small">NIK Ibu</label><input type="text" name="nik_ibu" id="e_nik_ibu" class="form-control form-control-sm" maxlength="16"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Pendidikan</label><select name="pendidikan_ibu" id="e_pendidikan_ibu" class="form-select form-select-sm"><option value="">—</option><?php foreach($pend_opts as $po): ?><option value="<?=$po?>"><?=$po?></option><?php endforeach;?></select></div>
+                <div class="col-4"><label class="form-label mb-0 small">Pekerjaan</label><input type="text" name="pekerjaan_ibu" id="e_pekerjaan_ibu" class="form-control form-control-sm"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Penghasilan/Bln</label><input type="text" name="penghasilan_ibu" id="e_penghasilan_ibu" class="form-control form-control-sm"></div>
+                <div class="col-4"><label class="form-label mb-0 small">No. HP</label><input type="text" name="telp_ibu" id="e_telp_ibu" class="form-control form-control-sm"></div>
+                <div class="col-8"><label class="form-label mb-0 small">Alamat Ibu</label><input type="text" name="alamat_ibu" id="e_alamat_ibu" class="form-control form-control-sm"></div>
+              </div>
+              <hr class="my-2">
+              <div class="small fw-bold text-uppercase text-muted mb-2">3. Wali</div>
+              <div class="row g-2">
+                <div class="col-6"><label class="form-label mb-0 small">Nama Wali</label><input type="text" name="nama_wali" id="e_nama_wali" class="form-control form-control-sm"></div>
+                <div class="col-6"><label class="form-label mb-0 small">Hubungan dengan Siswa</label><input type="text" name="hubungan_wali" id="e_hubungan_wali" class="form-control form-control-sm"></div>
+                <div class="col-5"><label class="form-label mb-0 small">NIK Wali</label><input type="text" name="nik_wali" id="e_nik_wali" class="form-control form-control-sm" maxlength="16"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Pendidikan</label><select name="pendidikan_wali" id="e_pendidikan_wali" class="form-select form-select-sm"><option value="">—</option><?php foreach($pend_opts as $po): ?><option value="<?=$po?>"><?=$po?></option><?php endforeach;?></select></div>
+                <div class="col-3"><label class="form-label mb-0 small">No. HP</label><input type="text" name="telp_wali" id="e_telp_wali" class="form-control form-control-sm"></div>
+                <div class="col-5"><label class="form-label mb-0 small">Pekerjaan</label><input type="text" name="pekerjaan_wali" id="e_pekerjaan_wali" class="form-control form-control-sm"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Penghasilan/Bln</label><input type="text" name="penghasilan_wali" id="e_penghasilan_wali" class="form-control form-control-sm"></div>
+                <div class="col-12"><label class="form-label mb-0 small">Alamat Wali</label><input type="text" name="alamat_wali" id="e_alamat_wali" class="form-control form-control-sm"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-save me-1"></i>Simpan Perubahan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <script>
 // Filter pencarian tambah antrian
 document.getElementById('searchDU')?.addEventListener('input', function() {
@@ -715,6 +848,44 @@ document.getElementById('searchLink')?.addEventListener('input', function() {
         el.style.display = el.dataset.s.includes(q) ? '' : 'none';
     });
 });
+
+// ── Edit data siswa yang sudah selesai DU ─────────────────────────────────────
+function bukaEditDU(p) {
+    document.getElementById('edit_pendaftar_id').value = p.id;
+    document.getElementById('edit_info_siswa').innerHTML =
+        '<strong>' + (p.nama || '') + '</strong>' +
+        '<span class="text-muted ms-2">' + (p.no_pendaftaran || '') + '</span>' +
+        '<span class="text-muted ms-2">' + (p.nisn || '') + '</span>';
+
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+    // Tab A
+    set('e_nis', p.nis); set('e_nik', p.nik); set('e_no_kk', p.no_kk);
+    set('e_kewarganegaraan', p.kewarganegaraan || 'WNI');
+    set('e_agama', p.agama); set('e_anak_ke', p.anak_ke);
+    set('e_tempat_lahir', p.tempat_lahir); set('e_tahun_lulus', p.tahun_lulus);
+    set('e_email', p.email); set('e_alamat_lengkap', p.alamat_lengkap);
+    set('e_rt', p.rt); set('e_rw', p.rw);
+    set('e_kecamatan', p.kecamatan); set('e_kabupaten', p.kabupaten);
+    set('e_provinsi', p.provinsi || 'DKI Jakarta'); set('e_kode_pos', p.kode_pos);
+    set('e_kip_kjp_kps', p.kip_kjp_kps);
+    // Tab B — Ayah
+    set('e_nama_ayah', p.nama_ayah); set('e_nik_ayah', p.nik_ayah);
+    set('e_pendidikan_ayah', p.pendidikan_ayah); set('e_pekerjaan_ayah', p.pekerjaan_ayah);
+    set('e_penghasilan_ayah', p.penghasilan_ayah); set('e_telp_ayah', p.telp_ayah);
+    set('e_alamat_ayah', p.alamat_ayah);
+    // Tab B — Ibu
+    set('e_nama_ibu', p.nama_ibu); set('e_nik_ibu', p.nik_ibu);
+    set('e_pendidikan_ibu', p.pendidikan_ibu); set('e_pekerjaan_ibu', p.pekerjaan_ibu);
+    set('e_penghasilan_ibu', p.penghasilan_ibu); set('e_telp_ibu', p.telp_ibu);
+    set('e_alamat_ibu', p.alamat_ibu);
+    // Tab B — Wali
+    set('e_nama_wali', p.nama_wali); set('e_hubungan_wali', p.hubungan_wali);
+    set('e_nik_wali', p.nik_wali); set('e_pendidikan_wali', p.pendidikan_wali);
+    set('e_pekerjaan_wali', p.pekerjaan_wali); set('e_penghasilan_wali', p.penghasilan_wali);
+    set('e_telp_wali', p.telp_wali); set('e_alamat_wali', p.alamat_wali);
+
+    bootstrap.Modal.getOrCreate(document.getElementById('modalEditDU')).show();
+}
 
 // ── Cetak SPTJM (Surat Pernyataan Tanggung Jawab Mutlak) ──────────────────────
 function cetakSPTJM(p) {

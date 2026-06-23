@@ -96,7 +96,7 @@ $pages = [
     'kelola_admin'    => ['label' => 'Kelola Admin',           'icon' => 'bi-person-gear',          'group' => 'Manajemen'],
     'pendaftar'       => ['label' => 'Data Pendaftar',         'icon' => 'bi-people-fill',          'group' => 'Manajemen'],
     'antrian'         => ['label' => 'Meja Antrian',           'icon' => 'bi-list-ol',              'group' => 'Manajemen'],
-    'ranking'         => ['label' => 'Ranking & Hasil',        'icon' => 'bi-trophy-fill',          'group' => 'Manajemen'],
+    'ranking'         => ['label' => 'Peringkat sementara sistem penerimaan siswa baru SMKS Laboratorium Jakarta', 'icon' => 'bi-trophy-fill', 'group' => 'Manajemen'],
     'announcements'   => ['label' => 'Pengumuman',             'icon' => 'bi-megaphone-fill',       'group' => 'Manajemen'],
     'site_content'    => ['label' => 'Konten Website',         'icon' => 'bi-layout-text-window-reverse', 'group' => 'Konten'],
     'laporan'         => ['label' => 'Laporan & Statistik',    'icon' => 'bi-bar-chart-fill',       'group' => 'Laporan'],

@@ -9,7 +9,7 @@ if (empty($_SESSION['is_super'])) {
 const HALAMAN_TERSEDIA = [
     'pendaftar'    => 'Data Pendaftar',
     'antrian'      => 'Meja Antrian',
-    'ranking'      => 'Ranking & Hasil',
+    'ranking'      => 'Peringkat sementara sistem penerimaan siswa baru SMKS Laboratorium Jakarta',
     'announcements'=> 'Pengumuman',
     'backup'       => 'Backup / Export',
     'none'         => 'Tanpa Halaman (Offline / Tatap Muka)',
