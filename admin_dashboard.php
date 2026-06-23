@@ -421,6 +421,9 @@ foreach ($pages as $key => $info) {
             <span class="badge-time d-none d-md-inline-flex align-items-center gap-2">
                 <i class="bi bi-calendar3"></i> <?= date('d M Y') ?>
             </span>
+            <span class="d-none d-md-inline-flex align-items-center gap-1 text-muted small fw-semibold" style="font-variant-numeric:tabular-nums;">
+                <i class="bi bi-clock"></i><span id="topbar-clock">--:--:--</span>
+            </span>
         </div>
     </header>
 
@@ -801,6 +804,12 @@ document.addEventListener('DOMContentLoaded', () => {
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <?php endif; ?>
 <script>
+(function() {
+    const el = document.getElementById('topbar-clock');
+    if (!el) return;
+    const tick = () => { el.textContent = new Date().toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}); };
+    tick(); setInterval(tick, 1000);
+})();
 const sidebar   = document.querySelector('.sidebar');
 const backdrop  = document.getElementById('sidebarBackdrop');
 const toggleBtn = document.getElementById('sidebarToggle');
