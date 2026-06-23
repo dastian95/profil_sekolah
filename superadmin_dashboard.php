@@ -96,7 +96,7 @@ $pages = [
     'kelola_admin'    => ['label' => 'Kelola Admin',           'icon' => 'bi-person-gear',          'group' => 'Manajemen'],
     'pendaftar'       => ['label' => 'Data Pendaftar',         'icon' => 'bi-people-fill',          'group' => 'Manajemen'],
     'antrian'         => ['label' => 'Meja Antrian',           'icon' => 'bi-list-ol',              'group' => 'Manajemen'],
-    'ranking'         => ['label' => 'Ranking & Hasil',        'icon' => 'bi-trophy-fill',          'group' => 'Manajemen'],
+    'ranking'         => ['label' => 'Ranking & Hasil',        'title' => 'Peringkat sementara sistem penerimaan siswa baru SMKS Laboratorium Jakarta', 'icon' => 'bi-trophy-fill', 'group' => 'Manajemen'],
     'announcements'   => ['label' => 'Pengumuman',             'icon' => 'bi-megaphone-fill',       'group' => 'Manajemen'],
     'site_content'    => ['label' => 'Konten Website',         'icon' => 'bi-layout-text-window-reverse', 'group' => 'Konten'],
     'laporan'         => ['label' => 'Laporan & Statistik',    'icon' => 'bi-bar-chart-fill',       'group' => 'Laporan'],
@@ -342,7 +342,7 @@ foreach ($pages as $key => $info) {
     <header class="topbar">
         <button class="mobile-toggle" id="sidebarToggle"><i class="bi bi-list"></i></button>
         <div>
-            <h1><i class="bi <?= $pages[$page]['icon'] ?? 'bi-grid' ?>"></i><?= $pages[$page]['label'] ?? 'Dashboard' ?></h1>
+            <h1><i class="bi <?= $pages[$page]['icon'] ?? 'bi-grid' ?>"></i><?= $pages[$page]['title'] ?? $pages[$page]['label'] ?? 'Dashboard' ?></h1>
             <div class="breadcrumb-trail"><?= $pages[$page]['group'] ?? '' ?> / <?= $pages[$page]['label'] ?? 'Dashboard' ?></div>
         </div>
         <div class="topbar-right">
