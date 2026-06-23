@@ -885,6 +885,10 @@ document.getElementById('searchLink')?.addEventListener('input', function() {
 
 // ── Form Edit di kolom kanan (tanpa reload halaman) ──────────────────────────
 function showEditPanel(id) {
+    const panel   = document.getElementById('editPanel');
+    const holder  = document.getElementById('editEmptyPlaceholder');
+    if (!panel || !holder) return; // sedang ada sesi aktif, edit tidak bisa ditampilkan
+
     const p = DU_DATA[id];
     if (!p) return;
 
@@ -917,19 +921,22 @@ function showEditPanel(id) {
     set('ep_telp_wali', p.telp_wali); set('ep_alamat_wali', p.alamat_wali);
 
     // Tombol cetak pakai data yg sudah ada di p
-    document.getElementById('ep_cetak_btn').onclick = () => cetakSPTJM(p);
+    const cetakBtn = document.getElementById('ep_cetak_btn');
+    if (cetakBtn) cetakBtn.onclick = () => cetakSPTJM(p);
 
     // Reset ke Tab A
     const firstTab = document.querySelector('#epTabs .nav-link');
     if (firstTab) new bootstrap.Tab(firstTab).show();
 
-    document.getElementById('editEmptyPlaceholder').style.display = 'none';
-    document.getElementById('editPanel').style.display = '';
+    holder.style.display = 'none';
+    panel.style.display = '';
 }
 
 function hideEditPanel() {
-    document.getElementById('editPanel').style.display = 'none';
-    document.getElementById('editEmptyPlaceholder').style.display = '';
+    const panel  = document.getElementById('editPanel');
+    const holder = document.getElementById('editEmptyPlaceholder');
+    if (panel)  panel.style.display  = 'none';
+    if (holder) holder.style.display = '';
 }
 
 // ── Cetak SPTJM (Surat Pernyataan Tanggung Jawab Mutlak) ──────────────────────
