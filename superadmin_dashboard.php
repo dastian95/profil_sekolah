@@ -99,6 +99,8 @@ $pages = [
     'ranking'         => ['label' => 'Ranking & Hasil',        'icon' => 'bi-trophy-fill',          'group' => 'Manajemen'],
     'announcements'   => ['label' => 'Pengumuman',             'icon' => 'bi-megaphone-fill',       'group' => 'Manajemen'],
     'site_content'    => ['label' => 'Konten Website',         'icon' => 'bi-layout-text-window-reverse', 'group' => 'Konten'],
+    'laporan'         => ['label' => 'Laporan & Statistik',    'icon' => 'bi-bar-chart-fill',       'group' => 'Laporan'],
+    'daftar_ulang'    => ['label' => 'Sesi Daftar Ulang',      'icon' => 'bi-person-check-fill',    'group' => 'Laporan'],
     'audit_log'        => ['label' => 'Audit Log',              'icon' => 'bi-journal-text',         'group' => 'Sistem'],
     'system_info'      => ['label' => 'System Info',            'icon' => 'bi-info-square',          'group' => 'Sistem'],
     'backup'           => ['label' => 'Backup / Export',        'icon' => 'bi-cloud-download',       'group' => 'Sistem'],
@@ -110,7 +112,7 @@ $pages = [
 if (!is_primary_super()) unset($pages['database_manager']);
 
 if (!array_key_exists($page, $pages)) $page = 'super_home';
-$needs_chart = ($page === 'super_home');
+$needs_chart = in_array($page, ['super_home', 'laporan']);
 
 $grouped = [];
 foreach ($pages as $key => $info) {
@@ -365,6 +367,8 @@ foreach ($pages as $key => $info) {
         'ranking'         => 'admin/ranking.php',
         'announcements'   => 'admin/announcements.php',
         'site_content'    => 'admin/site_content.php',
+        'laporan'         => 'admin/laporan.php',
+        'daftar_ulang'    => 'admin/daftar_ulang.php',
         'audit_log'       => 'admin/audit_log.php',
         'system_info'     => 'admin/system_info.php',
         'backup'           => 'admin/backup.php',
