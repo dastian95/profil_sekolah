@@ -496,8 +496,15 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
 <div class="card">
     <div class="card-header small fw-semibold"><i class="bi bi-person-plus me-1"></i>Tambah Siswa ke Antrian DU</div>
     <div class="card-body p-2">
+        <!-- Filter jurusan — tersimpan di localStorage, tidak hilang saat refresh -->
+        <div class="d-flex gap-1 flex-wrap mb-2" id="filterJurDU">
+            <button class="btn btn-xs btn-outline-secondary py-0 px-2 du-jur-btn active" data-jur="" style="font-size:.72rem;">Semua</button>
+            <?php foreach (JURUSAN_SHORT as $jFull => $jShort): ?>
+            <button class="btn btn-xs btn-outline-secondary py-0 px-2 du-jur-btn" data-jur="<?= htmlspecialchars($jFull) ?>" style="font-size:.72rem;"><?= $jShort ?></button>
+            <?php endforeach; ?>
+        </div>
         <input type="text" class="form-control form-control-sm mb-2" id="searchDU" placeholder="Cari nama / NISN / No. Daftar...">
-        <div style="max-height:260px;overflow-y:auto;" id="listDU">
+        <div style="max-height:240px;overflow-y:auto;" id="listDU">
         <?php foreach ($diterima_list as $s):
             $sudah = $s['daftar_ulang'] === 'sudah';
             // Cek apakah sudah ada di antrian hari ini
@@ -509,7 +516,8 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
             } catch(Throwable) {}
         ?>
         <div class="du-search-item d-flex align-items-center gap-2 p-2 border-bottom"
-             data-search="<?= strtolower(htmlspecialchars($s['nama'].' '.$s['nisn'].' '.$s['no_pendaftaran'])) ?>">
+             data-search="<?= strtolower(htmlspecialchars($s['nama'].' '.$s['nisn'].' '.$s['no_pendaftaran'])) ?>"
+             data-jurusan="<?= htmlspecialchars($s['jurusan']) ?>">
             <div class="flex-grow-1">
                 <div class="small fw-semibold"><?= htmlspecialchars($s['nama']) ?></div>
                 <div class="text-muted" style="font-size:.7rem;"><?= htmlspecialchars($s['no_pendaftaran']) ?> &middot; <?= JURUSAN_SHORT[$s['jurusan']] ?? '' ?></div>
@@ -834,13 +842,39 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
 </div>
 
 <script>
-// Filter pencarian tambah antrian
-document.getElementById('searchDU')?.addEventListener('input', function() {
-    const q = this.value.toLowerCase();
-    document.querySelectorAll('.du-search-item').forEach(el => {
-        el.style.display = el.dataset.search.includes(q) ? '' : 'none';
+// ── Filter jurusan + teks DU (localStorage agar tidak reset saat refresh) ─────
+(function() {
+    const LS_KEY = 'du_filter_jur';
+    let activeJur = localStorage.getItem(LS_KEY) || '';
+
+    function applyFilter() {
+        const q = (document.getElementById('searchDU')?.value || '').toLowerCase();
+        document.querySelectorAll('.du-search-item').forEach(el => {
+            const matchJur = activeJur === '' || el.dataset.jurusan === activeJur;
+            const matchQ   = q === '' || el.dataset.search.includes(q);
+            el.style.display = (matchJur && matchQ) ? '' : 'none';
+        });
+    }
+
+    function setActive(jur) {
+        activeJur = jur;
+        localStorage.setItem(LS_KEY, jur);
+        document.querySelectorAll('.du-jur-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.jur === jur);
+            btn.classList.toggle('btn-secondary', btn.dataset.jur === jur);
+            btn.classList.toggle('btn-outline-secondary', btn.dataset.jur !== jur);
+        });
+        applyFilter();
+    }
+
+    // Restore filter dari localStorage saat halaman load
+    document.querySelectorAll('.du-jur-btn').forEach(btn => {
+        btn.addEventListener('click', () => setActive(btn.dataset.jur));
     });
-});
+    setActive(activeJur);
+
+    document.getElementById('searchDU')?.addEventListener('input', applyFilter);
+})();
 // Filter link siswa
 document.getElementById('searchLink')?.addEventListener('input', function() {
     const q = this.value.toLowerCase();
@@ -884,22 +918,20 @@ function bukaEditDU(p) {
     set('e_pekerjaan_wali', p.pekerjaan_wali); set('e_penghasilan_wali', p.penghasilan_wali);
     set('e_telp_wali', p.telp_wali); set('e_alamat_wali', p.alamat_wali);
 
+    // Reset ke Tab A setiap kali modal dibuka
+    const firstTab = document.querySelector('#editTabs .nav-link');
+    if (firstTab) bootstrap.Tab.getOrCreateInstance(firstTab).show();
+
     bootstrap.Modal.getOrCreate(document.getElementById('modalEditDU')).show();
 }
 
 // ── Cetak SPTJM (Surat Pernyataan Tanggung Jawab Mutlak) ──────────────────────
 function cetakSPTJM(p) {
-    // Ambil nilai terkini dari form (lebih up-to-date dari data DB)
-    const get = id => {
-        const el = document.querySelector('[name="' + id + '"]');
-        return el ? el.value : (p[id] || '');
-    };
-
-    const namaWali  = get('nama_wali') || get('nama_ibu') || get('nama_ayah') || '...........';
-    const alamatWali = get('alamat_wali') || get('alamat_ibu') || get('alamat_ayah') || p.kelurahan || '...........';
+    const namaWali   = p.nama_wali || p.nama_ibu || p.nama_ayah || '...........';
+    const alamatWali = p.alamat_wali || p.alamat_ibu || p.alamat_ayah || p.kelurahan || '...........';
 
     const tglLahirFmt = p.tanggal_lahir ? new Date(p.tanggal_lahir).toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'}) : '...........';
-    const ttlStr = (get('tempat_lahir') || '...........') + ', ' + tglLahirFmt;
+    const ttlStr = (p.tempat_lahir || '...........') + ', ' + tglLahirFmt;
 
     const now = new Date();
     const bulanList = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
