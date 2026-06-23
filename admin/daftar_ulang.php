@@ -524,7 +524,7 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
             </div>
             <?php if ($sudah): ?>
             <button type="button" class="btn btn-xs btn-outline-primary py-0 px-1" style="font-size:.72rem;" title="Edit data DU"
-                onclick="bukaEditDU(DU_DATA[<?= $s['id'] ?>])">
+                data-bs-toggle="modal" data-bs-target="#modalEditDU" data-du-id="<?= $s['id'] ?>">
                 <i class="bi bi-pencil"></i>
             </button>
             <button type="button" class="btn btn-xs btn-outline-success py-0 px-1" style="font-size:.72rem;" title="Cetak SPTJM"
@@ -887,16 +887,20 @@ document.getElementById('searchLink')?.addEventListener('input', function() {
     });
 });
 
-// ── Edit data siswa yang sudah selesai DU ─────────────────────────────────────
-function bukaEditDU(p) {
+// ── Edit data siswa — pakai event Bootstrap (lebih robust dari onclick) ────────
+document.getElementById('modalEditDU')?.addEventListener('show.bs.modal', function(event) {
+    const btn = event.relatedTarget;
+    if (!btn || !btn.dataset.duId) return;
+    const p = DU_DATA[btn.dataset.duId];
+    if (!p) return;
+
     document.getElementById('edit_pendaftar_id').value = p.id;
     document.getElementById('edit_info_siswa').innerHTML =
         '<strong>' + (p.nama || '') + '</strong>' +
         '<span class="text-muted ms-2">' + (p.no_pendaftaran || '') + '</span>' +
         '<span class="text-muted ms-2">' + (p.nisn || '') + '</span>';
 
-    const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
-    // Tab A
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
     set('e_nis', p.nis); set('e_nik', p.nik); set('e_no_kk', p.no_kk);
     set('e_kewarganegaraan', p.kewarganegaraan || 'WNI');
     set('e_agama', p.agama); set('e_anak_ke', p.anak_ke);
@@ -906,28 +910,23 @@ function bukaEditDU(p) {
     set('e_kecamatan', p.kecamatan); set('e_kabupaten', p.kabupaten);
     set('e_provinsi', p.provinsi || 'DKI Jakarta'); set('e_kode_pos', p.kode_pos);
     set('e_kip_kjp_kps', p.kip_kjp_kps);
-    // Tab B — Ayah
     set('e_nama_ayah', p.nama_ayah); set('e_nik_ayah', p.nik_ayah);
     set('e_pendidikan_ayah', p.pendidikan_ayah); set('e_pekerjaan_ayah', p.pekerjaan_ayah);
     set('e_penghasilan_ayah', p.penghasilan_ayah); set('e_telp_ayah', p.telp_ayah);
     set('e_alamat_ayah', p.alamat_ayah);
-    // Tab B — Ibu
     set('e_nama_ibu', p.nama_ibu); set('e_nik_ibu', p.nik_ibu);
     set('e_pendidikan_ibu', p.pendidikan_ibu); set('e_pekerjaan_ibu', p.pekerjaan_ibu);
     set('e_penghasilan_ibu', p.penghasilan_ibu); set('e_telp_ibu', p.telp_ibu);
     set('e_alamat_ibu', p.alamat_ibu);
-    // Tab B — Wali
     set('e_nama_wali', p.nama_wali); set('e_hubungan_wali', p.hubungan_wali);
     set('e_nik_wali', p.nik_wali); set('e_pendidikan_wali', p.pendidikan_wali);
     set('e_pekerjaan_wali', p.pekerjaan_wali); set('e_penghasilan_wali', p.penghasilan_wali);
     set('e_telp_wali', p.telp_wali); set('e_alamat_wali', p.alamat_wali);
 
-    // Reset ke Tab A setiap kali modal dibuka
+    // Reset ke Tab A
     const firstTab = document.querySelector('#editTabs .nav-link');
-    if (firstTab) bootstrap.Tab.getOrCreateInstance(firstTab).show();
-
-    bootstrap.Modal.getOrCreate(document.getElementById('modalEditDU')).show();
-}
+    if (firstTab) new bootstrap.Tab(firstTab).show();
+});
 
 // ── Cetak SPTJM (Surat Pernyataan Tanggung Jawab Mutlak) ──────────────────────
 function cetakSPTJM(p) {
