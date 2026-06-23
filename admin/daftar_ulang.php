@@ -324,6 +324,17 @@ try {
     $diterima_list = $dl->fetchAll();
 } catch(Throwable) {}
 
+// State edit: jika ?edit_id=X, tampilkan form edit di kolom kanan
+$edit_id = (int)($_GET['edit_id'] ?? 0);
+$edit_p  = null;
+if ($edit_id && !$current) {
+    foreach ($diterima_list as $row) {
+        if ((int)$row['id'] === $edit_id && $row['daftar_ulang'] === 'sudah') {
+            $edit_p = $row; break;
+        }
+    }
+}
+
 // Nomor berikutnya (preview)
 $next_up = [];
 try {
@@ -523,10 +534,11 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
                 <div class="text-muted" style="font-size:.7rem;"><?= htmlspecialchars($s['no_pendaftaran']) ?> &middot; <?= JURUSAN_SHORT[$s['jurusan']] ?? '' ?></div>
             </div>
             <?php if ($sudah): ?>
-            <button type="button" class="btn btn-xs btn-outline-primary py-0 px-1" style="font-size:.72rem;" title="Edit data DU"
-                data-bs-toggle="modal" data-bs-target="#modalEditDU" data-du-id="<?= $s['id'] ?>">
+            <?php $dash = !empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php'; ?>
+            <a href="<?= $dash ?>?page=daftar_ulang&edit_id=<?= $s['id'] ?>"
+               class="btn btn-xs btn-outline-primary py-0 px-1" style="font-size:.72rem;" title="Edit data DU">
                 <i class="bi bi-pencil"></i>
-            </button>
+            </a>
             <button type="button" class="btn btn-xs btn-outline-success py-0 px-1" style="font-size:.72rem;" title="Cetak SPTJM"
                 onclick="cetakSPTJM(DU_DATA[<?= $s['id'] ?>])">
                 <i class="bi bi-printer"></i>
@@ -733,6 +745,99 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
         <?php endforeach; ?>
         </div>
     </div>
+</div>
+<?php elseif ($edit_p): ?>
+<!-- ══ Form Edit Data Siswa Sudah DU ══════════════════════════════════════════ -->
+<?php $p = $edit_p; $dash = !empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php'; ?>
+<div class="card h-100">
+    <div class="card-header d-flex align-items-center justify-content-between py-2" style="background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;">
+        <div>
+            <div class="fw-bold"><?= htmlspecialchars($p['nama']) ?></div>
+            <div class="text-muted small" style="color:#e0e7ff!important;"><?= htmlspecialchars($p['no_pendaftaran']) ?> &middot; <?= JURUSAN_SHORT[$p['jurusan']] ?? $p['jurusan'] ?></div>
+        </div>
+        <a href="<?= $dash ?>?page=daftar_ulang" class="btn btn-sm btn-light py-0 px-2 opacity-75"><i class="bi bi-x-lg"></i></a>
+    </div>
+    <form method="POST" class="d-flex flex-column" style="min-height:0;flex:1;">
+        <input type="hidden" name="action" value="simpan_edit_du">
+        <input type="hidden" name="pendaftar_id" value="<?= $p['id'] ?>">
+        <!-- Nav Tabs -->
+        <ul class="nav nav-tabs nav-fill px-3 pt-2 border-bottom-0 bg-light small">
+            <li class="nav-item"><a class="nav-link active py-1" href="#ep1" data-bs-toggle="tab">A. Data Siswa</a></li>
+            <li class="nav-item"><a class="nav-link py-1" href="#ep2" data-bs-toggle="tab">B. Orang Tua/Wali</a></li>
+        </ul>
+        <div class="tab-content p-3" style="overflow-y:auto;flex:1;">
+          <!-- Tab A -->
+          <div class="tab-pane fade show active" id="ep1">
+            <div class="row g-2">
+                <div class="col-6 small text-muted p-1">Nama: <strong><?= htmlspecialchars($p['nama']) ?></strong></div>
+                <div class="col-6 small text-muted p-1">NISN: <strong><?= htmlspecialchars($p['nisn']) ?></strong></div>
+                <div class="col-4"><label class="form-label mb-0 small">NIS</label><input type="text" name="nis" class="form-control form-control-sm" value="<?= htmlspecialchars($p['nis']??'') ?>"></div>
+                <div class="col-4"><label class="form-label mb-0 small">NIK Siswa</label><input type="text" name="nik" class="form-control form-control-sm" value="<?= htmlspecialchars($p['nik']??'') ?>" maxlength="16"></div>
+                <div class="col-4"><label class="form-label mb-0 small">No. KK</label><input type="text" name="no_kk" class="form-control form-control-sm" value="<?= htmlspecialchars($p['no_kk']??'') ?>" maxlength="16"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Kewarganegaraan</label><input type="text" name="kewarganegaraan" class="form-control form-control-sm" value="<?= htmlspecialchars($p['kewarganegaraan']??'WNI') ?>"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Agama</label>
+                    <select name="agama" class="form-select form-select-sm"><option value="">— Pilih —</option><?php foreach($agama_opts as $ag): ?><option value="<?=$ag?>" <?= ($p['agama']??'')===$ag?'selected':'' ?>><?=$ag?></option><?php endforeach;?></select></div>
+                <div class="col-4"><label class="form-label mb-0 small">Anak Ke-</label><input type="number" name="anak_ke" class="form-control form-control-sm" value="<?= htmlspecialchars($p['anak_ke']??'') ?>" min="1" max="20"></div>
+                <div class="col-5"><label class="form-label mb-0 small">Tempat Lahir</label><input type="text" name="tempat_lahir" class="form-control form-control-sm" value="<?= htmlspecialchars($p['tempat_lahir']??'') ?>"></div>
+                <div class="col-3"><label class="form-label mb-0 small">Tahun Lulus SMP</label><input type="number" name="tahun_lulus" class="form-control form-control-sm" value="<?= htmlspecialchars($p['tahun_lulus']??'') ?>" min="2000" max="2030"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Email</label><input type="email" name="email" class="form-control form-control-sm" value="<?= htmlspecialchars($p['email']??'') ?>"></div>
+                <div class="col-12"><label class="form-label mb-0 small">Alamat Lengkap</label><textarea name="alamat_lengkap" class="form-control form-control-sm" rows="2"><?= htmlspecialchars($p['alamat_lengkap']??'') ?></textarea></div>
+                <div class="col-2"><label class="form-label mb-0 small">RT</label><input type="text" name="rt" class="form-control form-control-sm" value="<?= htmlspecialchars($p['rt']??'') ?>" maxlength="5"></div>
+                <div class="col-2"><label class="form-label mb-0 small">RW</label><input type="text" name="rw" class="form-control form-control-sm" value="<?= htmlspecialchars($p['rw']??'') ?>" maxlength="5"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Kecamatan</label><input type="text" name="kecamatan" class="form-control form-control-sm" value="<?= htmlspecialchars($p['kecamatan']??'') ?>"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Kabupaten/Kota</label><input type="text" name="kabupaten" class="form-control form-control-sm" value="<?= htmlspecialchars($p['kabupaten']??'') ?>"></div>
+                <div class="col-5"><label class="form-label mb-0 small">Provinsi</label><input type="text" name="provinsi" class="form-control form-control-sm" value="<?= htmlspecialchars($p['provinsi']??'DKI Jakarta') ?>"></div>
+                <div class="col-3"><label class="form-label mb-0 small">Kode Pos</label><input type="text" name="kode_pos" class="form-control form-control-sm" value="<?= htmlspecialchars($p['kode_pos']??'') ?>" maxlength="10"></div>
+                <div class="col-4"><label class="form-label mb-0 small">KIP/KJP/KPS</label><input type="text" name="kip_kjp_kps" class="form-control form-control-sm" value="<?= htmlspecialchars($p['kip_kjp_kps']??'') ?>"></div>
+            </div>
+          </div>
+          <!-- Tab B -->
+          <div class="tab-pane fade" id="ep2">
+            <div class="small fw-bold text-uppercase text-muted mb-2">1. Ayah</div>
+            <div class="row g-2 mb-3">
+                <div class="col-7"><label class="form-label mb-0 small">Nama Ayah</label><input type="text" name="nama_ayah" class="form-control form-control-sm" value="<?= htmlspecialchars($p['nama_ayah']??'') ?>"></div>
+                <div class="col-5"><label class="form-label mb-0 small">NIK Ayah</label><input type="text" name="nik_ayah" class="form-control form-control-sm" value="<?= htmlspecialchars($p['nik_ayah']??'') ?>" maxlength="16"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Pendidikan</label><select name="pendidikan_ayah" class="form-select form-select-sm"><option value="">—</option><?php foreach($pend_opts as $po): ?><option value="<?=$po?>" <?= ($p['pendidikan_ayah']??'')===$po?'selected':'' ?>><?=$po?></option><?php endforeach;?></select></div>
+                <div class="col-4"><label class="form-label mb-0 small">Pekerjaan</label><input type="text" name="pekerjaan_ayah" class="form-control form-control-sm" value="<?= htmlspecialchars($p['pekerjaan_ayah']??'') ?>"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Penghasilan/Bln</label><input type="text" name="penghasilan_ayah" class="form-control form-control-sm" value="<?= htmlspecialchars($p['penghasilan_ayah']??'') ?>"></div>
+                <div class="col-4"><label class="form-label mb-0 small">No. HP</label><input type="text" name="telp_ayah" class="form-control form-control-sm" value="<?= htmlspecialchars($p['telp_ayah']??'') ?>"></div>
+                <div class="col-8"><label class="form-label mb-0 small">Alamat Ayah</label><input type="text" name="alamat_ayah" class="form-control form-control-sm" value="<?= htmlspecialchars($p['alamat_ayah']??'') ?>"></div>
+            </div>
+            <hr class="my-2">
+            <div class="small fw-bold text-uppercase text-muted mb-2">2. Ibu</div>
+            <div class="row g-2 mb-3">
+                <div class="col-7"><label class="form-label mb-0 small">Nama Ibu</label><input type="text" name="nama_ibu" class="form-control form-control-sm" value="<?= htmlspecialchars($p['nama_ibu']??'') ?>"></div>
+                <div class="col-5"><label class="form-label mb-0 small">NIK Ibu</label><input type="text" name="nik_ibu" class="form-control form-control-sm" value="<?= htmlspecialchars($p['nik_ibu']??'') ?>" maxlength="16"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Pendidikan</label><select name="pendidikan_ibu" class="form-select form-select-sm"><option value="">—</option><?php foreach($pend_opts as $po): ?><option value="<?=$po?>" <?= ($p['pendidikan_ibu']??'')===$po?'selected':'' ?>><?=$po?></option><?php endforeach;?></select></div>
+                <div class="col-4"><label class="form-label mb-0 small">Pekerjaan</label><input type="text" name="pekerjaan_ibu" class="form-control form-control-sm" value="<?= htmlspecialchars($p['pekerjaan_ibu']??'') ?>"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Penghasilan/Bln</label><input type="text" name="penghasilan_ibu" class="form-control form-control-sm" value="<?= htmlspecialchars($p['penghasilan_ibu']??'') ?>"></div>
+                <div class="col-4"><label class="form-label mb-0 small">No. HP</label><input type="text" name="telp_ibu" class="form-control form-control-sm" value="<?= htmlspecialchars($p['telp_ibu']??'') ?>"></div>
+                <div class="col-8"><label class="form-label mb-0 small">Alamat Ibu</label><input type="text" name="alamat_ibu" class="form-control form-control-sm" value="<?= htmlspecialchars($p['alamat_ibu']??'') ?>"></div>
+            </div>
+            <hr class="my-2">
+            <div class="small fw-bold text-uppercase text-muted mb-2">3. Wali</div>
+            <div class="row g-2">
+                <div class="col-6"><label class="form-label mb-0 small">Nama Wali</label><input type="text" name="nama_wali" class="form-control form-control-sm" value="<?= htmlspecialchars($p['nama_wali']??'') ?>"></div>
+                <div class="col-6"><label class="form-label mb-0 small">Hubungan dengan Siswa</label><input type="text" name="hubungan_wali" class="form-control form-control-sm" value="<?= htmlspecialchars($p['hubungan_wali']??'') ?>"></div>
+                <div class="col-5"><label class="form-label mb-0 small">NIK Wali</label><input type="text" name="nik_wali" class="form-control form-control-sm" value="<?= htmlspecialchars($p['nik_wali']??'') ?>" maxlength="16"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Pendidikan</label><select name="pendidikan_wali" class="form-select form-select-sm"><option value="">—</option><?php foreach($pend_opts as $po): ?><option value="<?=$po?>" <?= ($p['pendidikan_wali']??'')===$po?'selected':'' ?>><?=$po?></option><?php endforeach;?></select></div>
+                <div class="col-3"><label class="form-label mb-0 small">No. HP</label><input type="text" name="telp_wali" class="form-control form-control-sm" value="<?= htmlspecialchars($p['telp_wali']??'') ?>"></div>
+                <div class="col-5"><label class="form-label mb-0 small">Pekerjaan</label><input type="text" name="pekerjaan_wali" class="form-control form-control-sm" value="<?= htmlspecialchars($p['pekerjaan_wali']??'') ?>"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Penghasilan/Bln</label><input type="text" name="penghasilan_wali" class="form-control form-control-sm" value="<?= htmlspecialchars($p['penghasilan_wali']??'') ?>"></div>
+                <div class="col-12"><label class="form-label mb-0 small">Alamat Wali</label><input type="text" name="alamat_wali" class="form-control form-control-sm" value="<?= htmlspecialchars($p['alamat_wali']??'') ?>"></div>
+            </div>
+          </div>
+        </div>
+        <div class="border-top p-3 d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm"
+                onclick="cetakSPTJM(DU_DATA[<?= (int)$p['id'] ?>])">
+                <i class="bi bi-printer me-1"></i>Cetak SPTJM
+            </button>
+            <button type="submit" class="btn btn-primary btn-sm flex-grow-1">
+                <i class="bi bi-save me-1"></i>Simpan Perubahan
+            </button>
+        </div>
+    </form>
 </div>
 <?php else: ?>
 <div class="card">
