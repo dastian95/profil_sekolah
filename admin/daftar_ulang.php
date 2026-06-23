@@ -282,11 +282,10 @@ if ($du_meja_id) {
     }
 }
 
-// Daftar siswa diterima untuk panel pencarian/tambah antrian
+// Daftar siswa diterima untuk panel pencarian/tambah antrian (SELECT * agar data SPTJM lengkap)
 $diterima_list = [];
 try {
-    $dl = $conn->query("SELECT id, no_pendaftaran, nama, nisn, jurusan, gelombang, daftar_ulang
-        FROM pendaftar WHERE status='terima' ORDER BY jurusan, nama");
+    $dl = $conn->query("SELECT * FROM pendaftar WHERE status='terima' ORDER BY jurusan, nama");
     $diterima_list = $dl->fetchAll();
 } catch(Throwable) {}
 
@@ -481,7 +480,10 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
                 <div class="text-muted" style="font-size:.7rem;"><?= htmlspecialchars($s['no_pendaftaran']) ?> &middot; <?= JURUSAN_SHORT[$s['jurusan']] ?? '' ?></div>
             </div>
             <?php if ($sudah): ?>
-            <span class="badge bg-success" title="Sudah DU"><i class="bi bi-check-circle-fill"></i></span>
+            <button type="button" class="btn btn-xs btn-outline-success py-0 px-1" style="font-size:.72rem;" title="Sudah DU — Cetak SPTJM"
+                onclick="cetakSPTJM(<?= htmlspecialchars(json_encode($s, JSON_HEX_QUOT|JSON_HEX_APOS|JSON_UNESCAPED_UNICODE), ENT_QUOTES) ?>)">
+                <i class="bi bi-printer"></i>
+            </button>
             <?php elseif ($inQ): ?>
             <span class="badge bg-warning text-dark" title="Sudah di antrian"><i class="bi bi-clock"></i></span>
             <?php else: ?>
