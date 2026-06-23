@@ -524,11 +524,11 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
             </div>
             <?php if ($sudah): ?>
             <button type="button" class="btn btn-xs btn-outline-primary py-0 px-1" style="font-size:.72rem;" title="Edit data DU"
-                onclick="bukaEditDU(<?= htmlspecialchars(json_encode($s, JSON_HEX_QUOT|JSON_HEX_APOS|JSON_UNESCAPED_UNICODE), ENT_QUOTES) ?>)">
+                onclick="bukaEditDU(DU_DATA[<?= $s['id'] ?>])">
                 <i class="bi bi-pencil"></i>
             </button>
             <button type="button" class="btn btn-xs btn-outline-success py-0 px-1" style="font-size:.72rem;" title="Cetak SPTJM"
-                onclick="cetakSPTJM(<?= htmlspecialchars(json_encode($s, JSON_HEX_QUOT|JSON_HEX_APOS|JSON_UNESCAPED_UNICODE), ENT_QUOTES) ?>)">
+                onclick="cetakSPTJM(DU_DATA[<?= $s['id'] ?>])">
                 <i class="bi bi-printer"></i>
             </button>
             <?php elseif ($inQ): ?>
@@ -700,7 +700,7 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
         <!-- Tombol aksi -->
         <div class="border-top p-3 d-flex gap-2">
             <button type="button" class="btn btn-outline-secondary btn-sm"
-                    onclick="cetakSPTJM(<?= htmlspecialchars(json_encode($p, JSON_HEX_QUOT|JSON_HEX_APOS|JSON_UNESCAPED_UNICODE), ENT_QUOTES) ?>)">
+                    onclick="cetakSPTJM(DU_DATA[<?= (int)$p['id'] ?>])">
                 <i class="bi bi-printer me-1"></i>Cetak SPTJM
             </button>
             <button type="submit" class="btn-du-main btn-du-selesai btn flex-grow-1">
@@ -841,6 +841,10 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
   </div>
 </div>
 
+<script>
+// Data lengkap semua siswa diterima — dipakai oleh bukaEditDU() dan cetakSPTJM()
+const DU_DATA = <?= json_encode(array_column($diterima_list, null, 'id'), JSON_UNESCAPED_UNICODE|JSON_HEX_TAG) ?>;
+</script>
 <script>
 // ── Filter jurusan + teks DU (localStorage agar tidak reset saat refresh) ─────
 (function() {
