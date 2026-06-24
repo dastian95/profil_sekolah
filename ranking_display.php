@@ -121,11 +121,9 @@ body {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(99,102,241,.25) transparent;
+    scrollbar-width: none;
 }
-.col-table-wrap::-webkit-scrollbar { width: 3px; }
-.col-table-wrap::-webkit-scrollbar-thumb { background: rgba(99,102,241,.3); border-radius:4px; }
+.col-table-wrap::-webkit-scrollbar { display: none; }
 
 table.rt {
     width: 100%;
@@ -219,14 +217,12 @@ function render() {
         const rows = g.students.map(s => {
             const rkCls = s.peringkat===1?'g':s.peringkat===2?'s':s.peringkat===3?'br':'';
             const pin   = s.is_pinned==1 ? '<span class="pin-badge">PIN</span>' : '';
-            const glm   = `<span class="glm-b ${s.gelombang==2?'g2':''}">G${s.gelombang}</span>`;
             return `<tr class="${s.is_pinned==1?'pinned':''}">
                 <td class="col-no"><span class="rk ${rkCls}">${s.peringkat}</span></td>
                 <td><span class="nm">${esc(s.nama)}${pin}</span><span class="nsn">${esc(s.nisn)||'—'}</span></td>
                 <td class="col-val"><span class="va rp">${fmt(s.nilai_raport)}</span></td>
                 <td class="col-val"><span class="va tk">${fmt(s.nilai_tka)}</span></td>
                 <td class="col-val"><span class="va na">${fmt(s.nilai_akhir)}</span></td>
-                <td class="col-val">${glm}</td>
             </tr>`;
         }).join('');
 
@@ -240,7 +236,6 @@ function render() {
                         <th class="col-val">Raport</th>
                         <th class="col-val">TKA</th>
                         <th class="col-val">Akhir</th>
-                        <th class="col-val">Glm</th>
                     </tr></thead>
                     <tbody>${rows}</tbody>
                 </table>
@@ -255,11 +250,12 @@ function render() {
     }).join('');
 }
 
-// ── Auto-scroll bolak-balik pelan ─────────────────────────────────────────
-const SPEED     = 0.5;   // px per frame (~30px/detik di 60fps)
-const PAUSE_MS  = 2000;  // jeda di atas/bawah sebelum balik
+// ── Auto-scroll smooth (ease-in-out near edges) ───────────────────────────
+const MAX_SPEED = 0.7;   // px/frame saat kecepatan penuh
+const EASE_ZONE = 100;   // px dari tepi mulai melambat
+const PAUSE_MS  = 2500;  // jeda di atas/bawah
 let scrollPos   = 0;
-let direction   = 1;     // 1 = turun, -1 = naik
+let direction   = 1;
 let paused      = false;
 
 function getMaxScroll() {
@@ -274,23 +270,33 @@ function setScroll(pos) {
     document.querySelectorAll('.col-table-wrap').forEach(el => el.scrollTop = pos);
 }
 
+function easeSpeed(pos, max) {
+    // Melambat smooth saat dekat tepi atas/bawah
+    const distEdge = Math.min(pos, max - pos);
+    if (distEdge >= EASE_ZONE || max <= 0) return MAX_SPEED;
+    const t = distEdge / EASE_ZONE;           // 0..1
+    return MAX_SPEED * (t * t * (3 - 2 * t)); // smoothstep
+}
+
 function autoScroll() {
     if (!paused) {
         const max = getMaxScroll();
-        scrollPos += SPEED * direction;
+        if (max > 0) {
+            scrollPos += easeSpeed(scrollPos, max) * direction;
 
-        if (scrollPos >= max) {
-            scrollPos = max;
-            setScroll(scrollPos);
-            paused = true;
-            setTimeout(() => { direction = -1; paused = false; }, PAUSE_MS);
-        } else if (scrollPos <= 0) {
-            scrollPos = 0;
-            setScroll(scrollPos);
-            paused = true;
-            setTimeout(() => { direction = 1; paused = false; }, PAUSE_MS);
-        } else {
-            setScroll(scrollPos);
+            if (scrollPos >= max) {
+                scrollPos = max;
+                setScroll(scrollPos);
+                paused = true;
+                setTimeout(() => { direction = -1; paused = false; }, PAUSE_MS);
+            } else if (scrollPos <= 0) {
+                scrollPos = 0;
+                setScroll(scrollPos);
+                paused = true;
+                setTimeout(() => { direction = 1; paused = false; }, PAUSE_MS);
+            } else {
+                setScroll(scrollPos);
+            }
         }
     }
     requestAnimationFrame(autoScroll);
@@ -300,7 +306,7 @@ function autoScroll() {
 function fetchData(){
     fetch('ranking_display.php?json=1')
         .then(r=>r.json())
-        .then(d=>{ groups = d.groups; render(); })
+        .then(d=>{ groups = d.groups; render(); setScroll(scrollPos); })
         .catch(()=>{});
 }
 
