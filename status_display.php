@@ -5,6 +5,8 @@ require_once __DIR__ . '/admin/_constants.php';
 // AJAX endpoint
 if (isset($_GET['json'])) {
     header('Content-Type: application/json');
+    header('Cache-Control: no-store, no-cache, must-revalidate');
+    header('Pragma: no-cache');
     try {
         $q    = trim($_GET['q'] ?? '');
         $gel  = (int)($_GET['gel'] ?? 0);
@@ -212,7 +214,7 @@ function fetchData() {
     const q   = document.getElementById('searchInput').value.trim();
     const gel = document.getElementById('gelFilter').value;
     const jur = document.getElementById('jurFilter').value;
-    fetch(`status_display.php?json=1&q=${encodeURIComponent(q)}&gel=${gel}&jur=${encodeURIComponent(jur)}`)
+    fetch(`status_display.php?json=1&q=${encodeURIComponent(q)}&gel=${gel}&jur=${encodeURIComponent(jur)}&_=${Date.now()}`, {cache:'no-store'})
         .then(r => r.json())
         .then(d => render(d.rows || []))
         .catch(() => {});
@@ -243,8 +245,8 @@ document.getElementById('jurFilter').addEventListener('change', doSearch);
 // Load semua data saat pertama buka
 fetchData();
 
-// Auto-refresh setiap 10 detik
-setInterval(fetchData, 10000);
+// Auto-refresh setiap 5 detik
+setInterval(fetchData, 5000);
 </script>
 </body>
 </html>
