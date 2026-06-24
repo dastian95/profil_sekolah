@@ -76,9 +76,29 @@ function xlsx_send(string $filename, array $headers, array $rows, string $title 
         return "<c r=\"$ref\" t=\"s\"$s><v>$idx</v></c>";
     };
 
+    // ── Hitung lebar kolom otomatis ───────────────────────────────────────────
+    $colWidths = [];
+    foreach ($headers as $ci => $h) {
+        $colWidths[$ci] = mb_strlen((string)$h);
+    }
+    foreach ($rows as $row) {
+        foreach (array_values($row) as $ci => $val) {
+            $len = mb_strlen((string)$val);
+            if (!isset($colWidths[$ci]) || $len > $colWidths[$ci]) $colWidths[$ci] = $len;
+        }
+    }
+
     // ── Sheet XML ─────────────────────────────────────────────────────────────
+    $colsXml = '<cols>';
+    foreach ($colWidths as $ci => $maxLen) {
+        $width = min(max($maxLen * 1.15 + 2, 8), 60); // min 8, max 60
+        $colsXml .= '<col min="' . ($ci+1) . '" max="' . ($ci+1) . '" width="' . number_format($width, 2, '.', '') . '" customWidth="1" bestFit="1"/>';
+    }
+    $colsXml .= '</cols>';
+
     $sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         . '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        . $colsXml
         . '<sheetData>';
 
     // Header row — bold
