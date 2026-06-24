@@ -1,8 +1,10 @@
 <?php
 // Laporan & Statistik — hanya tersedia di superadmin_dashboard
 
-// ── Export CSV (early exit) ───────────────────────────────────────────────────
+// ── Export XLSX (early exit) ──────────────────────────────────────────────────
 if (($_GET['action'] ?? '') === 'export_laporan') {
+    require_once __DIR__ . '/xlsx_helper.php';
+
     $fJur = $_GET['jurusan'] ?? '';
     $fGlm = $_GET['gelombang'] ?? '';
     $fSts = $_GET['status'] ?? '';
@@ -24,31 +26,27 @@ if (($_GET['action'] ?? '') === 'export_laporan') {
     if ($fJur) $parts[] = JURUSAN_SHORT[$fJur] ?? $fJur;
     if ($fGlm) $parts[] = 'G'.$fGlm;
     if ($fSts) $parts[] = $fSts;
-    $fname = 'laporan_ppdb' . ($parts ? '_'.implode('_',$parts) : '') . '_' . date('Ymd_His') . '.csv';
+    $fname = 'laporan_ppdb' . ($parts ? '_'.implode('_',$parts) : '') . '_' . date('Ymd_His') . '.xlsx';
 
     log_admin_action($conn, 'EXPORT_LAPORAN', "Export laporan: $fname, ".count($rows)." baris");
-    while (ob_get_level() > 0) ob_end_clean();
 
-    header('Content-Type: text/csv; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="'.$fname.'"');
-    header('Pragma: no-cache');
-
-    $out = fopen('php://output', 'w');
-    fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
-    fputcsv($out, ['No Pendaftaran','Gelombang','Nama','NISN','Tgl Lahir','Usia','L/P',
+    $headers = ['No Pendaftaran','Gelombang','Nama','NISN','Tgl Lahir','Usia','L/P',
         'Asal Sekolah','No Telp','Kelurahan','Jurusan','Nilai Raport','Nilai TKA',
-        'Nilai Akhir','Lolos Usia','Status','Catatan','Waktu Daftar']);
+        'Nilai Akhir','Lolos Usia','Status','Catatan','Waktu Daftar'];
+
+    $data = [];
     foreach ($rows as $r) {
-        fputcsv($out, [
+        $data[] = [
             $r['no_pendaftaran'], $r['gelombang'], $r['nama'], $r['nisn'],
             $r['tanggal_lahir'], $r['usia'], $r['jenis_kelamin'],
             $r['asal_sekolah'], $r['no_telp'], $r['kelurahan'], $r['jurusan'],
             $r['nilai_raport'], $r['nilai_tka'], $r['nilai_akhir'],
             $r['lolos_usia'] ? 'Ya' : 'Tidak (>21thn)',
-            $r['status'], $r['catatan'], $r['created_at'],
-        ]);
+            $r['status'], $r['catatan'] ?? '', $r['created_at'],
+        ];
     }
-    fclose($out); exit;
+
+    xlsx_send($fname, $headers, $data, 'Laporan PPDB');
 }
 
 // ── Ambil data sekolah untuk kop cetak ───────────────────────────────────────
@@ -295,10 +293,10 @@ $status_labels_all = [
                 <?php endforeach; ?>
             </select>
             <button type="submit" class="btn btn-success btn-sm">
-                <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export CSV
+                <i class="bi bi-file-earmark-excel me-1"></i>Export .xlsx
             </button>
             <a href="superadmin_dashboard.php?page=laporan&action=export_laporan" class="btn btn-outline-secondary btn-sm">
-                <i class="bi bi-file-earmark-arrow-down me-1"></i>Export Semua Data
+                <i class="bi bi-file-earmark-arrow-down me-1"></i>Export Semua (.xlsx)
             </a>
         </form>
     </div>
