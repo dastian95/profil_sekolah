@@ -36,7 +36,9 @@ $all_pages = [
     'pendaftar'      => ['label' => 'Data Pendaftar',       'icon' => 'bi-people-fill',          'group' => 'Manajemen'],
     'antrian'          => ['label' => 'Meja Antrian',         'icon' => 'bi-grid-3x2-gap-fill',    'group' => 'Manajemen'],
     'antrian_display'  => ['label' => 'Display Antrian',     'icon' => 'bi-display',              'group' => 'Manajemen'],
-    'ranking'        => ['label' => 'Ranking & Hasil',      'title' => 'Peringkat sementara sistem penerimaan siswa baru SMKS Laboratorium Jakarta', 'icon' => 'bi-trophy-fill', 'group' => 'Manajemen'],
+    'ranking'         => ['label' => 'Ranking & Hasil',      'title' => 'Peringkat sementara sistem penerimaan siswa baru SMKS Laboratorium Jakarta', 'icon' => 'bi-trophy-fill', 'group' => 'Manajemen'],
+    'ranking_display' => ['label' => 'Display Peringkat',   'icon' => 'bi-tv-fill',              'group' => 'Manajemen'],
+    'ranking_settings'=> ['label' => 'Setting Display',     'icon' => 'bi-gear-fill',            'group' => 'Manajemen'],
     'announcements'  => ['label' => 'Pengumuman',           'icon' => 'bi-megaphone-fill',       'group' => 'Manajemen'],
     'pengaturan_ppdb'=> ['label' => 'Pengaturan Pendaftaran','icon' => 'bi-sliders',              'group' => 'Konfigurasi'],
     'meja'           => ['label' => 'Kelola Meja',          'icon' => 'bi-layout-split',         'group' => 'Konfigurasi'],
@@ -48,7 +50,7 @@ $all_pages = [
 $tahap_pages = [
     'input_data'      => ['pendaftar', 'antrian'],
     'proses_berkas'   => ['antrian', 'pendaftar'],
-    'ranking'         => ['ranking', 'pendaftar'],
+    'ranking'         => ['ranking', 'pendaftar', 'ranking_display', 'ranking_settings'],
     'pengumuman'      => ['announcements', 'pengaturan_ppdb'],
     'kelola_meja'     => ['meja', 'antrian', 'antrian_display'],
     'kelola_gelombang'=> ['pengaturan_ppdb'],
@@ -79,6 +81,11 @@ try {
 // Display antrian selalu muncul jika admin punya akses antrian
 if (in_array('antrian', $allowed_pages)) {
     $allowed_pages[] = 'antrian_display';
+}
+// Display & setting ranking muncul jika admin punya akses ranking
+if (in_array('ranking', $allowed_pages)) {
+    if (!in_array('ranking_display', $allowed_pages))  $allowed_pages[] = 'ranking_display';
+    if (!in_array('ranking_settings', $allowed_pages)) $allowed_pages[] = 'ranking_settings';
 }
 
 // Kalau admin belum punya tahapan → tampilkan semua (supaya tidak blank)
@@ -381,6 +388,11 @@ foreach ($pages as $key => $info) {
                     <i class="bi <?= $info['icon'] ?>"></i>
                     <span><?= $info['label'] ?> <i class="bi bi-box-arrow-up-right ms-1" style="font-size:.65rem;opacity:.5;"></i></span>
                 </a>
+                <?php elseif ($key === 'ranking_display'): ?>
+                <a href="ranking_display.php" target="_blank" class="nav-link">
+                    <i class="bi <?= $info['icon'] ?>"></i>
+                    <span><?= $info['label'] ?> <i class="bi bi-box-arrow-up-right ms-1" style="font-size:.65rem;opacity:.5;"></i></span>
+                </a>
                 <?php else: ?>
                 <a href="?page=<?= $key ?>" class="nav-link <?= $page === $key ? 'active' : '' ?>">
                     <i class="bi <?= $info['icon'] ?>"></i>
@@ -433,8 +445,9 @@ foreach ($pages as $key => $info) {
         'home'            => 'admin/home.php',
         'pendaftar'       => 'admin/pendaftar.php',
         'antrian'         => 'admin/antrian.php',
-        'ranking'         => 'admin/ranking.php',
-        'announcements'   => 'admin/announcements.php',
+        'ranking'          => 'admin/ranking.php',
+        'ranking_settings' => 'admin/ranking_settings.php',
+        'announcements'    => 'admin/announcements.php',
         'pengaturan_ppdb' => 'admin/pengaturan_ppdb.php',
         'backup'          => 'admin/backup.php',
         'change_password' => 'admin/change_password.php',

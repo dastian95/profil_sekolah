@@ -28,6 +28,17 @@ if (isset($_GET['json'])) {
     exit;
 }
 
+// Baca setting display dari DB
+$rd_speed = 0.7;
+$rd_pause = 2500;
+try {
+    $st = $conn->query("SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('ranking_scroll_speed','ranking_pause_ms')");
+    foreach ($st as $r) {
+        if ($r['setting_key'] === 'ranking_scroll_speed') $rd_speed = (float)$r['setting_value'];
+        if ($r['setting_key'] === 'ranking_pause_ms')     $rd_pause = (int)$r['setting_value'];
+    }
+} catch (Throwable $e) {}
+
 // SSR awal
 $groups_init = [];
 try {
@@ -231,9 +242,9 @@ function render() {
 }
 
 // ── Auto-scroll smooth (ease-in-out near edges) ───────────────────────────
-const MAX_SPEED = 0.7;   // px/frame saat kecepatan penuh
-const EASE_ZONE = 100;   // px dari tepi mulai melambat
-const PAUSE_MS  = 2500;  // jeda di atas/bawah
+const MAX_SPEED = <?= $rd_speed ?>;
+const EASE_ZONE = 100;
+const PAUSE_MS  = <?= $rd_pause ?>;
 let scrollPos   = 0;
 let direction   = 1;
 let paused      = false;

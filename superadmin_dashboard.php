@@ -96,7 +96,9 @@ $pages = [
     'kelola_admin'    => ['label' => 'Kelola Admin',           'icon' => 'bi-person-gear',          'group' => 'Manajemen'],
     'pendaftar'       => ['label' => 'Data Pendaftar',         'icon' => 'bi-people-fill',          'group' => 'Manajemen'],
     'antrian'         => ['label' => 'Meja Antrian',           'icon' => 'bi-list-ol',              'group' => 'Manajemen'],
-    'ranking'         => ['label' => 'Ranking & Hasil',        'title' => 'Peringkat sementara sistem penerimaan siswa baru SMKS Laboratorium Jakarta', 'icon' => 'bi-trophy-fill', 'group' => 'Manajemen'],
+    'ranking'          => ['label' => 'Ranking & Hasil',        'title' => 'Peringkat sementara sistem penerimaan siswa baru SMKS Laboratorium Jakarta', 'icon' => 'bi-trophy-fill', 'group' => 'Manajemen'],
+    'ranking_display'  => ['label' => 'Display Peringkat',     'icon' => 'bi-tv-fill',    'group' => 'Manajemen'],
+    'ranking_settings' => ['label' => 'Setting Display',       'icon' => 'bi-gear-fill',  'group' => 'Manajemen'],
     'announcements'   => ['label' => 'Pengumuman',             'icon' => 'bi-megaphone-fill',       'group' => 'Manajemen'],
     'site_content'    => ['label' => 'Konten Website',         'icon' => 'bi-layout-text-window-reverse', 'group' => 'Konten'],
     'laporan'         => ['label' => 'Laporan & Statistik',    'icon' => 'bi-bar-chart-fill',       'group' => 'Laporan'],
@@ -314,6 +316,11 @@ foreach ($pages as $key => $info) {
                     <i class="bi <?= $info['icon'] ?>"></i>
                     <span><?= $info['label'] ?> <i class="bi bi-box-arrow-up-right ms-1" style="font-size:.65rem;opacity:.5;"></i></span>
                 </a>
+                <?php elseif ($key === 'ranking_display'): ?>
+                <a href="ranking_display.php" target="_blank" class="nav-link">
+                    <i class="bi <?= $info['icon'] ?>"></i>
+                    <span><?= $info['label'] ?> <i class="bi bi-box-arrow-up-right ms-1" style="font-size:.65rem;opacity:.5;"></i></span>
+                </a>
                 <?php else: ?>
                 <a href="?page=<?= $key ?>" class="nav-link <?= $page === $key ? 'active' : '' ?>">
                     <i class="bi <?= $info['icon'] ?>"></i>
@@ -367,7 +374,8 @@ foreach ($pages as $key => $info) {
         'kelola_admin'    => 'admin/kelola_admin.php',
         'pendaftar'       => 'admin/pendaftar.php',
         'antrian'         => 'admin/antrian.php',
-        'ranking'         => 'admin/ranking.php',
+        'ranking'          => 'admin/ranking.php',
+        'ranking_settings' => 'admin/ranking_settings.php',
         'announcements'   => 'admin/announcements.php',
         'site_content'    => 'admin/site_content.php',
         'laporan'         => 'admin/laporan.php',
