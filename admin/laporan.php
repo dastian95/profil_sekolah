@@ -297,6 +297,9 @@ $status_labels_all = [
             <button type="submit" class="btn btn-success btn-sm">
                 <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export CSV
             </button>
+            <a href="superadmin_dashboard.php?page=laporan&action=export_laporan" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-file-earmark-arrow-down me-1"></i>Export Semua Data
+            </a>
         </form>
     </div>
     <div class="card-body p-0">
