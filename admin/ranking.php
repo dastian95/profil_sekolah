@@ -1,4 +1,19 @@
 <?php
+// ── Endpoint ringan: cek apakah data berubah ─────────────────────────────
+if (isset($_GET['rank_hash'])) {
+    header('Content-Type: application/json');
+    try {
+        $gel_h = (int)($_GET['gelombang'] ?? 1) ?: 1;
+        $row_h = $conn->prepare("SELECT COUNT(*) as n, MAX(updated_at) as ts FROM pendaftar WHERE gelombang=?");
+        $row_h->execute([$gel_h]);
+        $h = $row_h->fetch(PDO::FETCH_ASSOC);
+        echo json_encode(['hash' => md5($h['n'] . $h['ts'])]);
+    } catch (Throwable $e) {
+        echo json_encode(['hash' => '']);
+    }
+    exit;
+}
+
 $jurusan_list = JURUSAN_LIST;
 $short        = JURUSAN_SHORT;
 
@@ -965,3 +980,30 @@ function buildRaportTablePKBM(raport) {
 })();
 </script>
 <?php endif; ?>
+
+<script>
+// ── Live polling: reload otomatis jika data berubah ──────────────────────
+(function() {
+    const gel = <?= (int)($fGel ?? 1) ?>;
+    const dash = <?= !empty($_SESSION['is_super']) ? "'superadmin_dashboard.php'" : "'admin_dashboard.php'" ?>;
+    let lastHash = null;
+
+    function checkHash() {
+        fetch('ranking_hash.php?gelombang=' + gel)
+            .then(r => r.json())
+            .then(d => {
+                if (lastHash === null) { lastHash = d.hash; return; }
+                if (d.hash !== lastHash) {
+                    lastHash = d.hash;
+                    // Reload halaman dengan parameter yang sama (gelombang & jurusan)
+                    const url = new URL(window.location.href);
+                    window.location.replace(url.href);
+                }
+            })
+            .catch(() => {});
+    }
+
+    setInterval(checkHash, 5000);
+    checkHash();
+})();
+</script>
