@@ -762,7 +762,7 @@ $slist = fn($k, $d = '') => array_values(array_filter(array_map('trim', explode(
 
       <div class="container section-title" data-aos="fade-up">
         <h2><?= $s('sec_pengumuman_title', 'Pengumuman Penerimaan') ?></h2>
-        <p><?= $s('sec_pengumuman_sub', 'Hasil Seleksi SPMB SMKS Laboratorium Jakarta') ?></p>
+        <p><?= $s('sec_pengumuman_sub', 'Peringkat Sementara Sistem Penerimaan Siswa Baru SMKS Laboratorium Jakarta') ?></p>
       </div>
 
       <div class="container" data-aos="fade" data-aos-delay="100">
@@ -787,13 +787,12 @@ $slist = fn($k, $d = '') => array_values(array_filter(array_map('trim', explode(
 
           <?php else: foreach ($gel_rows as $g):
             $hasil_live = !empty($g['is_hasil_published']);
+            // Ambil data terima untuk kedua kondisi (hasil resmi maupun sedang berjalan)
             $list = [];
-            if ($hasil_live) {
-              $diterima = $conn->prepare("SELECT no_pendaftaran, nama, nisn, jurusan FROM pendaftar
-                    WHERE gelombang=? AND status='terima' ORDER BY jurusan, nilai_akhir DESC");
-              $diterima->execute([$g['gelombang']]);
-              $list = $diterima->fetchAll();
-            }
+            $diterima = $conn->prepare("SELECT no_pendaftaran, nama, nisn, jurusan FROM pendaftar
+                  WHERE gelombang=? AND status='terima' ORDER BY jurusan, nilai_akhir DESC");
+            $diterima->execute([$g['gelombang']]);
+            $list = $diterima->fetchAll();
           ?>
             <div class="mb-5" data-aos="fade-up">
               <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
@@ -813,37 +812,35 @@ $slist = fn($k, $d = '') => array_values(array_filter(array_map('trim', explode(
               </div>
 
               <?php if (!$hasil_live): ?>
-                <!-- Tahap 1: Banner — pengumuman dibuka, hasil belum ada -->
-                <div class="alert alert-info">
+                <!-- Tahap 1: Sedang Berjalan — tampilkan peringkat sementara + warning -->
+                <div class="alert alert-warning mb-3">
                   <div class="d-flex align-items-start gap-3">
-                    <i class="bi bi-megaphone-fill fs-4 flex-shrink-0 mt-1"></i>
+                    <i class="bi bi-exclamation-triangle-fill fs-4 flex-shrink-0 mt-1"></i>
                     <div>
-                      <strong>Pendaftaran Gelombang <?= $g['gelombang'] ?> Sedang Berlangsung</strong>
+                      <strong>Peringkat Sementara — Data Masih Dapat Berubah</strong>
                       <p class="mb-1 mt-1">
-                        Periode pendaftaran: <strong><?= date('d M Y', strtotime($g['tanggal_buka'])) ?></strong>
-                        s/d <strong><?= date('d M Y', strtotime($g['tanggal_tutup'])) ?></strong>
+                        Data ini bersifat sementara dan akan terus berubah sampai dengan
+                        <strong><?= date('d F Y', strtotime($g['tanggal_tutup'])) ?></strong>.
+                        Hasil resmi akan diumumkan setelah proses seleksi selesai.
                       </p>
                       <?php if ($g['jadwal_pengumuman_text']): ?>
                         <p class="mb-0 small">
                           <i class="bi bi-calendar-check me-1"></i>
-                          Pengumuman hasil: <strong><?= htmlspecialchars($g['jadwal_pengumuman_text']) ?></strong>
+                          Pengumuman hasil resmi: <strong><?= htmlspecialchars($g['jadwal_pengumuman_text']) ?></strong>
                         </p>
                       <?php endif; ?>
                     </div>
                   </div>
                 </div>
-                <?php if ($g['tanggal_daftar_ulang_mulai']): ?>
-                  <p class="text-muted small">
-                    <i class="bi bi-arrow-right-circle me-1"></i>
-                    Daftar ulang bagi yang diterima: <strong><?= date('d M Y', strtotime($g['tanggal_daftar_ulang_mulai'])) ?></strong>
-                    <?php if ($g['tanggal_daftar_ulang_selesai'] && $g['tanggal_daftar_ulang_selesai'] !== $g['tanggal_daftar_ulang_mulai']): ?>
-                      s/d <strong><?= date('d M Y', strtotime($g['tanggal_daftar_ulang_selesai'])) ?></strong>
-                    <?php endif; ?>
-                  </p>
-                <?php endif; ?>
+                <div class="alert alert-info py-2 small mb-3">
+                  <i class="bi bi-info-circle me-1"></i>
+                  Periode pendaftaran: <strong><?= date('d M Y', strtotime($g['tanggal_buka'])) ?></strong>
+                  s/d <strong><?= date('d M Y', strtotime($g['tanggal_tutup'])) ?></strong> |
+                  Total sementara diterima: <strong><?= count($list) ?></strong> pendaftar
+                </div>
 
               <?php else: ?>
-                <!-- Tahap 2: Hasil penerimaan live -->
+                <!-- Tahap 2: Hasil Resmi -->
                 <div class="alert alert-success py-2 small mb-3">
                   <i class="bi bi-info-circle me-1"></i>
                   Periode pendaftaran: <strong><?= date('d M Y', strtotime($g['tanggal_buka'])) ?></strong>
@@ -851,77 +848,80 @@ $slist = fn($k, $d = '') => array_values(array_filter(array_map('trim', explode(
                   Total diterima: <strong><?= count($list) ?></strong> pendaftar
                 </div>
 
-                <?php if (empty($list)): ?>
-                  <p class="text-muted">Belum ada data penerimaan untuk gelombang ini.</p>
-                <?php else: ?>
-                  <!-- Search + Filter jurusan -->
-                  <?php
-                  $glm_id = 'glm' . $g['gelombang'];
-                  $per_jurusan = [];
-                  foreach ($list as $r) {
-                    $kd = $short_j[$r['jurusan']] ?? $r['jurusan'];
-                    $per_jurusan[$kd] = ($per_jurusan[$kd] ?? 0) + 1;
-                  }
-                  ?>
-                  <input type="text" id="cari-<?= $glm_id ?>" placeholder="Cari nama atau NISN..." class="form-control form-control-sm mb-2" style="max-width:280px;">
-                  <div class="d-flex flex-wrap gap-2 mb-3" id="filter-<?= $glm_id ?>">
-                    <button class="btn btn-sm btn-dark filter-btn active" data-filter="all">Semua</button>
-                    <?php foreach ($per_jurusan as $kd => $cnt): ?>
-                      <button class="btn btn-sm btn-outline-primary filter-btn" data-filter="<?= $kd ?>"><?= $kd ?></button>
-                    <?php endforeach; ?>
-                  </div>
+              <?php endif; ?>
 
-                  <div class="table-responsive">
-                    <table class="table table-bordered table-hover" id="tbl-<?= $glm_id ?>">
-                      <thead class="table-dark">
-                        <tr>
-                          <th>Nama</th>
-                          <th>NISN</th>
-                          <th>Jurusan</th>
+              <!-- Tabel peringkat — tampil di kedua kondisi (sementara maupun hasil resmi) -->
+              <?php
+              $glm_id = 'glm' . $g['gelombang'];
+              $per_jurusan = [];
+              foreach ($list as $r) {
+                $kd = $short_j[$r['jurusan']] ?? $r['jurusan'];
+                $per_jurusan[$kd] = ($per_jurusan[$kd] ?? 0) + 1;
+              }
+              ?>
+              <?php if (empty($list)): ?>
+                <p class="text-muted">Belum ada data<?= $hasil_live ? ' penerimaan' : ' peringkat sementara' ?> untuk gelombang ini.</p>
+              <?php else: ?>
+                <input type="text" id="cari-<?= $glm_id ?>" placeholder="Cari nama atau NISN..." class="form-control form-control-sm mb-2" style="max-width:280px;">
+                <div class="d-flex flex-wrap gap-2 mb-3" id="filter-<?= $glm_id ?>">
+                  <button class="btn btn-sm btn-dark filter-btn active" data-filter="all">Semua</button>
+                  <?php foreach ($per_jurusan as $kd => $cnt): ?>
+                    <button class="btn btn-sm btn-outline-primary filter-btn" data-filter="<?= $kd ?>"><?= $kd ?></button>
+                  <?php endforeach; ?>
+                </div>
+
+                <div class="table-responsive">
+                  <table class="table table-bordered table-hover" id="tbl-<?= $glm_id ?>">
+                    <thead class="table-dark">
+                      <tr>
+                        <th>Nama</th>
+                        <th>NISN</th>
+                        <th>Jurusan</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <?php foreach ($list as $r):
+                        $kd = $short_j[$r['jurusan']] ?? $r['jurusan'];
+                      ?>
+                        <tr data-jurusan="<?= $kd ?>" data-nama="<?= strtolower(htmlspecialchars($r['nama'])) ?>" data-nisn="<?= htmlspecialchars($r['nisn']) ?>">
+                          <td data-label="Nama" class="fw-semibold"><?= htmlspecialchars($r['nama']) ?></td>
+                          <td data-label="NISN"><?= htmlspecialchars($r['nisn']) ?></td>
+                          <td data-label="Jurusan">
+                            <span class="badge bg-primary"><?= $kd ?></span>
+                            <span class="ms-1 small text-muted d-none d-sm-inline"><?= htmlspecialchars($r['jurusan']) ?></span>
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        <?php foreach ($list as $r):
-                          $kd = $short_j[$r['jurusan']] ?? $r['jurusan'];
-                        ?>
-                          <tr data-jurusan="<?= $kd ?>" data-nama="<?= strtolower(htmlspecialchars($r['nama'])) ?>" data-nisn="<?= htmlspecialchars($r['nisn']) ?>">
-                            <td data-label="Nama" class="fw-semibold"><?= htmlspecialchars($r['nama']) ?></td>
-                            <td data-label="NISN"><?= htmlspecialchars($r['nisn']) ?></td>
-                            <td data-label="Jurusan">
-                              <span class="badge bg-primary"><?= $kd ?></span>
-                              <span class="ms-1 small text-muted d-none d-sm-inline"><?= htmlspecialchars($r['jurusan']) ?></span>
-                            </td>
-                          </tr>
-                        <?php endforeach; ?>
-                      </tbody>
-                    </table>
-                  </div>
+                      <?php endforeach; ?>
+                    </tbody>
+                  </table>
+                </div>
 
-                  <!-- Arahan Selanjutnya -->
-                  <div class="card border-success mt-4 mb-2">
-                    <div class="card-header bg-success text-white fw-bold"><i class="bi bi-check2-circle me-2"></i>Arahan Selanjutnya</div>
-                    <div class="card-body">
-                      <p class="mb-2">Jika nama Anda tercantum dalam daftar di atas, segera lakukan <strong>daftar ulang</strong> ke sekolah.</p>
-                      <?php if (!empty($g['tanggal_daftar_ulang_mulai'])): ?>
-                        <div class="alert alert-info py-2 mb-2">
-                          <i class="bi bi-calendar-event me-1"></i>
-                          Periode daftar ulang: <strong><?= date('d M Y', strtotime($g['tanggal_daftar_ulang_mulai'])) ?></strong>
-                          <?php if (!empty($g['tanggal_daftar_ulang_selesai']) && $g['tanggal_daftar_ulang_selesai'] !== $g['tanggal_daftar_ulang_mulai']): ?>
-                            s/d <strong><?= date('d M Y', strtotime($g['tanggal_daftar_ulang_selesai'])) ?></strong>
-                          <?php endif; ?>
-                        </div>
-                      <?php endif; ?>
-                      <p class="mb-1 fw-semibold">Dokumen yang harus dibawa:</p>
-                      <ul class="mb-2">
-                        <li>Ijazah / Surat Keterangan Lulus (SKL) asli dan fotokopi</li>
-                        <li>SKHUN (Surat Keterangan Hasil Ujian Nasional) asli dan fotokopi</li>
-                        <li>Pas foto terbaru ukuran 3×4 (4 lembar)</li>
-                        <li>Kartu Keluarga (KK) asli dan fotokopi</li>
-                        <li>Akta kelahiran fotokopi</li>
-                      </ul>
-                      <p class="mb-0 text-muted small"><i class="bi bi-info-circle me-1"></i>Pendaftaran yang tidak dilengkapi dokumen pada batas waktu dianggap mengundurkan diri.</p>
-                    </div>
+                <!-- Arahan Selanjutnya — hanya saat hasil resmi -->
+                <?php if ($hasil_live): ?>
+                <div class="card border-success mt-4 mb-2">
+                  <div class="card-header bg-success text-white fw-bold"><i class="bi bi-check2-circle me-2"></i>Arahan Selanjutnya</div>
+                  <div class="card-body">
+                    <p class="mb-2">Jika nama Anda tercantum dalam daftar di atas, segera lakukan <strong>daftar ulang</strong> ke sekolah.</p>
+                    <?php if (!empty($g['tanggal_daftar_ulang_mulai'])): ?>
+                      <div class="alert alert-info py-2 mb-2">
+                        <i class="bi bi-calendar-event me-1"></i>
+                        Periode daftar ulang: <strong><?= date('d M Y', strtotime($g['tanggal_daftar_ulang_mulai'])) ?></strong>
+                        <?php if (!empty($g['tanggal_daftar_ulang_selesai']) && $g['tanggal_daftar_ulang_selesai'] !== $g['tanggal_daftar_ulang_mulai']): ?>
+                          s/d <strong><?= date('d M Y', strtotime($g['tanggal_daftar_ulang_selesai'])) ?></strong>
+                        <?php endif; ?>
+                      </div>
+                    <?php endif; ?>
+                    <p class="mb-1 fw-semibold">Dokumen yang harus dibawa:</p>
+                    <ul class="mb-2">
+                      <li>Ijazah / Surat Keterangan Lulus (SKL) asli dan fotokopi</li>
+                      <li>SKHUN (Surat Keterangan Hasil Ujian Nasional) asli dan fotokopi</li>
+                      <li>Pas foto terbaru ukuran 3×4 (4 lembar)</li>
+                      <li>Kartu Keluarga (KK) asli dan fotokopi</li>
+                      <li>Akta kelahiran fotokopi</li>
+                    </ul>
+                    <p class="mb-0 text-muted small"><i class="bi bi-info-circle me-1"></i>Pendaftaran yang tidak dilengkapi dokumen pada batas waktu dianggap mengundurkan diri.</p>
                   </div>
+                </div>
                 <?php endif; ?>
               <?php endif; ?>
             </div>
