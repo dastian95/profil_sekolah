@@ -79,9 +79,9 @@ body {
     background: linear-gradient(135deg, #1d4ed8, #3b82f6);
     color: #fff;
     text-align: center;
-    font-size: 1rem;
-    font-weight: 700;
-    padding: 10px 20px;
+    font-size: 1.35rem;
+    font-weight: 800;
+    padding: 12px 20px;
     letter-spacing: .3px;
     flex-shrink: 0;
 }

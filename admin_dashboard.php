@@ -38,6 +38,7 @@ $all_pages = [
     'antrian_display'  => ['label' => 'Display Antrian',     'icon' => 'bi-display',              'group' => 'Manajemen'],
     'ranking'         => ['label' => 'Ranking & Hasil',      'title' => 'Peringkat sementara sistem penerimaan siswa baru SMKS Laboratorium Jakarta', 'icon' => 'bi-trophy-fill', 'group' => 'Manajemen'],
     'ranking_display' => ['label' => 'Display Peringkat',   'icon' => 'bi-tv-fill',              'group' => 'Manajemen'],
+    'status_display'  => ['label' => 'Cek Status Siswa',    'icon' => 'bi-search-heart-fill',    'group' => 'Manajemen'],
     'announcements'  => ['label' => 'Pengumuman',           'icon' => 'bi-megaphone-fill',       'group' => 'Manajemen'],
     'pengaturan_ppdb'=> ['label' => 'Pengaturan Pendaftaran','icon' => 'bi-sliders',              'group' => 'Konfigurasi'],
     'meja'           => ['label' => 'Kelola Meja',          'icon' => 'bi-layout-split',         'group' => 'Konfigurasi'],
@@ -49,7 +50,7 @@ $all_pages = [
 $tahap_pages = [
     'input_data'      => ['pendaftar', 'antrian'],
     'proses_berkas'   => ['antrian', 'pendaftar'],
-    'ranking'         => ['ranking', 'pendaftar', 'ranking_display'],
+    'ranking'         => ['ranking', 'pendaftar', 'ranking_display', 'status_display'],
     'pengumuman'      => ['announcements', 'pengaturan_ppdb'],
     'kelola_meja'     => ['meja', 'antrian', 'antrian_display'],
     'kelola_gelombang'=> ['pengaturan_ppdb'],
@@ -85,6 +86,7 @@ if (in_array('antrian', $allowed_pages)) {
 if (in_array('ranking', $allowed_pages)) {
     if (!in_array('ranking_display', $allowed_pages))  $allowed_pages[] = 'ranking_display';
     if (!in_array('ranking_settings', $allowed_pages)) $allowed_pages[] = 'ranking_settings';
+    if (!in_array('status_display', $allowed_pages))   $allowed_pages[] = 'status_display';
 }
 
 // Kalau admin belum punya tahapan → tampilkan semua (supaya tidak blank)
@@ -389,6 +391,11 @@ foreach ($pages as $key => $info) {
                 </a>
                 <?php elseif ($key === 'ranking_display'): ?>
                 <a href="ranking_display.php" target="_blank" class="nav-link">
+                    <i class="bi <?= $info['icon'] ?>"></i>
+                    <span><?= $info['label'] ?> <i class="bi bi-box-arrow-up-right ms-1" style="font-size:.65rem;opacity:.5;"></i></span>
+                </a>
+                <?php elseif ($key === 'status_display'): ?>
+                <a href="status_display.php" target="_blank" class="nav-link">
                     <i class="bi <?= $info['icon'] ?>"></i>
                     <span><?= $info['label'] ?> <i class="bi bi-box-arrow-up-right ms-1" style="font-size:.65rem;opacity:.5;"></i></span>
                 </a>
