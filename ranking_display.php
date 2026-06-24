@@ -271,11 +271,12 @@ function setScroll(pos) {
 }
 
 function easeSpeed(pos, max) {
-    // Melambat smooth saat dekat tepi atas/bawah
-    const distEdge = Math.min(pos, max - pos);
-    if (distEdge >= EASE_ZONE || max <= 0) return MAX_SPEED;
-    const t = distEdge / EASE_ZONE;           // 0..1
-    return MAX_SPEED * (t * t * (3 - 2 * t)); // smoothstep
+    if (max <= 0) return MAX_SPEED;
+    // Ease hanya mendekati tepi yang dituju (bukan tepi asal)
+    const distToTarget = direction === 1 ? (max - pos) : pos;
+    if (distToTarget >= EASE_ZONE) return MAX_SPEED;
+    const t = distToTarget / EASE_ZONE;
+    return Math.max(0.12, MAX_SPEED * (t * t * (3 - 2 * t)));
 }
 
 function autoScroll() {
