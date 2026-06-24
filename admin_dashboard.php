@@ -38,7 +38,6 @@ $all_pages = [
     'antrian_display'  => ['label' => 'Display Antrian',     'icon' => 'bi-display',              'group' => 'Manajemen'],
     'ranking'         => ['label' => 'Ranking & Hasil',      'title' => 'Peringkat sementara sistem penerimaan siswa baru SMKS Laboratorium Jakarta', 'icon' => 'bi-trophy-fill', 'group' => 'Manajemen'],
     'ranking_display' => ['label' => 'Display Peringkat',   'icon' => 'bi-tv-fill',              'group' => 'Manajemen'],
-    'ranking_settings'=> ['label' => 'Setting Display',     'icon' => 'bi-gear-fill',            'group' => 'Manajemen'],
     'announcements'  => ['label' => 'Pengumuman',           'icon' => 'bi-megaphone-fill',       'group' => 'Manajemen'],
     'pengaturan_ppdb'=> ['label' => 'Pengaturan Pendaftaran','icon' => 'bi-sliders',              'group' => 'Konfigurasi'],
     'meja'           => ['label' => 'Kelola Meja',          'icon' => 'bi-layout-split',         'group' => 'Konfigurasi'],
@@ -50,7 +49,7 @@ $all_pages = [
 $tahap_pages = [
     'input_data'      => ['pendaftar', 'antrian'],
     'proses_berkas'   => ['antrian', 'pendaftar'],
-    'ranking'         => ['ranking', 'pendaftar', 'ranking_display', 'ranking_settings'],
+    'ranking'         => ['ranking', 'pendaftar', 'ranking_display'],
     'pengumuman'      => ['announcements', 'pengaturan_ppdb'],
     'kelola_meja'     => ['meja', 'antrian', 'antrian_display'],
     'kelola_gelombang'=> ['pengaturan_ppdb'],
