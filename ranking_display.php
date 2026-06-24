@@ -243,7 +243,7 @@ function render() {
 
         return `<div class="jur-col">
             <div class="jur-col-header">
-                <span class="jur-short">${esc(g.short)}</span>
+                <span class="jur-short">${esc(g.jurusan)}</span>
                 <span class="jur-count">${g.students.length} diterima</span>
             </div>${body}
         </div>`;
