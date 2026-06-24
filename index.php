@@ -762,7 +762,7 @@ $slist = fn($k, $d = '') => array_values(array_filter(array_map('trim', explode(
 
       <div class="container section-title" data-aos="fade-up">
         <h2><?= $s('sec_pengumuman_title', 'Pengumuman Penerimaan') ?></h2>
-        <p><?= $s('sec_pengumuman_sub', 'Peringkat Sementara Sistem Penerimaan Siswa Baru SMKS Laboratorium Jakarta') ?></p>
+        <p><?= $s('sec_pengumuman_sub', 'Peringkat Sementara SPMB SMKS Laboratorium Jakarta') ?></p>
       </div>
 
       <div class="container" data-aos="fade" data-aos-delay="100">
