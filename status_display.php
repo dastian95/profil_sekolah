@@ -19,6 +19,11 @@ if (isset($_GET['json'])) {
             $where[] = 'gelombang = ?';
             $params[] = $gel;
         }
+        $jur = trim($_GET['jur'] ?? '');
+        if ($jur !== '' && in_array($jur, JURUSAN_LIST, true)) {
+            $where[] = 'jurusan = ?';
+            $params[] = $jur;
+        }
         $sql  = "SELECT id, nama, nisn, jurusan, gelombang, nilai_akhir, nilai_raport, nilai_tka, status
                  FROM pendaftar WHERE " . implode(' AND ', $where) . "
                  ORDER BY jurusan ASC, nilai_akhir DESC LIMIT 500";
@@ -125,10 +130,10 @@ tbody td.c-val { text-align:right; font-weight:600; font-variant-numeric:tabular
     font-size:.68rem; font-weight:700; padding:3px 10px; border-radius:20px;
     display:inline-block;
 }
-.badge-status.terima  { background:#dcfce7; color:#15803d; }
-.badge-status.gugur   { background:#fee2e2; color:#b91c1c; }
-.badge-status.diproses{ background:#fef9c3; color:#b45309; }
-.badge-status.other   { background:#f1f5f9; color:#64748b; }
+.badge-status.terima  { background:#16a34a; color:#fff; }
+.badge-status.gugur   { background:#dc2626; color:#fff; }
+.badge-status.diproses{ background:#d1d5db; color:#374151; }
+.badge-status.other   { background:#d1d5db; color:#374151; }
 
 .val-na { color:#059669; font-weight:700; }
 .val-rp { color:#374151; }
@@ -152,6 +157,12 @@ tbody td.c-val { text-align:right; font-weight:600; font-variant-numeric:tabular
         <option value="0">Semua Gelombang</option>
         <option value="1">Gelombang 1</option>
         <option value="2">Gelombang 2</option>
+    </select>
+    <select id="jurFilter">
+        <option value="">Semua Jurusan</option>
+        <?php foreach (JURUSAN_LIST as $j): ?>
+        <option value="<?= htmlspecialchars($j) ?>"><?= htmlspecialchars(JURUSAN_SHORT[$j] ?? $j) ?> — <?= htmlspecialchars($j) ?></option>
+        <?php endforeach; ?>
     </select>
     <div class="stat-chips">
         <span class="chip terima"><i class="bi bi-check-circle-fill"></i> Diterima: <strong id="ct"><?= $totals['terima'] ?></strong></span>
@@ -200,7 +211,8 @@ function doSearch() {
 function fetchData() {
     const q   = document.getElementById('searchInput').value.trim();
     const gel = document.getElementById('gelFilter').value;
-    fetch(`status_display.php?json=1&q=${encodeURIComponent(q)}&gel=${gel}`)
+    const jur = document.getElementById('jurFilter').value;
+    fetch(`status_display.php?json=1&q=${encodeURIComponent(q)}&gel=${gel}&jur=${encodeURIComponent(jur)}`)
         .then(r => r.json())
         .then(d => render(d.rows || []))
         .catch(() => {});
@@ -226,6 +238,7 @@ function render(rows) {
 
 document.getElementById('searchInput').addEventListener('input', doSearch);
 document.getElementById('gelFilter').addEventListener('change', doSearch);
+document.getElementById('jurFilter').addEventListener('change', doSearch);
 
 // Load semua data saat pertama buka
 fetchData();
