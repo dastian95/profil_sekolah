@@ -74,34 +74,6 @@ body {
     flex-direction: column;
 }
 
-/* ── TOPBAR ── */
-.topbar {
-    background: linear-gradient(135deg, #0c0a2e, #1a1654);
-    padding: 0 28px;
-    height: 56px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 2px solid var(--border);
-    flex-shrink: 0;
-    gap: 12px;
-}
-.school { display:flex; align-items:center; gap:10px; }
-.logo-circle {
-    width:38px; height:38px; border-radius:50%;
-    background: linear-gradient(135deg,#6366f1,#8b5cf6);
-    display:flex; align-items:center; justify-content:center;
-    font-size:1.1rem; font-weight:900; color:#fff; flex-shrink:0;
-}
-.school-name { font-size:1rem; font-weight:700; color:#e0e7ff; line-height:1.15; }
-.school-name small { display:block; font-size:.6rem; opacity:.5; letter-spacing:.8px; text-transform:uppercase; }
-.center-badge {
-    display:flex; align-items:center; gap:8px;
-    font-size:.9rem; font-weight:600; color:var(--accent2);
-}
-.center-badge i { color:var(--gold); font-size:1.1rem; }
-.clock { font-size:2rem; font-weight:900; color:var(--cyan); font-variant-numeric:tabular-nums; line-height:1; }
-.date-str { font-size:.62rem; opacity:.45; text-align:right; margin-top:2px; }
 
 /* ── GRID AREA ── */
 .grid-area {
@@ -222,61 +194,17 @@ table.rt tbody td.col-val { text-align:right; }
     font-size:.8rem; opacity:.25; flex-direction:column; gap:6px;
 }
 
-/* ── TICKER ── */
-.ticker {
-    height: 28px; line-height: 28px;
-    background: rgba(99,102,241,.1);
-    border-top: 1px solid var(--border);
-    overflow: hidden; flex-shrink: 0;
-}
-.ticker-inner {
-    display:inline-block; white-space:nowrap;
-    animation: marquee 50s linear infinite;
-    font-size: .72rem; color: var(--accent2); padding-left:100%;
-}
-@keyframes marquee { 0%{transform:translateX(0)} 100%{transform:translateX(-100%)} }
-
-/* ── RESPONSIVE: 1 kolom lebar jika hanya 1 jurusan ── */
 </style>
 </head>
 <body>
-
-<!-- TOPBAR -->
-<div class="topbar">
-    <div class="school">
-        <div class="logo-circle">L</div>
-        <div class="school-name">
-            SMKS Laboratorium Jakarta
-            <small>Sistem Penerimaan Peserta Didik Baru</small>
-        </div>
-    </div>
-    <div class="center-badge">
-        <i class="bi bi-trophy-fill"></i>
-        Peringkat Siswa Diterima
-    </div>
-    <div>
-        <div class="clock" id="clock">--:--:--</div>
-        <div class="date-str" id="dateStr">—</div>
-    </div>
-</div>
 
 <!-- GRID SEMUA JURUSAN -->
 <div class="grid-area" id="gridArea">
     <!-- diisi JS -->
 </div>
 
-<!-- TICKER -->
-<div class="ticker"><span class="ticker-inner" id="tickerText">&nbsp;</span></div>
-
 <script>
 let groups = <?= json_encode($groups_init, JSON_UNESCAPED_UNICODE) ?>;
-
-// Clock
-(function tick() {
-    document.getElementById('clock').textContent =
-        new Date().toLocaleTimeString('id-ID',{hour12:false});
-    setTimeout(tick, 1000);
-})();
 
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function fmt(v){ return (v===null||v===undefined||v==='')?'—':parseFloat(v).toFixed(2); }
@@ -287,7 +215,6 @@ function render() {
         grid.innerHTML = '<div class="empty-col" style="background:var(--bg);width:100%;"><i class="bi bi-inbox" style="font-size:2rem;"></i><span>Belum ada siswa yang diterima</span></div>';
         return;
     }
-
     grid.innerHTML = groups.map(g => {
         const rows = g.students.map(s => {
             const rkCls = s.peringkat===1?'g':s.peringkat===2?'s':s.peringkat===3?'br':'';
@@ -295,10 +222,7 @@ function render() {
             const glm   = `<span class="glm-b ${s.gelombang==2?'g2':''}">G${s.gelombang}</span>`;
             return `<tr class="${s.is_pinned==1?'pinned':''}">
                 <td class="col-no"><span class="rk ${rkCls}">${s.peringkat}</span></td>
-                <td>
-                    <span class="nm">${esc(s.nama)}${pin}</span>
-                    <span class="nsn">${esc(s.nisn)||'—'}</span>
-                </td>
+                <td><span class="nm">${esc(s.nama)}${pin}</span><span class="nsn">${esc(s.nisn)||'—'}</span></td>
                 <td class="col-val"><span class="va rp">${fmt(s.nilai_raport)}</span></td>
                 <td class="col-val"><span class="va tk">${fmt(s.nilai_tka)}</span></td>
                 <td class="col-val"><span class="va na">${fmt(s.nilai_akhir)}</span></td>
@@ -306,13 +230,13 @@ function render() {
             </tr>`;
         }).join('');
 
-        const empty = g.students.length === 0
+        const body = g.students.length === 0
             ? `<div class="empty-col"><i class="bi bi-person-dash"></i><span>Belum ada</span></div>`
             : `<div class="col-table-wrap">
                 <table class="rt">
                     <thead><tr>
                         <th class="col-no">#</th>
-                        <th class="col-nama">Nama / NISN</th>
+                        <th>Nama / NISN</th>
                         <th class="col-val">Raport</th>
                         <th class="col-val">TKA</th>
                         <th class="col-val">Akhir</th>
@@ -326,31 +250,62 @@ function render() {
             <div class="jur-col-header">
                 <span class="jur-short">${esc(g.short)}</span>
                 <span class="jur-count">${g.students.length} diterima</span>
-            </div>
-            ${empty}
+            </div>${body}
         </div>`;
     }).join('');
-
-    // Ticker
-    const total = groups.reduce((s,g)=>s+g.students.length,0);
-    const parts = groups.map(g=>`${g.short}: ${g.students.length}`).join('  ·  ');
-    document.getElementById('tickerText').textContent =
-        `✦  Total diterima: ${total} siswa  ✦  ${parts}  ✦`;
 }
 
-// Auto-refresh
+// ── Auto-scroll bolak-balik pelan ─────────────────────────────────────────
+const SPEED     = 0.5;   // px per frame (~30px/detik di 60fps)
+const PAUSE_MS  = 2000;  // jeda di atas/bawah sebelum balik
+let scrollPos   = 0;
+let direction   = 1;     // 1 = turun, -1 = naik
+let paused      = false;
+
+function getMaxScroll() {
+    let max = 0;
+    document.querySelectorAll('.col-table-wrap').forEach(el => {
+        max = Math.max(max, el.scrollHeight - el.clientHeight);
+    });
+    return max;
+}
+
+function setScroll(pos) {
+    document.querySelectorAll('.col-table-wrap').forEach(el => el.scrollTop = pos);
+}
+
+function autoScroll() {
+    if (!paused) {
+        const max = getMaxScroll();
+        scrollPos += SPEED * direction;
+
+        if (scrollPos >= max) {
+            scrollPos = max;
+            setScroll(scrollPos);
+            paused = true;
+            setTimeout(() => { direction = -1; paused = false; }, PAUSE_MS);
+        } else if (scrollPos <= 0) {
+            scrollPos = 0;
+            setScroll(scrollPos);
+            paused = true;
+            setTimeout(() => { direction = 1; paused = false; }, PAUSE_MS);
+        } else {
+            setScroll(scrollPos);
+        }
+    }
+    requestAnimationFrame(autoScroll);
+}
+
+// ── Auto-refresh data ──────────────────────────────────────────────────────
 function fetchData(){
     fetch('ranking_display.php?json=1')
         .then(r=>r.json())
-        .then(d=>{
-            groups = d.groups;
-            if(d.date) document.getElementById('dateStr').textContent = d.date;
-            render();
-        })
+        .then(d=>{ groups = d.groups; render(); })
         .catch(()=>{});
 }
 
 render();
+autoScroll();
 fetchData();
 setInterval(fetchData, 5000);
 </script>
