@@ -53,34 +53,23 @@ try {
 <title>Peringkat Siswa Diterima — SMKS Laboratorium Jakarta</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <style>
-:root {
-    --bg:       #060818;
-    --bg2:      #0d0b26;
-    --bg3:      #121030;
-    --border:   rgba(99,102,241,.22);
-    --accent:   #6366f1;
-    --accent2:  #a5b4fc;
-    --green:    #6ee7b7;
-    --cyan:     #a5f3fc;
-    --gold:     #fbbf24;
-}
 * { margin:0; padding:0; box-sizing:border-box; }
 html, body { height:100%; overflow:hidden; }
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: var(--bg);
-    color: #e2e8f0;
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #eef2f7;
+    color: #1e293b;
     display: flex;
     flex-direction: column;
 }
-
 
 /* ── GRID AREA ── */
 .grid-area {
     flex: 1;
     display: flex;
-    gap: 1px;
-    background: var(--border); /* gap color */
+    gap: 10px;
+    padding: 10px;
+    background: #dde3ed;
     overflow: hidden;
     min-height: 0;
 }
@@ -90,33 +79,29 @@ body {
     flex: 1;
     display: flex;
     flex-direction: column;
-    background: var(--bg);
+    background: #ffffff;
+    border-radius: 10px;
     overflow: hidden;
     min-width: 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,.10);
 }
 
 .jur-col-header {
-    padding: 8px 12px;
-    background: linear-gradient(135deg, rgba(99,102,241,.25), rgba(99,102,241,.08));
-    border-bottom: 1px solid var(--border);
+    padding: 10px 14px;
+    background: linear-gradient(135deg, #1d4ed8, #3b82f6);
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
     flex-shrink: 0;
 }
-.jur-short {
-    font-size: .95rem; font-weight: 800; color: var(--accent2);
-    background: rgba(99,102,241,.2); border: 1px solid rgba(99,102,241,.35);
-    padding: 2px 10px; border-radius: 6px;
-}
-.jur-count {
-    margin-left: auto;
-    font-size: .65rem; font-weight: 600;
-    background: rgba(16,185,129,.15); color: #6ee7b7;
-    border: 1px solid rgba(16,185,129,.25); padding: 1px 7px; border-radius: 20px;
+.jur-name {
+    font-size: 1rem; font-weight: 800;
+    color: #ffffff;
+    letter-spacing: .3px;
+    text-align: center;
 }
 
-/* ── TABLE HEADER (sticky) ── */
+/* ── TABLE ── */
 .col-table-wrap {
     flex: 1;
     overflow-y: auto;
@@ -132,66 +117,62 @@ table.rt {
 }
 table.rt thead th {
     position: sticky; top: 0; z-index: 2;
-    background: #0f0e2a;
-    font-size: .58rem; text-transform: uppercase; letter-spacing: 1.2px;
-    color: #6366f1; font-weight: 600;
-    padding: 6px 8px;
-    border-bottom: 1px solid var(--border);
+    background: #f1f5f9;
+    font-size: .6rem; text-transform: uppercase; letter-spacing: 1px;
+    color: #64748b; font-weight: 700;
+    padding: 7px 8px;
+    border-bottom: 2px solid #e2e8f0;
     white-space: nowrap;
 }
-table.rt thead th.col-no   { width: 34px; text-align:center; }
-
-table.rt thead th.col-val  { width: 64px; text-align:right; }
+table.rt thead th.col-no  { width: 36px; text-align:center; }
+table.rt thead th.col-val { width: 62px; text-align:right; }
 
 table.rt tbody tr {
-    border-bottom: 1px solid rgba(255,255,255,.04);
-    transition: background .12s;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background .1s;
 }
-table.rt tbody tr:hover { background: rgba(99,102,241,.08); }
-table.rt tbody tr.pinned { background: rgba(251,191,36,.04); }
+table.rt tbody tr:nth-child(even) { background: #f8fafc; }
+table.rt tbody tr.pinned { background: #fffbeb; }
 
 table.rt tbody td {
-    padding: 7px 8px;
-    font-size: .78rem;
+    padding: 8px 8px;
+    font-size: .8rem;
     vertical-align: middle;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-table.rt tbody td.col-no { text-align:center; padding: 5px 4px; }
+table.rt tbody td.col-no  { text-align:center; padding: 6px 4px; }
 table.rt tbody td.col-val { text-align:right; }
 
 /* rank circle */
 .rk {
     display:inline-flex; align-items:center; justify-content:center;
-    width:26px; height:26px; border-radius:50%;
-    font-weight:800; font-size:.75rem;
-    background: rgba(99,102,241,.15); color: var(--accent2);
-    border: 1px solid rgba(99,102,241,.25);
+    width:28px; height:28px; border-radius:50%;
+    font-weight:800; font-size:.78rem;
+    background: #e0e7ff; color: #3730a3;
 }
-.rk.g  { background:linear-gradient(135deg,#b45309,#fbbf24); color:#fff; border-color:#fbbf24; }
-.rk.s  { background:linear-gradient(135deg,#475569,#94a3b8); color:#fff; border-color:#94a3b8; }
-.rk.br { background:linear-gradient(135deg,#7c2d12,#ea580c); color:#fff; border-color:#ea580c; }
+.rk.g  { background:linear-gradient(135deg,#d97706,#fbbf24); color:#fff; }
+.rk.s  { background:linear-gradient(135deg,#64748b,#94a3b8); color:#fff; }
+.rk.br { background:linear-gradient(135deg,#b45309,#f97316); color:#fff; }
 
-.nm  { font-weight:600; color:#e2e8f0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; }
-.nsn { font-size:.62rem; color:#475569; font-variant-numeric:tabular-nums; }
-.pin-badge { font-size:.55rem; background:rgba(251,191,36,.15); color:var(--gold); border:1px solid rgba(251,191,36,.3); padding:0 4px; border-radius:3px; margin-left:4px; vertical-align:middle; }
-.va  { font-weight:700; font-variant-numeric:tabular-nums; }
-.va.na { color:var(--green); font-size:.88rem; }
-.va.rp { color:#e2e8f0; }
-.va.tk { color:#93c5fd; }
-.glm-b {
-    font-size:.58rem; padding:1px 5px; border-radius:3px; font-weight:700;
-    background:rgba(99,102,241,.2); color:var(--accent2); border:1px solid rgba(99,102,241,.3);
+.nm  { font-weight:600; color:#0f172a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; }
+.nsn { font-size:.63rem; color:#94a3b8; font-variant-numeric:tabular-nums; }
+.pin-badge {
+    font-size:.52rem; background:#fef3c7; color:#b45309;
+    border:1px solid #fde68a; padding:0 4px; border-radius:3px;
+    margin-left:4px; vertical-align:middle;
 }
-.glm-b.g2 { background:rgba(245,158,11,.12); color:#fcd34d; border-color:rgba(245,158,11,.3); }
+.va { font-weight:700; font-variant-numeric:tabular-nums; }
+.va.na { color:#059669; font-size:.9rem; }
+.va.rp { color:#374151; }
+.va.tk { color:#2563eb; }
 
 /* empty */
 .empty-col {
     flex:1; display:flex; align-items:center; justify-content:center;
-    font-size:.8rem; opacity:.25; flex-direction:column; gap:6px;
+    font-size:.8rem; color:#94a3b8; flex-direction:column; gap:6px;
 }
-
 </style>
 </head>
 <body>
@@ -243,8 +224,7 @@ function render() {
 
         return `<div class="jur-col">
             <div class="jur-col-header">
-                <span class="jur-short">${esc(g.jurusan)}</span>
-                <span class="jur-count">${g.students.length} diterima</span>
+                <span class="jur-name">${esc(g.jurusan)}</span>
             </div>${body}
         </div>`;
     }).join('');
