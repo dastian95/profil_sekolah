@@ -278,6 +278,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $conn->prepare("UPDATE antrian SET pendaftar_id=? WHERE id=?")->execute([$pend_id ?: null, $ant_id]);
         $redir();
     }
+
+    // Tandai langsung daftar_ulang='sudah' tanpa melalui antrian
+    if ($action === 'tandai_du_sudah') {
+        $pend_id = (int)($_POST['pendaftar_id'] ?? 0);
+        if ($pend_id) {
+            $conn->prepare("UPDATE pendaftar SET daftar_ulang='sudah', daftar_ulang_at=NOW() WHERE id=? AND status='terima'")
+                 ->execute([$pend_id]);
+        }
+        $redir();
+    }
+
+    // Reset daftar_ulang ke belum
+    if ($action === 'batal_du') {
+        $pend_id = (int)($_POST['pendaftar_id'] ?? 0);
+        if ($pend_id) {
+            $conn->prepare("UPDATE pendaftar SET daftar_ulang=NULL, daftar_ulang_at=NULL WHERE id=? AND status='terima'")
+                 ->execute([$pend_id]);
+        }
+        $redir();
+    }
 }
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -524,22 +544,37 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
                 <div class="text-muted" style="font-size:.7rem;"><?= htmlspecialchars($s['no_pendaftaran']) ?> &middot; <?= JURUSAN_SHORT[$s['jurusan']] ?? '' ?></div>
             </div>
             <?php if ($sudah): ?>
+            <span class="badge bg-success-subtle text-success border border-success-subtle me-1" style="font-size:.62rem;">Sudah DU</span>
             <button type="button" class="btn btn-xs btn-outline-primary py-0 px-1" style="font-size:.72rem;" title="Edit data DU"
                 onclick="showEditPanel(<?= $s['id'] ?>)">
                 <i class="bi bi-pencil"></i>
             </button>
-            <button type="button" class="btn btn-xs btn-outline-success py-0 px-1" style="font-size:.72rem;" title="Cetak SPTJM"
+            <button type="button" class="btn btn-xs btn-outline-success py-0 px-1" style="font-size:.72rem;" title="Cetak SPTJM + Formulir"
                 onclick="cetakSPTJM(DU_DATA[<?= $s['id'] ?>])">
                 <i class="bi bi-printer"></i>
             </button>
+            <form method="POST" class="d-inline" onsubmit="return confirm('Reset status daftar ulang siswa ini?')">
+                <input type="hidden" name="action" value="batal_du">
+                <input type="hidden" name="pendaftar_id" value="<?= $s['id'] ?>">
+                <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1" style="font-size:.72rem;" title="Reset status DU">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </button>
+            </form>
             <?php elseif ($inQ): ?>
-            <span class="badge bg-warning text-dark" title="Sudah di antrian"><i class="bi bi-clock"></i></span>
+            <span class="badge bg-warning text-dark" title="Sudah di antrian"><i class="bi bi-clock"></i> Antrian</span>
             <?php else: ?>
             <form method="POST" class="d-inline">
                 <input type="hidden" name="action" value="tambah_antrian_du">
                 <input type="hidden" name="pendaftar_id" value="<?= $s['id'] ?>">
-                <button type="submit" class="btn btn-xs btn-outline-success py-0 px-1" style="font-size:.72rem;" title="Tambah ke antrian">
+                <button type="submit" class="btn btn-xs btn-outline-secondary py-0 px-1" style="font-size:.72rem;" title="Tambah ke antrian">
                     <i class="bi bi-plus-lg"></i>
+                </button>
+            </form>
+            <form method="POST" class="d-inline">
+                <input type="hidden" name="action" value="tandai_du_sudah">
+                <input type="hidden" name="pendaftar_id" value="<?= $s['id'] ?>">
+                <button type="submit" class="btn btn-xs btn-success py-0 px-1" style="font-size:.72rem;" title="Tandai langsung Sudah DU">
+                    <i class="bi bi-check-lg"></i>
                 </button>
             </form>
             <?php endif; ?>
@@ -955,9 +990,9 @@ function cetakSPTJM(p) {
 <title>SPTJM — ${p.nama}</title>
 <style>
     body { font-family: 'Times New Roman', serif; font-size: 12pt; margin: 0; padding: 0; }
-    .page { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 20mm 20mm 15mm; box-sizing: border-box; }
+    .page { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 20mm 20mm 15mm; box-sizing: border-box; page-break-after: always; }
+    .page:last-child { page-break-after: avoid; }
     .kop { text-align: center; border-bottom: 3px double #000; padding-bottom: 8px; margin-bottom: 20px; }
-    .kop img { height: 60px; }
     .kop h2 { font-size: 13pt; margin: 4px 0 2px; text-transform: uppercase; letter-spacing: 1px; }
     .kop p { font-size: 9pt; margin: 2px 0; }
     h3 { text-align: center; font-size: 13pt; text-decoration: underline; margin-bottom: 6px; letter-spacing: 1px; }
@@ -975,6 +1010,16 @@ function cetakSPTJM(p) {
     .ttd-box .label { margin-bottom: 70px; }
     .ttd-box .nama { border-top: 1px solid #000; padding-top: 4px; min-width: 180px; display: inline-block; }
     .materai { border: 1px dashed #888; width: 80px; height: 80px; margin: 0 auto 10px; display: flex; align-items: center; justify-content: center; font-size: 8pt; color: #888; text-align: center; }
+    /* Formulir kosong */
+    .form-title { text-align:center; font-size:13pt; font-weight:bold; text-decoration:underline; margin-bottom:4px; letter-spacing:1px; }
+    .form-sub { text-align:center; font-size:9pt; margin-bottom:16px; }
+    .f-section { font-size:10pt; font-weight:bold; text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid #000; margin:14px 0 8px; padding-bottom:2px; }
+    .f-row { display:flex; align-items:flex-end; margin-bottom:8px; gap:8px; font-size:11pt; }
+    .f-label { flex-shrink:0; width:160px; }
+    .f-sep { flex-shrink:0; }
+    .f-line { flex:1; border-bottom:1px solid #555; min-height:18px; }
+    .f-row-half { display:flex; gap:16px; }
+    .f-row-half .f-row { flex:1; }
     @media print { @page { size: A4; margin: 0; } body { print-color-adjust: exact; } }
 </style></head><body>
 <div class="page">
@@ -1027,8 +1072,115 @@ function cetakSPTJM(p) {
 <script>window.onload = function() { window.print(); }<\/script>
 </body></html>`;
 
+    // Halaman 2: Formulir Pendaftaran kosong (diisi siswa di kertas)
+    const jurShort = <?= json_encode(JURUSAN_SHORT, JSON_UNESCAPED_UNICODE) ?>;
+    const jurLabel = jurShort[p.jurusan] || p.jurusan || '...........';
+
+    const formulirPage = `
+<div class="page">
+    <div class="kop">
+        <h2>SMKS Laboratorium Jakarta</h2>
+        <p><?= htmlspecialchars($sch_alamat) ?></p>
+    </div>
+    <div class="form-title">FORMULIR PENDAFTARAN PESERTA DIDIK BARU</div>
+    <div class="form-sub">Tahun Pelajaran 2026/2027</div>
+
+    <table style="width:100%;border-collapse:collapse;margin-bottom:10px;font-size:10.5pt;">
+        <tr>
+            <td style="width:55%;vertical-align:top;padding-right:8px;">
+                <table style="border-collapse:collapse;width:100%;">
+                    <tr>
+                        <td style="width:120px;padding:2px 4px;">No. Pendaftaran</td>
+                        <td style="width:10px;">:</td>
+                        <td style="border-bottom:1px solid #555;padding:2px 4px;"><strong>${p.no_pendaftaran||''}</strong></td>
+                    </tr>
+                    <tr>
+                        <td style="padding:2px 4px;">Nama Lengkap</td>
+                        <td>:</td>
+                        <td style="border-bottom:1px solid #555;padding:2px 4px;"><strong>${p.nama||''}</strong></td>
+                    </tr>
+                    <tr>
+                        <td style="padding:2px 4px;">NISN</td>
+                        <td>:</td>
+                        <td style="border-bottom:1px solid #555;padding:2px 4px;">${p.nisn||''}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:2px 4px;">Jurusan</td>
+                        <td>:</td>
+                        <td style="border-bottom:1px solid #555;padding:2px 4px;">${jurLabel}</td>
+                    </tr>
+                </table>
+            </td>
+            <td style="width:45%;vertical-align:top;text-align:center;">
+                <div style="border:1px solid #888;width:90px;height:110px;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:8pt;color:#888;text-align:center;padding:4px;">
+                    Foto<br>3 × 4
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="f-section">A. Data Pribadi Calon Peserta Didik</div>
+    <div class="f-row"><span class="f-label">Nama Lengkap</span><span class="f-sep">:</span><span class="f-line"></span></div>
+    <div class="f-row-half">
+        <div class="f-row"><span class="f-label">Jenis Kelamin</span><span class="f-sep">:</span><span class="f-line"></span></div>
+        <div class="f-row"><span class="f-label">Agama</span><span class="f-sep">:</span><span class="f-line"></span></div>
+    </div>
+    <div class="f-row-half">
+        <div class="f-row"><span class="f-label">Tempat Lahir</span><span class="f-sep">:</span><span class="f-line"></span></div>
+        <div class="f-row"><span class="f-label">Tanggal Lahir</span><span class="f-sep">:</span><span class="f-line"></span></div>
+    </div>
+    <div class="f-row"><span class="f-label">NIK</span><span class="f-sep">:</span><span class="f-line"></span></div>
+    <div class="f-row"><span class="f-label">Asal Sekolah (SMP/MTs)</span><span class="f-sep">:</span><span class="f-line"></span></div>
+    <div class="f-row"><span class="f-label">Alamat Rumah</span><span class="f-sep">:</span><span class="f-line"></span></div>
+    <div class="f-row"><span class="f-label">&nbsp;</span><span class="f-sep">&nbsp;</span><span class="f-line"></span></div>
+    <div class="f-row-half">
+        <div class="f-row"><span class="f-label">Kelurahan/Desa</span><span class="f-sep">:</span><span class="f-line"></span></div>
+        <div class="f-row"><span class="f-label">Kecamatan</span><span class="f-sep">:</span><span class="f-line"></span></div>
+    </div>
+    <div class="f-row-half">
+        <div class="f-row"><span class="f-label">Kota/Kabupaten</span><span class="f-sep">:</span><span class="f-line"></span></div>
+        <div class="f-row"><span class="f-label">Kode Pos</span><span class="f-sep">:</span><span class="f-line"></span></div>
+    </div>
+    <div class="f-row-half">
+        <div class="f-row"><span class="f-label">No. Telepon/HP</span><span class="f-sep">:</span><span class="f-line"></span></div>
+        <div class="f-row"><span class="f-label">Email</span><span class="f-sep">:</span><span class="f-line"></span></div>
+    </div>
+
+    <div class="f-section">B. Data Orang Tua / Wali</div>
+    <div class="f-row"><span class="f-label">Nama Ayah</span><span class="f-sep">:</span><span class="f-line"></span></div>
+    <div class="f-row-half">
+        <div class="f-row"><span class="f-label">Pekerjaan Ayah</span><span class="f-sep">:</span><span class="f-line"></span></div>
+        <div class="f-row"><span class="f-label">No. HP Ayah</span><span class="f-sep">:</span><span class="f-line"></span></div>
+    </div>
+    <div class="f-row"><span class="f-label">Nama Ibu</span><span class="f-sep">:</span><span class="f-line"></span></div>
+    <div class="f-row-half">
+        <div class="f-row"><span class="f-label">Pekerjaan Ibu</span><span class="f-sep">:</span><span class="f-line"></span></div>
+        <div class="f-row"><span class="f-label">No. HP Ibu</span><span class="f-sep">:</span><span class="f-line"></span></div>
+    </div>
+    <div class="f-row"><span class="f-label">Nama Wali (jika ada)</span><span class="f-sep">:</span><span class="f-line"></span></div>
+    <div class="f-row"><span class="f-label">Alamat Orang Tua/Wali</span><span class="f-sep">:</span><span class="f-line"></span></div>
+    <div class="f-row"><span class="f-label">&nbsp;</span><span class="f-sep">&nbsp;</span><span class="f-line"></span></div>
+
+    <div class="f-section">C. Pernyataan</div>
+    <p style="font-size:10pt;line-height:1.6;text-align:justify;margin-bottom:16px;">
+        Dengan ini saya menyatakan bahwa data yang saya isi di atas adalah benar dan dapat dipertanggungjawabkan.
+        Apabila di kemudian hari terbukti data tidak sesuai, saya bersedia menerima sanksi sesuai ketentuan yang berlaku.
+    </p>
+
+    <div class="ttd" style="margin-top:10px;">
+        <div style="width:40%;"></div>
+        <div class="ttd-box">
+            <div class="label">Jakarta, ___________________</div>
+            <div class="label">Calon Peserta Didik / Orang Tua,</div>
+            <div class="nama" style="min-width:200px;">&nbsp;</div>
+        </div>
+    </div>
+</div>`;
+
+    const fullHtml = html.replace('<script>window.onload', formulirPage + '<script>window.onload');
+
     const w = window.open('', '_blank', 'width=900,height=700');
-    w.document.write(html);
+    w.document.write(fullHtml);
     w.document.close();
 }
 </script>

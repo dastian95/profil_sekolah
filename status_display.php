@@ -26,9 +26,12 @@ if (isset($_GET['json'])) {
             $where[] = 'jurusan = ?';
             $params[] = $jur;
         }
-        $sql  = "SELECT id, nama, nisn, jurusan, gelombang, nilai_akhir, nilai_raport, nilai_tka, status
-                 FROM pendaftar WHERE " . implode(' AND ', $where) . "
-                 ORDER BY jurusan ASC, nilai_akhir DESC LIMIT 500";
+        // Subquery hitung peringkat per-jurusan berdasarkan nilai_akhir (tidak terpengaruh filter)
+        $sql  = "SELECT p.id, p.nama, p.nisn, p.jurusan, p.gelombang, p.nilai_akhir, p.nilai_raport, p.nilai_tka, p.status,
+                        (SELECT COUNT(*)+1 FROM pendaftar p2
+                         WHERE p2.jurusan = p.jurusan AND p2.nilai_akhir > p.nilai_akhir) AS peringkat
+                 FROM pendaftar p WHERE " . implode(' AND ', $where) . "
+                 ORDER BY p.jurusan ASC, p.nilai_akhir DESC LIMIT 500";
         $st   = $conn->prepare($sql);
         $st->execute($params);
         echo json_encode(['rows' => $st->fetchAll(PDO::FETCH_ASSOC)]);
@@ -226,9 +229,9 @@ function render(rows) {
         tbody.innerHTML = '<tr><td colspan="7" class="no-result"><i class="bi bi-inbox"></i>Tidak ada data yang cocok</td></tr>';
         return;
     }
-    tbody.innerHTML = rows.map((r, i) => `
+    tbody.innerHTML = rows.map((r) => `
         <tr>
-            <td class="c-no" style="color:#94a3b8;font-size:.75rem;">${i+1}</td>
+            <td class="c-no" style="color:#94a3b8;font-size:.75rem;">${r.peringkat}</td>
             <td><span class="nm">${esc(r.nama)}</span><span class="nsn">${esc(r.nisn)||'—'}</span></td>
             <td style="font-size:.75rem;color:#475569;">${esc(SHORT[r.jurusan]||r.jurusan)}</td>
             <td class="c-val val-rp">${fmt(r.nilai_raport)}</td>
