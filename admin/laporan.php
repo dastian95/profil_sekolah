@@ -46,7 +46,24 @@ if (($_GET['action'] ?? '') === 'export_laporan') {
         ];
     }
 
-    xlsx_send($fname, $headers, $data, 'Laporan PPDB');
+    // Kolom 15 = Status, kolom 14 = Lolos Usia
+    $style_fn = function(int $col, $val): int {
+        if ($col === 15) { // Status
+            return match((string)$val) {
+                'terima'   => XLSX_GREEN,
+                'gugur'    => XLSX_RED,
+                'diproses' => XLSX_YELLOW,
+                'lengkap'  => XLSX_BLUE,
+                default    => XLSX_GRAY,
+            };
+        }
+        if ($col === 14) { // Lolos Usia
+            return $val === 'Ya' ? XLSX_GREEN : XLSX_RED;
+        }
+        return XLSX_NORMAL;
+    };
+
+    xlsx_send($fname, $headers, $data, 'Laporan PPDB', $style_fn);
 }
 
 // ── Ambil data sekolah untuk kop cetak ───────────────────────────────────────
