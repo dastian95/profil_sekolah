@@ -250,6 +250,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'prose
             <strong>{$total_diterima}</strong> pendaftar diterima dari seluruh jurusan.</div>";
     }
 
+    // Jika dipanggil via AJAX (auto-proses), kembalikan JSON — jangan redirect
+    if (!empty($_POST['ajax'])) {
+        header('Content-Type: application/json');
+        echo json_encode([
+            'ok'    => true,
+            'total' => $total_diterima ?? 0,
+            'time'  => date('H:i:s'),
+        ]);
+        exit;
+    }
+
     // PRG: redirect setelah proses agar refresh tidak mengulang seleksi
     $_SESSION['flash_ranking'] = $msg;
     while (ob_get_level() > 0) ob_end_clean();
@@ -453,6 +464,15 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
                 <i class="bi bi-calculator me-1"></i>Proses Penerimaan Glm <?= $fGel ?>
             </button>
         </form>
+
+        <!-- Toggle Auto-Proses -->
+        <div class="d-inline-flex align-items-center gap-2 ms-2 border rounded-pill px-3 py-1 bg-white" style="font-size:.8rem;">
+            <span class="text-muted fw-semibold">Auto</span>
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="autoProses" style="cursor:pointer;" title="Proses otomatis setiap 30 detik">
+            </div>
+            <span id="autoStatus" class="text-muted" style="font-size:.72rem;min-width:90px;">Nonaktif</span>
+        </div>
         <?php endif; ?>
     </div>
 </div>
@@ -1006,4 +1026,70 @@ function buildRaportTablePKBM(raport) {
     setInterval(checkHash, 5000);
     checkHash();
 })();
+
+// ── Auto-Proses Toggle ────────────────────────────────────────────────────
+(function() {
+    const gel      = <?= (int)($fGel ?? 1) ?>;
+    const dash     = <?= !empty($_SESSION['is_super']) ? "'superadmin_dashboard.php'" : "'admin_dashboard.php'" ?>;
+    const STORE_KEY = 'auto_proses_g' + gel;
+    const INTERVAL  = 30000; // 30 detik
+    let timer = null;
+    let running = false;
+
+    const toggle = document.getElementById('autoProses');
+    const status = document.getElementById('autoStatus');
+    if (!toggle) return;
+
+    function setUI(on) {
+        if (on) {
+            status.innerHTML = '<span class="text-success fw-semibold"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#16a34a;animation:ap-pulse 1s infinite;"></span> Aktif</span>';
+        } else {
+            status.textContent = 'Nonaktif';
+        }
+    }
+
+    function doProses() {
+        if (running) return;
+        running = true;
+        status.innerHTML = '<span class="text-warning">⏳ Memproses…</span>';
+        const fd = new FormData();
+        fd.append('action', 'proses');
+        fd.append('gelombang', gel);
+        fd.append('ajax', '1');
+        fetch(dash + '?page=ranking', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(d => {
+                running = false;
+                if (toggle.checked) {
+                    status.innerHTML = `<span class="text-success fw-semibold"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#16a34a;animation:ap-pulse 1s infinite;"></span> Aktif — ${d.time}</span>`;
+                }
+            })
+            .catch(() => { running = false; if (toggle.checked) setUI(true); });
+    }
+
+    function start() {
+        doProses();
+        timer = setInterval(doProses, INTERVAL);
+        setUI(true);
+    }
+    function stop() {
+        clearInterval(timer); timer = null;
+        setUI(false);
+    }
+
+    // Restore state dari localStorage
+    const saved = localStorage.getItem(STORE_KEY);
+    if (saved === '1') { toggle.checked = true; start(); }
+
+    toggle.addEventListener('change', () => {
+        if (toggle.checked) { localStorage.setItem(STORE_KEY, '1'); start(); }
+        else                { localStorage.setItem(STORE_KEY, '0'); stop(); }
+    });
+})();
 </script>
+<style>
+@keyframes ap-pulse {
+    0%,100% { opacity:1; transform:scale(1); }
+    50%      { opacity:.4; transform:scale(1.4); }
+}
+</style>
