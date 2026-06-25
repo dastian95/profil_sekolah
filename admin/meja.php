@@ -27,6 +27,11 @@ try { $conn->exec("ALTER TABLE antrian ADD COLUMN pendaftar_id INT NULL AFTER no
 try { $conn->exec("ALTER TABLE antrian ADD COLUMN fase TINYINT NOT NULL DEFAULT 1 AFTER pendaftar_id"); } catch(PDOException) {}
 try { $conn->exec("ALTER TABLE antrian ADD COLUMN hasil ENUM('lulus','gagal') NULL AFTER fase"); } catch(PDOException) {}
 try { $conn->exec("ALTER TABLE antrian DROP INDEX uk_tanggal_nomor, ADD UNIQUE KEY uk_tanggal_nomor_fase (tanggal, nomor, fase)"); } catch(PDOException) {}
+// Auto-migrate: kolom DU meja
+try { $conn->exec("ALTER TABLE meja ADD COLUMN jenis_du TINYINT(1) NOT NULL DEFAULT 0 AFTER is_paused"); } catch(PDOException) {}
+try { $conn->exec("ALTER TABLE meja ADD COLUMN jurusan_du VARCHAR(100) NULL AFTER jenis_du"); } catch(PDOException) {}
+// Auto-migrate: unique key antrian include jenis agar DU & SPMB nomor tidak konflik
+try { $conn->exec("ALTER TABLE antrian DROP INDEX uk_tanggal_nomor_fase, ADD UNIQUE KEY uk_tanggal_jenis_nomor_fase (tanggal, jenis, nomor, fase)"); } catch(PDOException) {}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -110,6 +115,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Content-Type: application/json');
             echo json_encode(['ok' => true]);
             exit;
+
+        } elseif ($action === 'set_du_meja') {
+            $id       = (int)$_POST['id'];
+            $jurusan  = trim($_POST['jurusan_du'] ?? '');
+            $valid    = in_array($jurusan, JURUSAN_LIST, true);
+            $jenis_du = $valid ? 1 : 0;
+            $jurusan  = $valid ? $jurusan : null;
+            $conn->prepare("UPDATE meja SET jenis_du=?, jurusan_du=? WHERE id=?")->execute([$jenis_du, $jurusan, $id]);
+            log_admin_action($conn, 'MEJA_DU_SET', "Set meja ID:$id sebagai DU jurusan: " . ($jurusan ?? 'dihapus'));
+            $msg = '<div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>Pengaturan meja DU disimpan.</div>';
 
         } elseif ($action === 'rename_meja') {
             $id   = (int)$_POST['id'];
@@ -524,6 +539,53 @@ document.querySelectorAll('.meja-nama-label').forEach(el => {
       </form>
     </div>
   </div>
+</div>
+
+<!-- ══ SECTION: MEJA DAFTAR ULANG ══════════════════════════════════════════════ -->
+<hr class="my-4">
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div>
+        <h5 class="mb-1 fw-semibold"><i class="bi bi-person-check-fill me-2" style="color:#059669;"></i>Pengaturan Meja Daftar Ulang</h5>
+        <p class="text-muted small mb-0">Tentukan meja mana yang digunakan untuk Daftar Ulang dan jurusan yang dilayani.</p>
+    </div>
+</div>
+<div class="row g-3 mb-4">
+<?php foreach ($mejas as $m):
+    $isDU    = !empty($m['jenis_du']);
+    $jurDU   = $m['jurusan_du'] ?? '';
+    $kodeDU  = JURUSAN_SHORT[$jurDU] ?? '';
+?>
+<div class="col-md-3 col-sm-4 col-6">
+    <div class="card p-3 <?= $isDU ? 'border-success' : '' ?>" style="<?= $isDU ? 'border-width:2px;' : '' ?>">
+        <div class="fw-bold mb-1 small">Meja <?= $m['nomor_meja'] ?><?= $m['nama'] ? ' — '.htmlspecialchars($m['nama']) : '' ?></div>
+        <?php if ($isDU): ?>
+            <span class="badge bg-success mb-2"><?= htmlspecialchars($kodeDU ?: $jurDU) ?> — Meja DU</span>
+        <?php else: ?>
+            <span class="badge bg-secondary mb-2">Bukan Meja DU</span>
+        <?php endif; ?>
+        <form method="POST" class="d-flex gap-1">
+            <input type="hidden" name="action" value="set_du_meja">
+            <input type="hidden" name="id" value="<?= $m['id'] ?>">
+            <select name="jurusan_du" class="form-select form-select-sm" style="font-size:.72rem;">
+                <option value="">— Bukan Meja DU —</option>
+                <?php foreach (JURUSAN_LIST as $j): ?>
+                <option value="<?= htmlspecialchars($j) ?>" <?= $jurDU===$j?'selected':'' ?>>
+                    <?= htmlspecialchars(JURUSAN_SHORT[$j] ?? $j) ?> — <?= htmlspecialchars($j) ?>
+                </option>
+                <?php endforeach; ?>
+            </select>
+            <button type="submit" class="btn btn-sm btn-outline-success px-2" title="Simpan">
+                <i class="bi bi-check-lg"></i>
+            </button>
+        </form>
+    </div>
+</div>
+<?php endforeach; ?>
+</div>
+<div class="alert alert-info small py-2">
+    <i class="bi bi-info-circle me-1"></i>
+    Meja yang ditandai sebagai Meja DU akan muncul di halaman Sesi Daftar Ulang.
+    Setiap meja DU hanya melayani jurusan yang dipilih. Satu jurusan bisa punya lebih dari satu meja.
 </div>
 
 <!-- Modal Buka Antrian -->

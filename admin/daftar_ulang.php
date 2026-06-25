@@ -1,5 +1,5 @@
 <?php
-// Sesi Daftar Ulang — alur sama seperti antrian PPDB, tapi data yang diisi berbeda
+// Sesi Daftar Ulang — alur sama seperti antrian SPMB, tapi data yang diisi berbeda
 // (data orang tua, alamat lengkap, dll). Hanya superadmin.
 
 $today = date('Y-m-d');
@@ -13,12 +13,13 @@ try {
 } catch (PDOException $e) {}
 
 // ── Auto-migrate ─────────────────────────────────────────────────────────────
-// Tandai antrian DU supaya tidak campur dengan antrian PPDB
+// Tandai antrian DU supaya tidak campur dengan antrian SPMB
 try { $conn->exec("ALTER TABLE antrian ADD COLUMN jenis ENUM('ppdb','daftar_ulang') NOT NULL DEFAULT 'ppdb' AFTER tanggal"); } catch (PDOException $e) {}
 
 // Kolom tambahan pendaftar untuk data lengkap siswa (sesuai Formulir Pendaftaran)
 $new_cols = [
-    "ALTER TABLE pendaftar ADD COLUMN daftar_ulang ENUM('belum','sudah') NOT NULL DEFAULT 'belum' AFTER catatan",
+    "ALTER TABLE pendaftar ADD COLUMN daftar_ulang ENUM('belum','proses','sudah') NOT NULL DEFAULT 'belum' AFTER catatan",
+    "ALTER TABLE pendaftar MODIFY COLUMN daftar_ulang ENUM('belum','proses','sudah') NOT NULL DEFAULT 'belum'",
     "ALTER TABLE pendaftar ADD COLUMN daftar_ulang_at DATETIME NULL AFTER daftar_ulang",
     "ALTER TABLE pendaftar ADD COLUMN nis VARCHAR(20) NULL AFTER nisn",
     "ALTER TABLE pendaftar ADD COLUMN nik VARCHAR(20) NULL",
@@ -66,7 +67,13 @@ $new_cols = [
 ];
 foreach ($new_cols as $sql) { try { $conn->exec($sql); } catch (PDOException $e) {} }
 
-$mejas_aktif = $conn->query("SELECT * FROM meja WHERE is_active=1 ORDER BY nomor_meja")->fetchAll();
+// Hanya meja yang ditandai sebagai meja DU (jenis_du=1)
+$mejas_aktif = [];
+try { $mejas_aktif = $conn->query("SELECT * FROM meja WHERE is_active=1 AND jenis_du=1 ORDER BY nomor_meja")->fetchAll(); } catch(Throwable) {}
+if (empty($mejas_aktif)) {
+    // Fallback: coba semua meja aktif (sebelum kolom jenis_du ada)
+    try { $mejas_aktif = $conn->query("SELECT * FROM meja WHERE is_active=1 ORDER BY nomor_meja")->fetchAll(); } catch(Throwable) {}
+}
 
 // ── Export CSV (GET) ──────────────────────────────────────────────────────────
 if (($_GET['action'] ?? '') === 'export_csv') {
@@ -163,7 +170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'username_siswa','password_siswa','kelas_awal','status_keluarga',
                 ];
                 $int_fields = ['anak_ke','status_keluarga','kelas_awal','tahun_lulus'];
-                $set = ['daftar_ulang=\'sudah\'','daftar_ulang_at=NOW()']; $params_du = [];
+                $set = ['daftar_ulang=\'proses\'','daftar_ulang_at=NOW()']; $params_du = [];
                 foreach ($fields_du as $f) {
                     if (isset($_POST[$f])) {
                         $v = trim($_POST[$f]);
@@ -178,10 +185,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $conn->prepare("UPDATE pendaftar SET ".implode(', ',$set)." WHERE id=? AND status='terima'")
                      ->execute($params_du);
             }
-            // Selesaikan antrian
+            // Selesaikan antrian (status proses, bukan sudah — sudah nanti manual)
             $conn->prepare("UPDATE antrian SET status='selesai', hasil='lulus', selesai_at=NOW()
                             WHERE id=? AND meja_id=? AND status='dipanggil'")->execute([$ant_id, $du_meja_id]);
-            $ambilBerikutnya();
             $conn->commit();
         } catch(Throwable $e) { $conn->rollBack(); }
         $redir();
@@ -214,7 +220,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($set) {
                 $params_du[] = $pend_id;
                 try {
-                    $conn->prepare("UPDATE pendaftar SET ".implode(', ',$set)." WHERE id=? AND status='terima' AND daftar_ulang='sudah'")
+                    $conn->prepare("UPDATE pendaftar SET ".implode(', ',$set)." WHERE id=? AND status='terima' AND daftar_ulang IN ('proses','sudah')")
                          ->execute($params_du);
                 } catch(Throwable $e) {}
             }
@@ -224,22 +230,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'skip_du') {
         $ant_id = (int)$_POST['antrian_id'];
-        $conn->beginTransaction();
-        try {
-            $conn->prepare("UPDATE antrian SET status='skip', selesai_at=NOW()
-                            WHERE id=? AND meja_id=? AND status='dipanggil'")->execute([$ant_id, $du_meja_id]);
-            $ambilBerikutnya();
-            $conn->commit();
-        } catch(Throwable $e) { $conn->rollBack(); }
+        $conn->prepare("UPDATE antrian SET status='skip', selesai_at=NOW()
+                        WHERE id=? AND meja_id=? AND status='dipanggil'")->execute([$ant_id, $du_meja_id]);
         $redir();
     }
 
     if ($action === 'mulai_du') {
+        // Panggil dulu — buat nomor DU baru tanpa siswa (siswa di-link setelah datang)
         $conn->beginTransaction();
         try {
             $cek = $conn->prepare("SELECT id FROM antrian WHERE tanggal=? AND jenis='daftar_ulang' AND meja_id=? AND status='dipanggil'");
             $cek->execute([$today, $du_meja_id]);
-            if (!$cek->fetch()) $ambilBerikutnya();
+            if (!$cek->fetch()) {
+                // Nomor DU global per hari (semua meja DU share satu counter)
+                $maxN = $conn->prepare("SELECT COALESCE(MAX(nomor),0)+1 FROM antrian WHERE tanggal=? AND jenis='daftar_ulang'");
+                $maxN->execute([$today]);
+                $nomor = (int)$maxN->fetchColumn();
+                $conn->prepare("INSERT INTO antrian (tanggal, jenis, nomor, status, meja_id, dipanggil_at) VALUES (?, 'daftar_ulang', ?, 'dipanggil', ?, NOW(3))")
+                     ->execute([$today, $nomor, $du_meja_id]);
+            }
             $conn->commit();
         } catch(Throwable $e) { $conn->rollBack(); }
         $redir();
@@ -337,33 +346,35 @@ if ($du_meja_id) {
     }
 }
 
-// Daftar siswa diterima untuk panel pencarian/tambah antrian (SELECT * agar data SPTJM lengkap)
+// Daftar siswa diterima — filter per jurusan meja DU jika meja sudah dipilih
 $diterima_list = [];
 try {
-    $dl = $conn->query("SELECT * FROM pendaftar WHERE status='terima' ORDER BY jurusan, nama");
+    $meja_jurusan = $du_meja['jurusan_du'] ?? null;
+    if ($meja_jurusan) {
+        $dl = $conn->prepare("SELECT * FROM pendaftar WHERE status='terima' AND jurusan=? ORDER BY nama");
+        $dl->execute([$meja_jurusan]);
+    } else {
+        $dl = $conn->query("SELECT * FROM pendaftar WHERE status='terima' ORDER BY jurusan, nama");
+    }
     $diterima_list = $dl->fetchAll();
 } catch(Throwable) {}
 
-
-// Nomor berikutnya (preview)
-$next_up = [];
-try {
-    $nu = $conn->prepare("SELECT a.nomor, p.nama FROM antrian a
-        LEFT JOIN pendaftar p ON p.id=a.pendaftar_id
-        WHERE a.tanggal=? AND a.jenis='daftar_ulang' AND a.status='menunggu' ORDER BY a.nomor ASC LIMIT 5");
-    $nu->execute([$today]);
-    $next_up = $nu->fetchAll();
-} catch(Throwable) {}
-
 // Summary daftar ulang
-$du_summary = ['total'=>0,'sudah'=>0,'belum'=>0];
+$du_summary = ['total'=>0,'sudah'=>0,'proses'=>0,'belum'=>0];
 try {
-    $su = $conn->query("SELECT COUNT(*) AS total, SUM(daftar_ulang='sudah') AS sudah FROM pendaftar WHERE status='terima'");
+    $su = $conn->query("SELECT COUNT(*) AS total, SUM(daftar_ulang='sudah') AS sudah, SUM(daftar_ulang='proses') AS proses FROM pendaftar WHERE status='terima'");
     $r = $su->fetch();
-    $du_summary['total'] = (int)$r['total'];
-    $du_summary['sudah'] = (int)$r['sudah'];
-    $du_summary['belum'] = $du_summary['total'] - $du_summary['sudah'];
+    $du_summary['total']  = (int)$r['total'];
+    $du_summary['sudah']  = (int)$r['sudah'];
+    $du_summary['proses'] = (int)$r['proses'];
+    $du_summary['belum']  = $du_summary['total'] - $du_summary['sudah'] - $du_summary['proses'];
 } catch(Throwable) {}
+
+// Helper: format nomor DU → "DU001TKJ"
+$fmtDuNomor = function(int $nomor, ?string $jurusan = null): string {
+    $kode = JURUSAN_SHORT[$jurusan ?? ''] ?? ($jurusan ? strtoupper(substr($jurusan,0,3)) : '');
+    return 'DU' . str_pad($nomor, 3, '0', STR_PAD_LEFT) . $kode;
+};
 
 $pend_opts = ['SD','SMP','SMA/SMK','D1','D2','D3','S1','S2','S3','Tidak Sekolah','Lainnya'];
 $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'];
@@ -397,6 +408,9 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
             <span class="du-stat-pill" style="background:#d1fae5;color:#065f46;">
                 <i class="bi bi-check-circle-fill"></i><?= $du_summary['sudah'] ?> Sudah DU
             </span>
+            <span class="du-stat-pill" style="background:#fef9c3;color:#854d0e;">
+                <i class="bi bi-hourglass-split"></i><?= $du_summary['proses'] ?> Proses
+            </span>
             <span class="du-stat-pill" style="background:#fee2e2;color:#991b1b;">
                 <i class="bi bi-clock"></i><?= $du_summary['belum'] ?> Belum DU
             </span>
@@ -423,10 +437,19 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
 <?php if (!$du_meja_id): ?>
 <!-- ══ PILIH MEJA ══════════════════════════════════════════════════════════════ -->
 <div class="text-center mb-4">
-    <h5 class="fw-bold text-muted">Pilih meja untuk memulai sesi daftar ulang</h5>
+    <h5 class="fw-bold text-muted">Pilih meja Daftar Ulang untuk memulai sesi</h5>
+    <p class="text-muted small">Setiap meja melayani satu jurusan. Konfigurasikan meja DU di halaman Kelola Meja.</p>
 </div>
+<?php if (empty($mejas_aktif)): ?>
+<div class="alert alert-warning text-center">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    Belum ada meja Daftar Ulang yang dikonfigurasi. Buka <strong>Kelola Meja</strong> dan atur meja DU per jurusan.
+</div>
+<?php else: ?>
 <div class="row g-3 mb-5">
-    <?php foreach ($mejas_aktif as $m): ?>
+    <?php foreach ($mejas_aktif as $m):
+        $kodeJur = JURUSAN_SHORT[$m['jurusan_du'] ?? ''] ?? ($m['jurusan_du'] ? strtoupper(substr($m['jurusan_du'],0,3)) : '');
+    ?>
     <div class="col-6 col-md-3">
         <form method="POST">
             <input type="hidden" name="action" value="pilih_meja">
@@ -435,12 +458,15 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
                 <i class="bi bi-person-workspace d-block mb-2" style="font-size:1.8rem;color:#059669;"></i>
                 <div class="mn">Meja <?= $m['nomor_meja'] ?></div>
                 <?php if ($m['nama']): ?><div class="text-muted small"><?= htmlspecialchars($m['nama']) ?></div><?php endif; ?>
-                <div class="mt-2"><span class="badge bg-success">Pilih</span></div>
+                <?php if ($kodeJur): ?>
+                <div class="mt-2"><span class="badge bg-success"><?= htmlspecialchars($kodeJur) ?></span></div>
+                <?php endif; ?>
             </button>
         </form>
     </div>
     <?php endforeach; ?>
 </div>
+<?php endif; ?>
 
 <?php else: ?>
 <!-- ══ TAMPILAN MEJA ═══════════════════════════════════════════════════════════ -->
@@ -449,20 +475,23 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
 <!-- Kolom kiri: nomor & aksi -->
 <div class="col-lg-6">
 
+<?php
+$du_jurusan_meja = $du_meja['jurusan_du'] ?? null;
+$du_kode_meja    = JURUSAN_SHORT[$du_jurusan_meja ?? ''] ?? '';
+?>
 <?php if ($current): ?>
 <!-- Sedang melayani -->
 <div class="text-center mb-3">
     <div class="small fw-bold text-uppercase mb-1" style="letter-spacing:.8px;color:#059669;">Sedang Dilayani</div>
     <div class="du-nomor-box">
-        <div class="du-nomor-big">DU<?= str_pad($current['nomor'],3,'0',STR_PAD_LEFT) ?></div>
+        <div class="du-nomor-big"><?= $fmtDuNomor($current['nomor'], $du_jurusan_meja) ?></div>
     </div>
     <?php if ($current_p): ?>
     <div class="fw-bold mt-2"><?= htmlspecialchars($current_p['nama']) ?></div>
     <div class="text-muted small"><?= htmlspecialchars($current_p['no_pendaftaran']) ?> &middot; <?= JURUSAN_SHORT[$current_p['jurusan']] ?? $current_p['jurusan'] ?></div>
-    <?php elseif ($du_menunggu === 0 && !$current): ?>
-    <div class="text-muted small mt-2">Antrian kosong</div>
     <?php else: ?>
-    <div class="text-warning small mt-2"><i class="bi bi-exclamation-triangle me-1"></i>Belum terhubung ke siswa</div>
+    <div class="text-warning small mt-2 fw-semibold"><i class="bi bi-exclamation-triangle me-1"></i>Belum terhubung ke siswa</div>
+    <div class="text-muted small">Cari nama siswa di daftar bawah lalu klik <strong>Link</strong></div>
     <?php endif; ?>
 </div>
 
@@ -473,7 +502,7 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
         <input type="hidden" name="antrian_id" value="<?= $current['id'] ?>">
         <button class="btn btn-outline-secondary btn-sm"><i class="bi bi-megaphone me-1"></i>Panggil Ulang</button>
     </form>
-    <form method="POST" onsubmit="return confirm('Skip nomor DU<?= str_pad($current['nomor'],3,'0',STR_PAD_LEFT) ?>? (Tidak hadir)')">
+    <form method="POST" onsubmit="return confirm('Skip nomor <?= $fmtDuNomor($current['nomor'], $du_jurusan_meja) ?>? (Tidak hadir)')">
         <input type="hidden" name="action" value="skip_du">
         <input type="hidden" name="antrian_id" value="<?= $current['id'] ?>">
         <button class="btn-du-main btn-du-skip btn"><i class="bi bi-skip-forward me-1"></i>Skip</button>
@@ -486,38 +515,24 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
     <div class="du-nomor-box" style="opacity:.35;">
         <div class="du-nomor-big">—</div>
     </div>
-    <?php if ($du_menunggu > 0): ?>
-    <div class="mt-3 fw-semibold text-muted"><?= $du_menunggu ?> siswa menunggu</div>
     <form method="POST" class="mt-3">
         <input type="hidden" name="action" value="mulai_du">
-        <button class="btn-du-main btn-du-start btn px-5"><i class="bi bi-play-fill me-1"></i>Panggil Berikutnya</button>
+        <button class="btn-du-main btn-du-start btn px-5"><i class="bi bi-megaphone me-1"></i>Panggil</button>
     </form>
-    <?php else: ?>
-    <div class="mt-3 text-muted small">Belum ada antrian DU hari ini.<br>Tambahkan siswa dari panel kanan.</div>
-    <?php endif; ?>
+    <div class="mt-2 text-muted small">Siswa datang → klik <strong>Link</strong> di daftar bawah</div>
 </div>
 <?php endif; ?>
 
-<!-- Berikutnya -->
-<?php if (!empty($next_up)): ?>
-<div class="card mb-3">
-    <div class="card-header small fw-semibold"><i class="bi bi-clock-history me-1"></i>Menunggu</div>
-    <div class="list-group list-group-flush">
-    <?php foreach ($next_up as $nu): ?>
-    <div class="list-group-item d-flex align-items-center gap-2 py-2">
-        <span class="badge" style="background:#ecfdf5;color:#065f46;font-size:.9rem;">DU<?= str_pad($nu['nomor'],3,'0',STR_PAD_LEFT) ?></span>
-        <span class="small"><?= $nu['nama'] ? htmlspecialchars($nu['nama']) : '<span class="text-muted">—</span>' ?></span>
-    </div>
-    <?php endforeach; ?>
-    </div>
-</div>
-<?php endif; ?>
 
-<!-- Tambah siswa ke antrian -->
+<!-- Daftar siswa DU -->
 <div class="card">
-    <div class="card-header small fw-semibold"><i class="bi bi-person-plus me-1"></i>Tambah Siswa ke Antrian DU</div>
+    <div class="card-header small fw-semibold">
+        <i class="bi bi-people me-1"></i>Daftar Siswa
+        <?php if ($current && !$current['pendaftar_id']): ?>
+        <span class="badge bg-warning text-dark ms-2" style="font-size:.65rem;"><i class="bi bi-link-45deg me-1"></i>Pilih siswa → Link</span>
+        <?php endif; ?>
+    </div>
     <div class="card-body p-2">
-        <!-- Filter jurusan — tersimpan di localStorage, tidak hilang saat refresh -->
         <div class="d-flex gap-1 flex-wrap mb-2" id="filterJurDU">
             <button class="btn btn-xs btn-outline-secondary py-0 px-2 du-jur-btn active" data-jur="" style="font-size:.72rem;">Semua</button>
             <?php foreach (JURUSAN_SHORT as $jFull => $jShort): ?>
@@ -525,16 +540,11 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
             <?php endforeach; ?>
         </div>
         <input type="text" class="form-control form-control-sm mb-2" id="searchDU" placeholder="Cari nama / NISN / No. Daftar...">
-        <div style="max-height:240px;overflow-y:auto;" id="listDU">
-        <?php foreach ($diterima_list as $s):
-            $sudah = $s['daftar_ulang'] === 'sudah';
-            // Cek apakah sudah ada di antrian hari ini
-            $inQ = false;
-            try {
-                $qc = $conn->prepare("SELECT id FROM antrian WHERE tanggal=? AND jenis='daftar_ulang' AND pendaftar_id=?");
-                $qc->execute([$today, $s['id']]);
-                $inQ = (bool)$qc->fetch();
-            } catch(Throwable) {}
+        <div style="max-height:300px;overflow-y:auto;" id="listDU">
+        <?php
+        $canLink = $current && empty($current['pendaftar_id']);
+        foreach ($diterima_list as $s):
+            $duStatus = $s['daftar_ulang'] ?? 'belum';
         ?>
         <div class="du-search-item d-flex align-items-center gap-2 p-2 border-bottom"
              data-search="<?= strtolower(htmlspecialchars($s['nama'].' '.$s['nisn'].' '.$s['no_pendaftaran'])) ?>"
@@ -543,8 +553,8 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
                 <div class="small fw-semibold"><?= htmlspecialchars($s['nama']) ?></div>
                 <div class="text-muted" style="font-size:.7rem;"><?= htmlspecialchars($s['no_pendaftaran']) ?> &middot; <?= JURUSAN_SHORT[$s['jurusan']] ?? '' ?></div>
             </div>
-            <?php if ($sudah): ?>
-            <span class="badge bg-success-subtle text-success border border-success-subtle me-1" style="font-size:.62rem;">Sudah DU</span>
+            <?php if ($duStatus === 'sudah'): ?>
+            <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size:.62rem;">Sudah DU</span>
             <button type="button" class="btn btn-xs btn-outline-primary py-0 px-1" style="font-size:.72rem;" title="Edit data DU"
                 onclick="showEditPanel(<?= $s['id'] ?>)">
                 <i class="bi bi-pencil"></i>
@@ -556,25 +566,37 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
             <form method="POST" class="d-inline" onsubmit="return confirm('Reset status daftar ulang siswa ini?')">
                 <input type="hidden" name="action" value="batal_du">
                 <input type="hidden" name="pendaftar_id" value="<?= $s['id'] ?>">
-                <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1" style="font-size:.72rem;" title="Reset status DU">
+                <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1" style="font-size:.72rem;" title="Reset">
                     <i class="bi bi-arrow-counterclockwise"></i>
                 </button>
             </form>
-            <?php elseif ($inQ): ?>
-            <span class="badge bg-warning text-dark" title="Sudah di antrian"><i class="bi bi-clock"></i> Antrian</span>
-            <?php else: ?>
-            <form method="POST" class="d-inline">
-                <input type="hidden" name="action" value="tambah_antrian_du">
-                <input type="hidden" name="pendaftar_id" value="<?= $s['id'] ?>">
-                <button type="submit" class="btn btn-xs btn-outline-secondary py-0 px-1" style="font-size:.72rem;" title="Tambah ke antrian">
-                    <i class="bi bi-plus-lg"></i>
-                </button>
-            </form>
+            <?php elseif ($duStatus === 'proses'): ?>
+            <span class="badge" style="background:#fef9c3;color:#854d0e;font-size:.62rem;">Proses</span>
+            <button type="button" class="btn btn-xs btn-outline-primary py-0 px-1" style="font-size:.72rem;" title="Edit data DU"
+                onclick="showEditPanel(<?= $s['id'] ?>)">
+                <i class="bi bi-pencil"></i>
+            </button>
             <form method="POST" class="d-inline">
                 <input type="hidden" name="action" value="tandai_du_sudah">
                 <input type="hidden" name="pendaftar_id" value="<?= $s['id'] ?>">
-                <button type="submit" class="btn btn-xs btn-success py-0 px-1" style="font-size:.72rem;" title="Tandai langsung Sudah DU">
+                <button type="submit" class="btn btn-xs btn-success py-0 px-1" style="font-size:.72rem;" title="Tandai Sudah DU">
                     <i class="bi bi-check-lg"></i>
+                </button>
+            </form>
+            <form method="POST" class="d-inline" onsubmit="return confirm('Reset status daftar ulang siswa ini?')">
+                <input type="hidden" name="action" value="batal_du">
+                <input type="hidden" name="pendaftar_id" value="<?= $s['id'] ?>">
+                <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1" style="font-size:.72rem;" title="Reset">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </button>
+            </form>
+            <?php elseif ($canLink): ?>
+            <form method="POST" class="d-inline">
+                <input type="hidden" name="action" value="link_du">
+                <input type="hidden" name="antrian_id" value="<?= $current['id'] ?>">
+                <input type="hidden" name="pendaftar_id" value="<?= $s['id'] ?>">
+                <button type="submit" class="btn btn-xs btn-warning py-0 px-2" style="font-size:.72rem;" title="Link ke nomor aktif">
+                    <i class="bi bi-link-45deg me-1"></i>Link
                 </button>
             </form>
             <?php endif; ?>
@@ -611,7 +633,7 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
           <!-- Tab A: Data Peserta Didik -->
           <div class="tab-pane fade show active" id="du1">
             <div class="row g-2">
-                <!-- Data readonly dari PPDB -->
+                <!-- Data readonly dari SPMB -->
                 <div class="col-6"><label class="form-label mb-0 small">Nama Lengkap</label>
                     <input class="form-control form-control-sm" value="<?= htmlspecialchars($p['nama']??'') ?>" readonly style="background:#f0fdf4;"></div>
                 <div class="col-3"><label class="form-label mb-0 small">NISN</label>
@@ -740,7 +762,7 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
                 <i class="bi bi-printer me-1"></i>Cetak SPTJM
             </button>
             <button type="submit" class="btn-du-main btn-du-selesai btn flex-grow-1">
-                <i class="bi bi-check-circle me-1"></i>Simpan & Selesai
+                <i class="bi bi-check-circle me-1"></i>Simpan (→ Proses)
             </button>
         </div>
     </form>

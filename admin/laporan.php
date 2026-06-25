@@ -1,6 +1,58 @@
 <?php
 // Laporan & Statistik — hanya tersedia di superadmin_dashboard
 
+// ── Export XLSX Per Hari (early exit) ────────────────────────────────────────
+if (($_GET['action'] ?? '') === 'export_perhari') {
+    require_once __DIR__ . '/xlsx_helper.php';
+
+    $tgl = $_GET['tanggal'] ?? date('Y-m-d');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tgl)) $tgl = date('Y-m-d');
+
+    $stmt = $conn->prepare("SELECT no_pendaftaran, gelombang, nama, nisn, tanggal_lahir, usia,
+        jenis_kelamin, asal_sekolah, no_telp, kelurahan, jurusan,
+        nilai_raport, nilai_tka, nilai_akhir, lolos_usia, status, catatan, created_at
+        FROM pendaftar
+        WHERE created_at >= ? AND created_at <= ?
+        ORDER BY created_at ASC");
+    $stmt->execute([$tgl . ' 01:00:00', $tgl . ' 21:00:00']);
+    $rows = $stmt->fetchAll();
+
+    $fname = 'laporan_spmb_harian_' . $tgl . '_' . date('His') . '.xlsx';
+    log_admin_action($conn, 'EXPORT_PERHARI', "Export harian $tgl: ".count($rows)." baris");
+
+    $headers = ['No Pendaftaran','Gelombang','Nama','NISN','Tgl Lahir','Usia','L/P',
+        'Asal Sekolah','No Telp','Kelurahan','Jurusan','Nilai Raport','Nilai TKA',
+        'Nilai Akhir','Lolos Usia','Status','Catatan','Waktu Daftar'];
+
+    $data = [];
+    foreach ($rows as $r) {
+        $data[] = [
+            $r['no_pendaftaran'], $r['gelombang'], $r['nama'], $r['nisn'],
+            $r['tanggal_lahir'], $r['usia'], $r['jenis_kelamin'],
+            $r['asal_sekolah'], $r['no_telp'], $r['kelurahan'], $r['jurusan'],
+            $r['nilai_raport'], $r['nilai_tka'], $r['nilai_akhir'],
+            $r['lolos_usia'] ? 'Ya' : 'Tidak (>21thn)',
+            $r['status'], $r['catatan'] ?? '', $r['created_at'],
+        ];
+    }
+
+    $style_fn = function(int $col, $val): int {
+        if ($col === 15) {
+            return match((string)$val) {
+                'terima'   => XLSX_GREEN,
+                'gugur'    => XLSX_RED,
+                'diproses' => XLSX_YELLOW,
+                'lengkap'  => XLSX_BLUE,
+                default    => XLSX_GRAY,
+            };
+        }
+        if ($col === 14) return $val === 'Ya' ? XLSX_GREEN : XLSX_RED;
+        return XLSX_NORMAL;
+    };
+
+    xlsx_send($fname, $headers, $data, 'Harian ' . date('d M Y', strtotime($tgl)), $style_fn);
+}
+
 // ── Export XLSX (early exit) ──────────────────────────────────────────────────
 if (($_GET['action'] ?? '') === 'export_laporan') {
     require_once __DIR__ . '/xlsx_helper.php';
@@ -26,7 +78,7 @@ if (($_GET['action'] ?? '') === 'export_laporan') {
     if ($fJur) $parts[] = JURUSAN_SHORT[$fJur] ?? $fJur;
     if ($fGlm) $parts[] = 'G'.$fGlm;
     if ($fSts) $parts[] = $fSts;
-    $fname = 'laporan_ppdb' . ($parts ? '_'.implode('_',$parts) : '') . '_' . date('Ymd_His') . '.xlsx';
+    $fname = 'laporan_spmb' . ($parts ? '_'.implode('_',$parts) : '') . '_' . date('Ymd_His') . '.xlsx';
 
     log_admin_action($conn, 'EXPORT_LAPORAN', "Export laporan: $fname, ".count($rows)." baris");
 
@@ -63,7 +115,7 @@ if (($_GET['action'] ?? '') === 'export_laporan') {
         return XLSX_NORMAL;
     };
 
-    xlsx_send($fname, $headers, $data, 'Laporan PPDB', $style_fn);
+    xlsx_send($fname, $headers, $data, 'Laporan SPMB', $style_fn);
 }
 
 // ── Ambil data sekolah untuk kop cetak ───────────────────────────────────────
@@ -316,6 +368,17 @@ $status_labels_all = [
                 <i class="bi bi-file-earmark-arrow-down me-1"></i>Export Semua (.xlsx)
             </a>
         </form>
+        <!-- Export Per Hari -->
+        <form method="GET" action="superadmin_dashboard.php" class="d-flex flex-wrap gap-2 align-items-center no-print ms-md-auto">
+            <input type="hidden" name="page" value="laporan">
+            <input type="hidden" name="action" value="export_perhari">
+            <label class="small fw-semibold text-muted mb-0 me-1">Per Hari:</label>
+            <input type="date" name="tanggal" class="form-control form-control-sm" style="max-width:160px;"
+                   value="<?= date('Y-m-d') ?>" max="<?= date('Y-m-d') ?>">
+            <button type="submit" class="btn btn-primary btn-sm">
+                <i class="bi bi-calendar-day me-1"></i>Export Per Hari (.xlsx)
+            </button>
+        </form>
     </div>
     <div class="card-body p-0">
     <div class="table-responsive">
@@ -465,7 +528,7 @@ function printJurusan(jurusan, mode) {
         <tbody>${tbody || '<tr><td colspan="11" style="text-align:center;color:#999;">Tidak ada data</td></tr>'}</tbody>
         <tfoot>
             <tr><td colspan="${mode !== 'terima' ? 11 : 10}" style="text-align:right;font-size:.75rem;color:#666;padding:6px;">
-                *** Dokumen ini dicetak dari sistem PPDB ${SCH_NAMA} ***
+                *** Dokumen ini dicetak dari sistem SPMB ${SCH_NAMA} ***
             </td></tr>
         </tfoot>
     </table>`;

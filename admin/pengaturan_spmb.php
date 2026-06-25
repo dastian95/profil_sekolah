@@ -11,9 +11,9 @@ if (empty($_SESSION['is_super'])) {
 }
 
 $msg = '';
-if (!empty($_SESSION['flash_pengaturan_ppdb'])) {
-    $msg = $_SESSION['flash_pengaturan_ppdb'];
-    unset($_SESSION['flash_pengaturan_ppdb']);
+if (!empty($_SESSION['flash_pengaturan_spmb'])) {
+    $msg = $_SESSION['flash_pengaturan_spmb'];
+    unset($_SESSION['flash_pengaturan_spmb']);
 }
 
 // Auto-migrate: kolom fitur & ketentuan gelombang
@@ -80,9 +80,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // PRG: redirect setelah POST agar refresh tidak mengulang aksi
-    $_SESSION['flash_pengaturan_ppdb'] = $msg;
+    $_SESSION['flash_pengaturan_spmb'] = $msg;
     while (ob_get_level() > 0) ob_end_clean();
-    header('Location: ' . (!empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php') . '?page=pengaturan_ppdb');
+    header('Location: ' . (!empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php') . '?page=pengaturan_spmb');
     exit;
 }
 
@@ -109,8 +109,8 @@ $first_id = !empty($gel_rows) ? $gel_rows[0]['id'] : 0;
 ?>
 
 <style>
-.ppdb-tab-nav .nav-link { border-radius: 10px 10px 0 0; font-weight: 600; padding: .6rem 1.4rem; }
-.ppdb-tab-nav .nav-link.active { background: #fff; border-color: #dee2e6 #dee2e6 #fff; color: var(--primary, #198754); }
+.spmb-tab-nav .nav-link { border-radius: 10px 10px 0 0; font-weight: 600; padding: .6rem 1.4rem; }
+.spmb-tab-nav .nav-link.active { background: #fff; border-color: #dee2e6 #dee2e6 #fff; color: var(--primary, #198754); }
 .kuota-table th { font-size: .75rem; text-transform: uppercase; letter-spacing: .3px; }
 .kuota-table td, .kuota-table th { padding: .55rem .9rem; vertical-align: middle; }
 .progress-thin { height: 6px; border-radius: 4px; }
@@ -134,7 +134,7 @@ $first_id = !empty($gel_rows) ? $gel_rows[0]['id'] : 0;
 <?php else: ?>
 
 <!-- ── TABS per Gelombang ─────────────────────────────────────────── -->
-<ul class="nav nav-tabs ppdb-tab-nav mb-0" id="gelTabs" role="tablist">
+<ul class="nav nav-tabs spmb-tab-nav mb-0" id="gelTabs" role="tablist">
     <?php foreach ($gel_rows as $i => $g): ?>
     <li class="nav-item" role="presentation">
         <button class="nav-link <?= $i === 0 ? 'active' : '' ?>"

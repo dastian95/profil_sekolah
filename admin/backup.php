@@ -16,7 +16,7 @@ if (isset($_GET['export'])) {
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
 
-    $filename = 'pendaftar_ppdb_' . date('Ymd_His') . '.csv';
+    $filename = 'pendaftar_spmb_' . date('Ymd_His') . '.csv';
 
     // Log dulu (aman untuk superadmin), lalu bersihkan buffer dashboard
     // agar file CSV tidak tercampur HTML

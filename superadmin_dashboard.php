@@ -90,7 +90,7 @@ $super_label = is_primary_super() ? 'Superadmin Utama' : 'Superadmin';
 $pages = [
     'super_home'      => ['label' => 'Dashboard',              'icon' => 'bi-speedometer2',         'group' => 'Utama'],
     'alur'            => ['label' => 'Alur Pendaftaran',       'icon' => 'bi-diagram-3-fill',       'group' => 'Pengaturan SPMB'],
-    'pengaturan_ppdb' => ['label' => 'Pengaturan Pendaftaran', 'icon' => 'bi-sliders',              'group' => 'Pengaturan SPMB'],
+    'pengaturan_spmb' => ['label' => 'Pengaturan Pendaftaran', 'icon' => 'bi-sliders',              'group' => 'Pengaturan SPMB'],
     'meja'            => ['label' => 'Kelola Meja Antrian',    'icon' => 'bi-grid-3x2-gap-fill',    'group' => 'Pengaturan SPMB'],
     'antrian_display' => ['label' => 'Display Antrian',        'icon' => 'bi-display',              'group' => 'Pengaturan SPMB'],
     'kelola_admin'    => ['label' => 'Kelola Admin',           'icon' => 'bi-person-gear',          'group' => 'Manajemen'],
@@ -374,7 +374,7 @@ foreach ($pages as $key => $info) {
     $include_map = [
         'super_home'      => 'admin/super_home.php',
         'alur'            => 'admin/alur.php',
-        'pengaturan_ppdb' => 'admin/pengaturan_ppdb.php',
+        'pengaturan_spmb' => 'admin/pengaturan_spmb.php',
         'meja'            => 'admin/meja.php',
         'antrian_display' => 'antrian_display.php',
         'kelola_admin'    => 'admin/kelola_admin.php',
