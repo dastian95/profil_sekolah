@@ -3,7 +3,7 @@
 
 // ── Shared: kolom, header, row-builder, style untuk semua export ─────────────
 function _export_select(): string {
-    return "SELECT no_pendaftaran, gelombang, nama, nisn, nis, nik, no_kk, kewarganegaraan,
+    return "SELECT no_pendaftaran, gelombang, nama, nisn, nik, no_kk, kewarganegaraan,
         tempat_lahir, tanggal_lahir, usia, jenis_kelamin, agama, email, no_telp,
         anak_ke, tahun_lulus, kip_kjp_kps,
         asal_sekolah, alamat_sekolah, alamat_lengkap, rt, rw, kelurahan,
@@ -14,12 +14,12 @@ function _export_select(): string {
         nama_ayah, nik_ayah, tgl_lahir_ayah, pendidikan_ayah, pekerjaan_ayah, penghasilan_ayah, telp_ayah, alamat_ayah,
         nama_ibu,  nik_ibu,  tgl_lahir_ibu,  pendidikan_ibu,  pekerjaan_ibu,  penghasilan_ibu,  telp_ibu,  alamat_ibu,
         nama_wali, hubungan_wali, nik_wali, tgl_lahir_wali, pendidikan_wali, pekerjaan_wali, penghasilan_wali, telp_wali, alamat_wali,
-        daftar_ulang, daftar_ulang_at, username_siswa, password_siswa, kelas_awal, created_at
+        created_at
         FROM pendaftar";
 }
 function _export_headers(): array {
     return [
-        'No Pendaftaran','Gelombang','Nama','NISN','NIS','NIK','No. KK','Kewarganegaraan',
+        'No Pendaftaran','Gelombang','Nama','NISN','NIK','No. KK','Kewarganegaraan',
         'Tempat Lahir','Tgl Lahir','Usia','L/P','Agama','Email','No. Telp',
         'Anak Ke-','Tahun Lulus','KIP/KJP/KPS',
         'Asal Sekolah','Alamat Sekolah','Alamat Lengkap','RT','RW','Kelurahan',
@@ -30,14 +30,14 @@ function _export_headers(): array {
         'Nama Ayah','NIK Ayah','Tgl Lahir Ayah','Pendidikan Ayah','Pekerjaan Ayah','Penghasilan Ayah','Telp Ayah','Alamat Ayah',
         'Nama Ibu','NIK Ibu','Tgl Lahir Ibu','Pendidikan Ibu','Pekerjaan Ibu','Penghasilan Ibu','Telp Ibu','Alamat Ibu',
         'Nama Wali','Hubungan Wali','NIK Wali','Tgl Lahir Wali','Pendidikan Wali','Pekerjaan Wali','Penghasilan Wali','Telp Wali','Alamat Wali',
-        'Daftar Ulang','Waktu DU','Username Siswa','Password Siswa','Kelas Awal','Waktu Daftar',
+        'Waktu Daftar',
     ];
 }
 function _export_row(array $r): array {
     $bw_map = ['belum'=>'Belum Dites','normal'=>'Normal','buta_warna_parsial'=>'Parsial','buta_warna_total'=>'Total'];
     return [
         $r['no_pendaftaran'], $r['gelombang'], $r['nama'], $r['nisn'],
-        $r['nis']??'', $r['nik']??'', $r['no_kk']??'', $r['kewarganegaraan']??'',
+        $r['nik']??'', $r['no_kk']??'', $r['kewarganegaraan']??'',
         $r['tempat_lahir']??'', $r['tanggal_lahir'], $r['usia'], $r['jenis_kelamin'],
         $r['agama']??'', $r['email']??'', $r['no_telp']??'',
         $r['anak_ke']??'', $r['tahun_lulus']??'', $r['kip_kjp_kps']??'',
@@ -60,14 +60,12 @@ function _export_row(array $r): array {
         $r['nama_wali']??'', $r['hubungan_wali']??'', $r['nik_wali']??'', $r['tgl_lahir_wali']??'',
         $r['pendidikan_wali']??'', $r['pekerjaan_wali']??'', $r['penghasilan_wali']??'',
         $r['telp_wali']??'', $r['alamat_wali']??'',
-        $r['daftar_ulang'], $r['daftar_ulang_at']??'',
-        $r['username_siswa']??'', $r['password_siswa']??'', $r['kelas_awal'],
         $r['created_at'],
     ];
 }
-// col 41=Lolos Usia, col 42=Status
+// col 40=Lolos Usia, col 41=Status
 function _export_style(int $col, $val): int {
-    if ($col === 42) {
+    if ($col === 41) {
         return match((string)$val) {
             'terima'   => XLSX_GREEN,
             'gugur'    => XLSX_RED,
@@ -76,7 +74,7 @@ function _export_style(int $col, $val): int {
             default    => XLSX_GRAY,
         };
     }
-    if ($col === 41) return $val === 'Ya' ? XLSX_GREEN : XLSX_RED;
+    if ($col === 40) return $val === 'Ya' ? XLSX_GREEN : XLSX_RED;
     return XLSX_NORMAL;
 }
 
