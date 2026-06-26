@@ -1,6 +1,85 @@
 <?php
 // Laporan & Statistik — hanya tersedia di superadmin_dashboard
 
+// ── Shared: kolom, header, row-builder, style untuk semua export ─────────────
+function _export_select(): string {
+    return "SELECT no_pendaftaran, gelombang, nama, nisn, nis, nik, no_kk, kewarganegaraan,
+        tempat_lahir, tanggal_lahir, usia, jenis_kelamin, agama, email, no_telp,
+        anak_ke, tahun_lulus, kip_kjp_kps,
+        asal_sekolah, alamat_sekolah, alamat_lengkap, rt, rw, kelurahan,
+        kecamatan, kabupaten, provinsi, kode_pos, tgl_kk, jarak_km,
+        jurusan, jalur, buta_warna, status_ortu, sistem_pendidikan,
+        nilai_raport, nilai_tka, tka_mtk, tka_bindo, nilai_khusus, nilai_akhir,
+        lolos_usia, status, catatan,
+        nama_ayah, nik_ayah, tgl_lahir_ayah, pendidikan_ayah, pekerjaan_ayah, penghasilan_ayah, telp_ayah, alamat_ayah,
+        nama_ibu,  nik_ibu,  tgl_lahir_ibu,  pendidikan_ibu,  pekerjaan_ibu,  penghasilan_ibu,  telp_ibu,  alamat_ibu,
+        nama_wali, hubungan_wali, nik_wali, tgl_lahir_wali, pendidikan_wali, pekerjaan_wali, penghasilan_wali, telp_wali, alamat_wali,
+        daftar_ulang, daftar_ulang_at, username_siswa, password_siswa, kelas_awal, created_at
+        FROM pendaftar";
+}
+function _export_headers(): array {
+    return [
+        'No Pendaftaran','Gelombang','Nama','NISN','NIS','NIK','No. KK','Kewarganegaraan',
+        'Tempat Lahir','Tgl Lahir','Usia','L/P','Agama','Email','No. Telp',
+        'Anak Ke-','Tahun Lulus','KIP/KJP/KPS',
+        'Asal Sekolah','Alamat Sekolah','Alamat Lengkap','RT','RW','Kelurahan',
+        'Kecamatan','Kabupaten','Provinsi','Kode Pos','Tgl KK','Jarak (km)',
+        'Jurusan','Jalur','Buta Warna','Status Ortu','Sistem Pendidikan',
+        'Nilai Raport','Nilai TKA','TKA MTK','TKA B.Indo','Nilai Khusus','Nilai Akhir',
+        'Lolos Usia','Status','Catatan',
+        'Nama Ayah','NIK Ayah','Tgl Lahir Ayah','Pendidikan Ayah','Pekerjaan Ayah','Penghasilan Ayah','Telp Ayah','Alamat Ayah',
+        'Nama Ibu','NIK Ibu','Tgl Lahir Ibu','Pendidikan Ibu','Pekerjaan Ibu','Penghasilan Ibu','Telp Ibu','Alamat Ibu',
+        'Nama Wali','Hubungan Wali','NIK Wali','Tgl Lahir Wali','Pendidikan Wali','Pekerjaan Wali','Penghasilan Wali','Telp Wali','Alamat Wali',
+        'Daftar Ulang','Waktu DU','Username Siswa','Password Siswa','Kelas Awal','Waktu Daftar',
+    ];
+}
+function _export_row(array $r): array {
+    $bw_map = ['belum'=>'Belum Dites','normal'=>'Normal','buta_warna_parsial'=>'Parsial','buta_warna_total'=>'Total'];
+    return [
+        $r['no_pendaftaran'], $r['gelombang'], $r['nama'], $r['nisn'],
+        $r['nis']??'', $r['nik']??'', $r['no_kk']??'', $r['kewarganegaraan']??'',
+        $r['tempat_lahir']??'', $r['tanggal_lahir'], $r['usia'], $r['jenis_kelamin'],
+        $r['agama']??'', $r['email']??'', $r['no_telp']??'',
+        $r['anak_ke']??'', $r['tahun_lulus']??'', $r['kip_kjp_kps']??'',
+        $r['asal_sekolah'], $r['alamat_sekolah']??'', $r['alamat_lengkap']??'',
+        $r['rt']??'', $r['rw']??'', $r['kelurahan']??'',
+        $r['kecamatan']??'', $r['kabupaten']??'', $r['provinsi']??'', $r['kode_pos']??'',
+        $r['tgl_kk']??'', $r['jarak_km']??'',
+        $r['jurusan'], $r['jalur'], $bw_map[$r['buta_warna']] ?? $r['buta_warna'],
+        $r['status_ortu'], $r['sistem_pendidikan'],
+        $r['nilai_raport'], $r['nilai_tka'], $r['tka_mtk']??'', $r['tka_bindo']??'',
+        $r['nilai_khusus']??'', $r['nilai_akhir'],
+        $r['lolos_usia'] ? 'Ya' : 'Tidak (>21thn)',
+        $r['status'], $r['catatan']??'',
+        $r['nama_ayah']??'', $r['nik_ayah']??'', $r['tgl_lahir_ayah']??'',
+        $r['pendidikan_ayah']??'', $r['pekerjaan_ayah']??'', $r['penghasilan_ayah']??'',
+        $r['telp_ayah']??'', $r['alamat_ayah']??'',
+        $r['nama_ibu']??'', $r['nik_ibu']??'', $r['tgl_lahir_ibu']??'',
+        $r['pendidikan_ibu']??'', $r['pekerjaan_ibu']??'', $r['penghasilan_ibu']??'',
+        $r['telp_ibu']??'', $r['alamat_ibu']??'',
+        $r['nama_wali']??'', $r['hubungan_wali']??'', $r['nik_wali']??'', $r['tgl_lahir_wali']??'',
+        $r['pendidikan_wali']??'', $r['pekerjaan_wali']??'', $r['penghasilan_wali']??'',
+        $r['telp_wali']??'', $r['alamat_wali']??'',
+        $r['daftar_ulang'], $r['daftar_ulang_at']??'',
+        $r['username_siswa']??'', $r['password_siswa']??'', $r['kelas_awal'],
+        $r['created_at'],
+    ];
+}
+// col 41=Lolos Usia, col 42=Status
+function _export_style(int $col, $val): int {
+    if ($col === 42) {
+        return match((string)$val) {
+            'terima'   => XLSX_GREEN,
+            'gugur'    => XLSX_RED,
+            'diproses' => XLSX_YELLOW,
+            'lengkap'  => XLSX_BLUE,
+            default    => XLSX_GRAY,
+        };
+    }
+    if ($col === 41) return $val === 'Ya' ? XLSX_GREEN : XLSX_RED;
+    return XLSX_NORMAL;
+}
+
 // ── Export XLSX Per Hari (early exit) ────────────────────────────────────────
 if (($_GET['action'] ?? '') === 'export_perhari') {
     require_once __DIR__ . '/xlsx_helper.php';
@@ -8,49 +87,15 @@ if (($_GET['action'] ?? '') === 'export_perhari') {
     $tgl = $_GET['tanggal'] ?? date('Y-m-d');
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tgl)) $tgl = date('Y-m-d');
 
-    $stmt = $conn->prepare("SELECT no_pendaftaran, gelombang, nama, nisn, tanggal_lahir, usia,
-        jenis_kelamin, asal_sekolah, no_telp, kelurahan, jurusan,
-        nilai_raport, nilai_tka, nilai_akhir, lolos_usia, status, catatan, created_at
-        FROM pendaftar
-        WHERE created_at >= ? AND created_at <= ?
-        ORDER BY created_at ASC");
+    $stmt = $conn->prepare(_export_select() . " WHERE created_at >= ? AND created_at <= ? ORDER BY created_at ASC");
     $stmt->execute([$tgl . ' 01:00:00', $tgl . ' 21:00:00']);
     $rows = $stmt->fetchAll();
 
     $fname = 'laporan_spmb_harian_' . $tgl . '_' . date('His') . '.xlsx';
     log_admin_action($conn, 'EXPORT_PERHARI', "Export harian $tgl: ".count($rows)." baris");
 
-    $headers = ['No Pendaftaran','Gelombang','Nama','NISN','Tgl Lahir','Usia','L/P',
-        'Asal Sekolah','No Telp','Kelurahan','Jurusan','Nilai Raport','Nilai TKA',
-        'Nilai Akhir','Lolos Usia','Status','Catatan','Waktu Daftar'];
-
-    $data = [];
-    foreach ($rows as $r) {
-        $data[] = [
-            $r['no_pendaftaran'], $r['gelombang'], $r['nama'], $r['nisn'],
-            $r['tanggal_lahir'], $r['usia'], $r['jenis_kelamin'],
-            $r['asal_sekolah'], $r['no_telp'], $r['kelurahan'], $r['jurusan'],
-            $r['nilai_raport'], $r['nilai_tka'], $r['nilai_akhir'],
-            $r['lolos_usia'] ? 'Ya' : 'Tidak (>21thn)',
-            $r['status'], $r['catatan'] ?? '', $r['created_at'],
-        ];
-    }
-
-    $style_fn = function(int $col, $val): int {
-        if ($col === 15) {
-            return match((string)$val) {
-                'terima'   => XLSX_GREEN,
-                'gugur'    => XLSX_RED,
-                'diproses' => XLSX_YELLOW,
-                'lengkap'  => XLSX_BLUE,
-                default    => XLSX_GRAY,
-            };
-        }
-        if ($col === 14) return $val === 'Ya' ? XLSX_GREEN : XLSX_RED;
-        return XLSX_NORMAL;
-    };
-
-    xlsx_send($fname, $headers, $data, 'Harian ' . date('d M Y', strtotime($tgl)), $style_fn);
+    $data = array_map('_export_row', $rows);
+    xlsx_send($fname, _export_headers(), $data, 'Harian ' . date('d M Y', strtotime($tgl)), '_export_style');
 }
 
 // ── Export XLSX (early exit) ──────────────────────────────────────────────────
@@ -66,11 +111,7 @@ if (($_GET['action'] ?? '') === 'export_laporan') {
     if ($fGlm) { $where[] = 'gelombang=?'; $params[] = (int)$fGlm; }
     if ($fSts) { $where[] = 'status=?'; $params[] = $fSts; }
 
-    $stmt = $conn->prepare("SELECT no_pendaftaran, gelombang, nama, nisn, tanggal_lahir, usia,
-        jenis_kelamin, asal_sekolah, no_telp, kelurahan, jurusan,
-        nilai_raport, nilai_tka, nilai_akhir, lolos_usia, status, catatan, created_at
-        FROM pendaftar WHERE " . implode(' AND ', $where) . "
-        ORDER BY jurusan, gelombang, status, nilai_akhir DESC");
+    $stmt = $conn->prepare(_export_select() . " WHERE " . implode(' AND ', $where) . " ORDER BY jurusan, gelombang, status, nilai_akhir DESC");
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
 
@@ -82,40 +123,8 @@ if (($_GET['action'] ?? '') === 'export_laporan') {
 
     log_admin_action($conn, 'EXPORT_LAPORAN', "Export laporan: $fname, ".count($rows)." baris");
 
-    $headers = ['No Pendaftaran','Gelombang','Nama','NISN','Tgl Lahir','Usia','L/P',
-        'Asal Sekolah','No Telp','Kelurahan','Jurusan','Nilai Raport','Nilai TKA',
-        'Nilai Akhir','Lolos Usia','Status','Catatan','Waktu Daftar'];
-
-    $data = [];
-    foreach ($rows as $r) {
-        $data[] = [
-            $r['no_pendaftaran'], $r['gelombang'], $r['nama'], $r['nisn'],
-            $r['tanggal_lahir'], $r['usia'], $r['jenis_kelamin'],
-            $r['asal_sekolah'], $r['no_telp'], $r['kelurahan'], $r['jurusan'],
-            $r['nilai_raport'], $r['nilai_tka'], $r['nilai_akhir'],
-            $r['lolos_usia'] ? 'Ya' : 'Tidak (>21thn)',
-            $r['status'], $r['catatan'] ?? '', $r['created_at'],
-        ];
-    }
-
-    // Kolom 15 = Status, kolom 14 = Lolos Usia
-    $style_fn = function(int $col, $val): int {
-        if ($col === 15) { // Status
-            return match((string)$val) {
-                'terima'   => XLSX_GREEN,
-                'gugur'    => XLSX_RED,
-                'diproses' => XLSX_YELLOW,
-                'lengkap'  => XLSX_BLUE,
-                default    => XLSX_GRAY,
-            };
-        }
-        if ($col === 14) { // Lolos Usia
-            return $val === 'Ya' ? XLSX_GREEN : XLSX_RED;
-        }
-        return XLSX_NORMAL;
-    };
-
-    xlsx_send($fname, $headers, $data, 'Laporan SPMB', $style_fn);
+    $data = array_map('_export_row', $rows);
+    xlsx_send($fname, _export_headers(), $data, 'Laporan SPMB', '_export_style');
 }
 
 // ── Ambil data sekolah untuk kop cetak ───────────────────────────────────────
