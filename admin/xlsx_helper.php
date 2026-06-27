@@ -43,7 +43,11 @@ function xlsx_send(string $filename, array $headers, array $rows, string $title 
     // ── Shared strings ────────────────────────────────────────────────────────
     $strings = []; $si_map = [];
     $collect = function($v) use (&$strings, &$si_map) {
-        if (is_numeric($v) || $v === null || $v === '') return;
+        if ($v === null || $v === '') return;
+        // Angka tanpa 0 di depan ditulis sbg cell numerik → tak butuh shared string.
+        // Angka berawalan 0 (NISN/No Telp) diperlakukan sbg teks oleh cell builder,
+        // jadi tetap harus dikumpulkan agar 0 di depan tidak hilang.
+        if (is_numeric($v) && !preg_match('/^0\d/', (string)$v)) return;
         $s = (string)$v;
         if (!isset($si_map[$s])) { $si_map[$s] = count($strings); $strings[] = $s; }
     };
