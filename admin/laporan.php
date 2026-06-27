@@ -4,15 +4,15 @@
 // ── Shared: kolom, header, row-builder, style untuk semua export ─────────────
 function _export_select(): string {
     return "SELECT no_pendaftaran, gelombang, nama, nisn, tanggal_lahir, usia,
-        jenis_kelamin, asal_sekolah, no_telp, alamat_lengkap, kelurahan, jurusan,
-        nilai_raport, nilai_tka, nilai_akhir, lolos_usia, status, catatan, created_at
+        jenis_kelamin, asal_sekolah, no_telp, alamat AS alamat_lengkap, kelurahan, jurusan,
+        nilai_raport, nilai_tka, nilai_akhir, lolos_usia, status
         FROM pendaftar";
 }
 function _export_headers(): array {
     return [
         'No Pendaftaran','Gelombang','Nama','NISN','Tgl Lahir','Usia','L/P',
         'Asal Sekolah','No Telp','Alamat Lengkap','Kelurahan','Jurusan',
-        'Nilai Raport','Nilai TKA','Nilai Akhir','Lolos Usia','Status','Catatan','Waktu Daftar',
+        'Nilai Raport','Nilai TKA','Nilai Akhir','Lolos Usia','Status',
     ];
 }
 function _export_row(array $r): array {
@@ -22,11 +22,11 @@ function _export_row(array $r): array {
         $r['asal_sekolah'], $r['no_telp'], $r['alamat_lengkap']??'', $r['kelurahan']??'',
         $r['jurusan'], $r['nilai_raport'], $r['nilai_tka'], $r['nilai_akhir'],
         $r['lolos_usia'] ? 'Ya' : 'Tidak (>21thn)',
-        $r['status'], $r['catatan']??'', $r['created_at'],
+        $r['status'],
     ];
 }
 // col 15=Lolos Usia, col 16=Status
-function _export_style(int $col, string $val): int {
+function _export_style(int $col, $val): int {
     if ($col === 16) {
         return match($val) {
             'terima'   => XLSX_GREEN,
@@ -312,7 +312,7 @@ $status_labels_all = [
     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
         <span><i class="bi bi-table me-2"></i>Rekap per Jurusan</span>
         <!-- Export CSV dengan filter -->
-        <form method="GET" action="superadmin_dashboard.php" class="d-flex flex-wrap gap-2 align-items-center no-print" id="formExport">
+        <form method="GET" action="superadmin_dashboard.php" class="d-flex flex-wrap gap-2 align-items-center no-print" id="formExport" target="_blank">
             <input type="hidden" name="page" value="laporan">
             <input type="hidden" name="action" value="export_laporan">
             <select name="jurusan" class="form-select form-select-sm" style="max-width:160px;">
@@ -333,12 +333,12 @@ $status_labels_all = [
             <button type="submit" class="btn btn-success btn-sm">
                 <i class="bi bi-file-earmark-excel me-1"></i>Export .xlsx
             </button>
-            <a href="superadmin_dashboard.php?page=laporan&action=export_laporan" class="btn btn-outline-secondary btn-sm">
+            <a href="superadmin_dashboard.php?page=laporan&action=export_laporan" class="btn btn-outline-secondary btn-sm" target="_blank">
                 <i class="bi bi-file-earmark-arrow-down me-1"></i>Export Semua (.xlsx)
             </a>
         </form>
         <!-- Export Per Hari -->
-        <form method="GET" action="superadmin_dashboard.php" class="d-flex flex-wrap gap-2 align-items-center no-print ms-md-auto">
+        <form method="GET" action="superadmin_dashboard.php" class="d-flex flex-wrap gap-2 align-items-center no-print ms-md-auto" target="_blank">
             <input type="hidden" name="page" value="laporan">
             <input type="hidden" name="action" value="export_perhari">
             <label class="small fw-semibold text-muted mb-0 me-1">Per Hari:</label>
