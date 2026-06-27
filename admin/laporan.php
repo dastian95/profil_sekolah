@@ -4,14 +4,14 @@
 // ── Shared: kolom, header, row-builder, style untuk semua export ─────────────
 function _export_select(): string {
     return "SELECT no_pendaftaran, gelombang, nama, nisn, tanggal_lahir, usia,
-        jenis_kelamin, asal_sekolah, no_telp, alamat AS alamat_lengkap, kelurahan, jurusan,
+        jenis_kelamin, asal_sekolah, no_telp, alamat AS alamat_lengkap, jurusan,
         nilai_raport, nilai_tka, nilai_akhir, lolos_usia, status
         FROM pendaftar";
 }
 function _export_headers(): array {
     return [
         'No Pendaftaran','Gelombang','Nama','NISN','Tgl Lahir','Usia','L/P',
-        'Asal Sekolah','No Telp','Alamat Lengkap','Kelurahan','Jurusan',
+        'Asal Sekolah','No Telp','Alamat Lengkap','Jurusan',
         'Nilai Raport','Nilai TKA','Nilai Akhir','Lolos Usia','Status',
     ];
 }
@@ -19,15 +19,15 @@ function _export_row(array $r): array {
     return [
         $r['no_pendaftaran'], $r['gelombang'], $r['nama'], $r['nisn'],
         $r['tanggal_lahir'], $r['usia'], $r['jenis_kelamin'],
-        $r['asal_sekolah'], $r['no_telp'], $r['alamat_lengkap']??'', $r['kelurahan']??'',
+        $r['asal_sekolah'], $r['no_telp']??'', $r['alamat_lengkap']??'',
         $r['jurusan'], $r['nilai_raport'], $r['nilai_tka'], $r['nilai_akhir'],
         $r['lolos_usia'] ? 'Ya' : 'Tidak (>21thn)',
         $r['status'],
     ];
 }
-// col 15=Lolos Usia, col 16=Status
+// col 14=Lolos Usia, col 15=Status
 function _export_style(int $col, $val): int {
-    if ($col === 16) {
+    if ($col === 15) {
         return match($val) {
             'terima'   => XLSX_GREEN,
             'gugur'    => XLSX_RED,
@@ -36,7 +36,7 @@ function _export_style(int $col, $val): int {
             default    => XLSX_GRAY,
         };
     }
-    if ($col === 15) return $val === 'Ya' ? XLSX_GREEN : XLSX_RED;
+    if ($col === 14) return $val === 'Ya' ? XLSX_GREEN : XLSX_RED;
     return XLSX_NORMAL;
 }
 
