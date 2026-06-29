@@ -142,15 +142,17 @@ if (($_GET['action'] ?? '') === 'print_perhari') {
         .'thead{display:table-header-group;}thead th{background:#e9ecef;font-weight:700;text-align:center;}'
         .'tbody tr{page-break-inside:avoid;}'
         .'.print-foot{text-align:right;font-size:.72rem;color:#666;margin-top:8px;}'
-        .'@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact;}}'
+        .'.noprint-btn{position:fixed;top:10px;right:10px;z-index:9999;padding:8px 16px;background:#7c3aed;color:#fff;border:0;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;}'
+        .'@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact;}.noprint-btn{display:none;}}'
         .'</style></head><body>'
+        .'<button class="noprint-btn" onclick="window.print()">&#128424; Cetak</button>'
         .'<div class="print-kop"><h5>'.$h($sch_nama).'</h5><small>'.$h($sch_alamat).'</small>'
         .'<div class="print-meta"><strong>Laporan Pendaftaran Harian — '.$h(date('d F Y', strtotime($tgl))).'</strong>'
         .' &nbsp;|&nbsp; Dicetak: '.date('d F Y H:i').' &nbsp;|&nbsp; Jumlah: <strong>'.count($rows).'</strong> pendaftar</div></div>'
         .'<table><thead><tr><th>#</th><th>No. Pendaftaran</th><th>Nama</th><th>NISN</th><th>L/P</th><th>Jurusan</th><th>Status</th></tr></thead>'
         .'<tbody>'.$tbody.'</tbody></table>'
         .'<div class="print-foot">*** Dokumen dicetak dari sistem SPMB '.$h($sch_nama).' ***</div>'
-        .'<script>window.onload=function(){window.print();}<\/script></body></html>';
+        .'<script>window.onload=function(){setTimeout(function(){window.print();},350);};<\/script></body></html>';
     exit;
 }
 
