@@ -511,26 +511,37 @@ function printJurusan(jurusan, mode) {
     w.document.close();
 }
 
-// Cetak daftar siswa DITERIMA seluruh jurusan sekaligus — kolom NISN, Nama, Jurusan
+// Cetak daftar siswa DITERIMA — 4 lembar terpisah, satu jurusan per halaman (kolom #, NISN, Nama)
 function printAllJurusan() {
     const now = new Date().toLocaleString('id-ID', {dateStyle:'long', timeStyle:'short'});
     const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-    let tbody = '', no = 0;
-    JURUSAN_LIST.forEach(jur => {
+    let sheets = '';
+    JURUSAN_LIST.forEach((jur, idx) => {
         const rows = (PRINT_DATA[jur] && PRINT_DATA[jur].terima) || [];
-        rows.forEach(r => {
-            no++;
+        let tbody = '';
+        rows.forEach((r, i) => {
             tbody += `<tr>
-                <td style="text-align:center;">${no}</td>
+                <td style="text-align:center;">${i+1}</td>
                 <td>${esc(r.nisn) || '—'}</td>
                 <td>${esc(r.nama)}</td>
-                <td>${esc(JUR_SHORT[jur] || jur)}</td>
             </tr>`;
         });
+        sheets += `<div class="sheet"${idx > 0 ? ' style="page-break-before: always;"' : ''}>
+          <div class="print-kop">
+            <h5>${esc(SCH_NAMA)}</h5>
+            <small>${esc(SCH_ALAMAT)}</small>
+            <div class="print-meta"><strong>Daftar Siswa Diterima — Jurusan ${esc(jur)}</strong> &nbsp;|&nbsp; Dicetak: ${now} &nbsp;|&nbsp; Jumlah: <strong>${rows.length}</strong> siswa</div>
+          </div>
+          <table>
+            <thead><tr><th>#</th><th>NISN</th><th>Nama</th></tr></thead>
+            <tbody>${tbody || '<tr><td colspan="3" style="text-align:center;color:#999;">Tidak ada data</td></tr>'}</tbody>
+          </table>
+          <div class="print-foot">*** Dokumen dicetak dari sistem SPMB ${esc(SCH_NAMA)} ***</div>
+        </div>`;
     });
 
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Daftar Diterima — Semua Jurusan</title>
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Daftar Diterima per Jurusan</title>
 <style>
   @page { size: A4; margin: 12mm 12mm 14mm; }
   body { font-family: 'Segoe UI', Arial, sans-serif; color: #111; margin: 0; }
@@ -546,16 +557,7 @@ function printAllJurusan() {
   tbody tr:nth-child(even) { background: #f6f6f6; }
   .print-foot { text-align: right; font-size: .72rem; color: #666; margin-top: 8px; }
 </style></head><body>
-  <div class="print-kop">
-    <h5>${esc(SCH_NAMA)}</h5>
-    <small>${esc(SCH_ALAMAT)}</small>
-    <div class="print-meta"><strong>Daftar Siswa Diterima — Semua Jurusan</strong> &nbsp;|&nbsp; Dicetak: ${now} &nbsp;|&nbsp; Jumlah: <strong>${no}</strong> siswa</div>
-  </div>
-  <table>
-    <thead><tr><th>#</th><th>NISN</th><th>Nama</th><th>Jurusan</th></tr></thead>
-    <tbody>${tbody || '<tr><td colspan="4" style="text-align:center;color:#999;">Tidak ada data</td></tr>'}</tbody>
-  </table>
-  <div class="print-foot">*** Dokumen dicetak dari sistem SPMB ${esc(SCH_NAMA)} ***</div>
+${sheets}
   <script>window.onload = function(){ window.print(); }<\/script>
 </body></html>`;
 
