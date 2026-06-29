@@ -210,7 +210,7 @@ foreach (JURUSAN_LIST as $jFull) {
         $print_data[$jFull]['terima'] = $stT->fetchAll();
 
         $stA = $conn->prepare("SELECT no_pendaftaran, nama, nisn, jenis_kelamin, gelombang, asal_sekolah,
-            nilai_raport, nilai_tka, nilai_akhir, usia, status, catatan
+            nilai_raport, nilai_tka, nilai_akhir, usia, status, catatan, DATE(created_at) AS tgl
             FROM pendaftar WHERE jurusan=?
             ORDER BY gelombang, status, nilai_akhir DESC, usia DESC");
         $stA->execute([$jFull]);
@@ -625,13 +625,62 @@ ${sheets}
     w.document.close();
 }
 
-// Cetak Laporan Per Hari — buka endpoint server di POPUP (terfokus → dialog cetak muncul, spt 4 Jurusan)
+// Cetak Laporan Per Hari — sama mekanismenya dgn cetak lain (data client + window.open + document.write)
 function printPerHari(btn) {
     const form = btn.closest('form');
     const inp  = form ? form.querySelector('input[name="tanggal"]') : null;
     const tgl  = (inp && inp.value) ? inp.value : '<?= date('Y-m-d') ?>';
-    const url  = 'superadmin_dashboard.php?page=laporan&action=print_perhari&tanggal=' + encodeURIComponent(tgl);
-    window.open(url, '_blank', 'width=950,height=720');
+    const now  = new Date().toLocaleString('id-ID', {dateStyle:'long', timeStyle:'short'});
+    const esc  = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const stCol = {'terima':['#166534','#d1fae5'],'gugur':['#991b1b','#fee2e2'],'diproses':['#92400e','#fef3c7'],'lengkap':['#0e7490','#cffafe'],'ditahan':['#374151','#e5e7eb']};
+
+    let tbody = '', no = 0;
+    JURUSAN_LIST.forEach(jur => {
+        const rows = (PRINT_DATA[jur] && PRINT_DATA[jur].semua) || [];
+        rows.forEach(r => {
+            if (r.tgl !== tgl) return;
+            no++;
+            const sc = stCol[r.status] || ['#333','#f8f8f8'];
+            const kd = JUR_SHORT[jur] || jur;
+            tbody += `<tr><td style="text-align:center;">${no}</td><td>${esc(r.no_pendaftaran)}</td><td>${esc(r.nama)}</td>`
+                + `<td>${esc(r.nisn) || '—'}</td><td style="text-align:center;">${esc(r.jenis_kelamin)}</td>`
+                + `<td style="text-align:center;">${esc(kd)}</td>`
+                + `<td style="text-align:center;background:${sc[1]};color:${sc[0]};font-weight:700;">${esc(r.status)}</td></tr>`;
+        });
+    });
+    if (!tbody) tbody = '<tr><td colspan="7" style="text-align:center;color:#999;">Tidak ada pendaftar pada tanggal ini</td></tr>';
+
+    const bln = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const pt = tgl.split('-');
+    const tglFmt = (pt.length === 3) ? (parseInt(pt[2],10) + ' ' + (bln[parseInt(pt[1],10)-1] || '') + ' ' + pt[0]) : tgl;
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Laporan Harian ${esc(tgl)}</title>
+<style>
+  @page { size: A4; margin: 12mm 12mm 14mm; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #111; margin: 0; }
+  .print-kop { border-bottom: 3px double #000; margin-bottom: 12px; padding-bottom: 8px; }
+  .print-kop h5 { font-size: 1.05rem; font-weight: 800; margin: 0 0 2px; }
+  .print-kop small { font-size: .78rem; color: #333; }
+  .print-meta { margin-top: 6px; font-size: .8rem; }
+  table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  th, td { border: 1px solid #555; padding: 4px 7px; }
+  thead { display: table-header-group; }
+  thead th { background: #e9ecef; font-weight: 700; text-align: center; }
+  tbody tr { page-break-inside: avoid; }
+  .print-foot { text-align: right; font-size: .72rem; color: #666; margin-top: 8px; }
+  @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+</style></head><body>
+  <div class="print-kop"><h5>${esc(SCH_NAMA)}</h5><small>${esc(SCH_ALAMAT)}</small>
+    <div class="print-meta"><strong>Laporan Pendaftaran Harian — ${esc(tglFmt)}</strong> &nbsp;|&nbsp; Dicetak: ${now} &nbsp;|&nbsp; Jumlah: <strong>${no}</strong> pendaftar</div></div>
+  <table><thead><tr><th>#</th><th>No. Pendaftaran</th><th>Nama</th><th>NISN</th><th>L/P</th><th>Jurusan</th><th>Status</th></tr></thead>
+  <tbody>${tbody}</tbody></table>
+  <div class="print-foot">*** Dokumen dicetak dari sistem SPMB ${esc(SCH_NAMA)} ***</div>
+  <script>window.onload = function(){ window.print(); }<\/script>
+</body></html>`;
+
+    const w = window.open('', '_blank', 'width=950,height=720');
+    w.document.write(html);
+    w.document.close();
 }
 
 // Charts
