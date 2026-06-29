@@ -403,7 +403,7 @@ $status_labels_all = [
             <button type="submit" name="action" value="export_perhari" class="btn btn-primary btn-sm">
                 <i class="bi bi-calendar-day me-1"></i>Export Per Hari (.xlsx)
             </button>
-            <button type="submit" name="action" value="print_perhari" class="btn btn-info btn-sm">
+            <button type="button" onclick="printPerHari(this)" class="btn btn-info btn-sm">
                 <i class="bi bi-printer me-1"></i>Print Per Hari
             </button>
         </form>
@@ -623,6 +623,15 @@ ${sheets}
     const w = window.open('', '_blank', 'width=900,height=700');
     w.document.write(html);
     w.document.close();
+}
+
+// Cetak Laporan Per Hari — buka endpoint server di POPUP (terfokus → dialog cetak muncul, spt 4 Jurusan)
+function printPerHari(btn) {
+    const form = btn.closest('form');
+    const inp  = form ? form.querySelector('input[name="tanggal"]') : null;
+    const tgl  = (inp && inp.value) ? inp.value : '<?= date('Y-m-d') ?>';
+    const url  = 'superadmin_dashboard.php?page=laporan&action=print_perhari&tanggal=' + encodeURIComponent(tgl);
+    window.open(url, '_blank', 'width=950,height=720');
 }
 
 // Charts
