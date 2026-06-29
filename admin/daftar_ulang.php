@@ -16,6 +16,9 @@ try {
 $_asset_scheme = (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off') ? 'https' : 'http';
 $_asset_dir    = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/');
 $asset_base    = $_asset_scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $_asset_dir;
+// Versi gambar (anti-cache): ikut waktu modifikasi file gambar
+$asset_ver     = (string)(@filemtime(__DIR__ . '/../assets/img/formulir-1.png')
+                 ?: @filemtime(__DIR__ . '/../assets/img/kop-surat.png') ?: time());
 
 // ── Auto-migrate ─────────────────────────────────────────────────────────────
 // Tandai antrian DU supaya tidak campur dengan antrian SPMB
@@ -1176,6 +1179,7 @@ function cetakSPTJM(p) {
 // Cetak Formulir Pendaftaran kosong (2 lembar, dari docx) — tombol di layar pilih meja
 function cetakFormulir() {
     const base = '<?= htmlspecialchars($asset_base) ?>';
+    const v = '<?= htmlspecialchars($asset_ver) ?>';
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Formulir Pendaftaran</title>
 <style>
   @page { size: A4; margin: 0; }
@@ -1184,8 +1188,8 @@ function cetakFormulir() {
   .page:last-child { page-break-after: avoid; }
   .page img { width: 100%; height: auto; display: block; }
 </style></head><body>
-  <div class="page"><img src="${base}/assets/img/formulir-1.png" alt="Formulir Pendaftaran Lembar 1"></div>
-  <div class="page"><img src="${base}/assets/img/formulir-2.png" alt="Formulir Pendaftaran Lembar 2"></div>
+  <div class="page"><img src="${base}/assets/img/formulir-1.png?v=${v}" alt="Formulir Pendaftaran Lembar 1"></div>
+  <div class="page"><img src="${base}/assets/img/formulir-2.png?v=${v}" alt="Formulir Pendaftaran Lembar 2"></div>
   <script>window.onload = function() { window.print(); }<\/script>
 </body></html>`;
     const w = window.open('', '_blank', 'width=900,height=700');
