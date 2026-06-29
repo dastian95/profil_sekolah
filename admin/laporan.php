@@ -47,7 +47,7 @@ if (($_GET['action'] ?? '') === 'export_perhari') {
     $tgl = $_GET['tanggal'] ?? date('Y-m-d');
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tgl)) $tgl = date('Y-m-d');
 
-    $stmt = $conn->prepare(_export_select() . " WHERE created_at >= ? AND created_at <= ? ORDER BY created_at ASC");
+    $stmt = $conn->prepare(_export_select() . " WHERE created_at >= ? AND created_at <= ? ORDER BY jurusan, created_at ASC");
     $stmt->execute([$tgl . ' 01:00:00', $tgl . ' 21:00:00']);
     $rows = $stmt->fetchAll();
 
@@ -459,54 +459,51 @@ function printJurusan(jurusan, mode) {
             <td>${r.nama}</td>
             <td>${r.nisn || '—'}</td>
             <td style="text-align:center;">${r.jenis_kelamin}</td>
-            <td>${r.asal_sekolah || '—'}</td>
-            <td style="text-align:center;">G${r.gelombang}</td>
-            <td style="text-align:center;">${r.nilai_raport || '—'}</td>
-            <td style="text-align:center;">${r.nilai_tka || '—'}</td>
-            <td style="text-align:center;">${r.nilai_akhir || '—'}</td>
+            <td style="text-align:center;font-weight:700;">${r.nilai_akhir || '—'}</td>
             ${mode !== 'terima' ? `<td style="text-align:center;background:${stBg};color:${stColor};font-weight:700;">${r.status}</td>` : ''}
         </tr>`;
     });
 
-    const html = `
-    <div class="print-kop">
-        <h5>${SCH_NAMA}</h5>
-        <small>${SCH_ALAMAT}</small>
-        <div style="margin-top:8px;font-size:.85rem;">
-            <strong>${label} — Jurusan ${jurusan}</strong>
-            &nbsp;&nbsp;|&nbsp;&nbsp; Dicetak: ${now}
-            &nbsp;&nbsp;|&nbsp;&nbsp; Jumlah: <strong>${rows.length}</strong> siswa
-        </div>
-    </div>
-    <table class="print-table">
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>No. Pendaftaran</th>
-                <th>Nama</th>
-                <th>NISN</th>
-                <th>L/P</th>
-                <th>Asal Sekolah</th>
-                <th>Glm</th>
-                <th>Nilai Raport</th>
-                <th>Nilai TKA</th>
-                <th>Nilai Akhir</th>
-                ${mode !== 'terima' ? '<th>Status</th>' : ''}
-            </tr>
-        </thead>
-        <tbody>${tbody || '<tr><td colspan="11" style="text-align:center;color:#999;">Tidak ada data</td></tr>'}</tbody>
-        <tfoot>
-            <tr><td colspan="${mode !== 'terima' ? 11 : 10}" style="text-align:right;font-size:.75rem;color:#666;padding:6px;">
-                *** Dokumen ini dicetak dari sistem SPMB ${SCH_NAMA} ***
-            </td></tr>
-        </tfoot>
-    </table>`;
+    const colspan = mode !== 'terima' ? 7 : 6;
+    const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${esc(label)} — ${esc(jurusan)}</title>
+<style>
+  @page { size: A4; margin: 12mm 12mm 14mm; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #111; margin: 0; }
+  .print-kop { border-bottom: 3px double #000; margin-bottom: 12px; padding-bottom: 8px; }
+  .print-kop h5 { font-size: 1.05rem; font-weight: 800; margin: 0 0 2px; }
+  .print-kop small { font-size: .78rem; color: #333; }
+  .print-meta { margin-top: 6px; font-size: .8rem; }
+  table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  th, td { border: 1px solid #555; padding: 4px 7px; }
+  thead { display: table-header-group; }            /* header berulang tiap halaman */
+  thead th { background: #e9ecef; font-weight: 700; text-align: center; }
+  tbody tr { page-break-inside: avoid; }            /* baris tidak terpotong antar halaman */
+  tbody tr:nth-child(even) { background: #f6f6f6; }
+  .print-foot { text-align: right; font-size: .72rem; color: #666; margin-top: 8px; }
+  @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+</style></head><body>
+  <div class="print-kop">
+    <h5>${esc(SCH_NAMA)}</h5>
+    <small>${esc(SCH_ALAMAT)}</small>
+    <div class="print-meta"><strong>${esc(label)} — Jurusan ${esc(jurusan)}</strong> &nbsp;|&nbsp; Dicetak: ${now} &nbsp;|&nbsp; Jumlah: <strong>${rows.length}</strong> siswa</div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th><th>No. Pendaftaran</th><th>Nama</th><th>NISN</th><th>L/P</th><th>Nilai Akhir</th>
+        ${mode !== 'terima' ? '<th>Status</th>' : ''}
+      </tr>
+    </thead>
+    <tbody>${tbody || `<tr><td colspan="${colspan}" style="text-align:center;color:#999;">Tidak ada data</td></tr>`}</tbody>
+  </table>
+  <div class="print-foot">*** Dokumen dicetak dari sistem SPMB ${esc(SCH_NAMA)} ***</div>
+  <script>window.onload = function(){ window.print(); }<\/script>
+</body></html>`;
 
-    document.getElementById('print-area').innerHTML = html;
-    document.getElementById('print-area').style.display = 'block';
-    window.print();
-    document.getElementById('print-area').style.display = 'none';
-    document.getElementById('print-area').innerHTML = '';
+    const w = window.open('', '_blank', 'width=900,height=700');
+    w.document.write(html);
+    w.document.close();
 }
 
 // Charts
