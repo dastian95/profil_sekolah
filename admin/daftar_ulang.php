@@ -12,6 +12,11 @@ try {
         if ($row['setting_key'] === 'sekolah_alamat') $sch_alamat = $row['setting_value'];
 } catch (PDOException $e) {}
 
+// URL absolut aset — wajib utk gambar di popup cetak (about:blank tak punya base relatif)
+$_asset_scheme = (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off') ? 'https' : 'http';
+$_asset_dir    = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/');
+$asset_base    = $_asset_scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $_asset_dir;
+
 // ── Auto-migrate ─────────────────────────────────────────────────────────────
 // Tandai antrian DU supaya tidak campur dengan antrian SPMB
 try { $conn->exec("ALTER TABLE antrian ADD COLUMN jenis ENUM('ppdb','daftar_ulang') NOT NULL DEFAULT 'ppdb' AFTER tanggal"); } catch (PDOException $e) {}
@@ -439,6 +444,9 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
 <div class="text-center mb-4">
     <h5 class="fw-bold text-muted">Pilih meja Daftar Ulang untuk memulai sesi</h5>
     <p class="text-muted small">Setiap meja melayani satu jurusan. Konfigurasikan meja DU di halaman Kelola Meja.</p>
+    <button type="button" class="btn btn-outline-primary" onclick="cetakFormulir()">
+        <i class="bi bi-printer me-1"></i>Cetak Formulir Pendaftaran (Kosong)
+    </button>
 </div>
 <?php if (empty($mejas_aktif)): ?>
 <div class="alert alert-warning text-center">
@@ -998,8 +1006,16 @@ function hideEditPanel() {
 
 // ── Cetak SPTJM (Surat Pernyataan Tanggung Jawab Mutlak) ──────────────────────
 function cetakSPTJM(p) {
-    const namaWali   = p.nama_wali || p.nama_ibu || p.nama_ayah || '...........';
-    const alamatWali = p.alamat_wali || p.alamat_ibu || p.alamat_ayah || p.kelurahan || '...........';
+    const dot = '...........';
+    // Pilih SATU sumber ortu/wali yang konsisten: Wali → Ibu → Ayah
+    let namaWali, gNik, gAlamat, gHp;
+    if (p.nama_wali)      { namaWali = p.nama_wali; gNik = p.nik_wali; gAlamat = p.alamat_wali; gHp = p.telp_wali; }
+    else if (p.nama_ibu)  { namaWali = p.nama_ibu;  gNik = p.nik_ibu;  gAlamat = p.alamat_ibu;  gHp = p.telp_ibu; }
+    else if (p.nama_ayah) { namaWali = p.nama_ayah; gNik = p.nik_ayah; gAlamat = p.alamat_ayah; gHp = p.telp_ayah; }
+    namaWali = namaWali || dot;
+    gNik     = gNik     || dot;
+    gAlamat  = gAlamat  || p.kelurahan || dot;
+    gHp      = gHp      || dot;
 
     const tglLahirFmt = p.tanggal_lahir ? new Date(p.tanggal_lahir).toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'}) : '...........';
     const ttlStr = (p.tempat_lahir || '...........') + ', ' + tglLahirFmt;
@@ -1012,42 +1028,51 @@ function cetakSPTJM(p) {
 <title>SPTJM — ${p.nama}</title>
 <style>
     body { font-family: 'Times New Roman', serif; font-size: 12pt; margin: 0; padding: 0; }
-    .page { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 20mm 20mm 15mm; box-sizing: border-box; page-break-after: always; }
+    .page { width: 210mm; min-height: 0; margin: 0 auto; padding: 10mm 18mm 10mm; box-sizing: border-box; page-break-after: always; }
     .page:last-child { page-break-after: avoid; }
-    .kop { text-align: center; border-bottom: 3px double #000; padding-bottom: 8px; margin-bottom: 20px; }
+    .page-img { padding: 0; }
+    .form-full { width: 100%; height: auto; display: block; }
+    .kop { text-align: center; margin-bottom: 8px; }
+    .kop img { height: 32mm; width: auto; max-width: 100%; display: block; margin: 0 auto; }
     .kop h2 { font-size: 13pt; margin: 4px 0 2px; text-transform: uppercase; letter-spacing: 1px; }
     .kop p { font-size: 9pt; margin: 2px 0; }
-    h3 { text-align: center; font-size: 13pt; text-decoration: underline; margin-bottom: 6px; letter-spacing: 1px; }
-    .sub { text-align: center; font-size: 10pt; margin-bottom: 20px; }
-    .identitas { margin-bottom: 16px; }
+    h3 { text-align: center; font-size: 13pt; text-decoration: underline; margin: 6px 0 4px; letter-spacing: 1px; }
+    .sub { text-align: center; font-size: 10pt; margin-bottom: 12px; }
+    .identitas { margin-bottom: 8px; }
     .identitas table { border-collapse: collapse; }
-    .identitas td { padding: 3px 4px; vertical-align: top; font-size: 11.5pt; }
-    .identitas td:first-child { width: 180px; }
+    .identitas td { padding: 2px 4px; vertical-align: top; font-size: 11.5pt; }
+    .identitas td:first-child { width: 180px; font-weight: bold; }
     .identitas td:nth-child(2) { width: 12px; }
-    ol { margin: 0 0 16px 0; padding-left: 22px; }
-    ol li { margin-bottom: 8px; line-height: 1.6; text-align: justify; }
-    .penutup { line-height: 1.6; margin-bottom: 20px; text-align: justify; }
-    .ttd { display: flex; justify-content: space-between; margin-top: 30px; }
+    ol { margin: 0 0 10px 0; padding-left: 22px; }
+    ol li { margin-bottom: 3px; line-height: 1.3; text-align: justify; }
+    .penutup { line-height: 1.5; margin-bottom: 12px; text-align: justify; }
+    .ttd { display: flex; justify-content: space-between; margin-top: 14px; }
     .ttd-box { text-align: center; }
-    .ttd-box .label { margin-bottom: 70px; }
+    .ttd-box .label { margin-bottom: 40px; }
     .ttd-box .nama { border-top: 1px solid #000; padding-top: 4px; min-width: 180px; display: inline-block; }
-    .materai { border: 1px dashed #888; width: 80px; height: 80px; margin: 0 auto 10px; display: flex; align-items: center; justify-content: center; font-size: 8pt; color: #888; text-align: center; }
+    .materai { border: 1px dashed #888; width: 74px; height: 70px; margin: 0 auto 6px; display: flex; align-items: center; justify-content: center; font-size: 8pt; color: #888; text-align: center; }
     /* Formulir kosong */
     .form-title { text-align:center; font-size:13pt; font-weight:bold; text-decoration:underline; margin-bottom:4px; letter-spacing:1px; }
     .form-sub { text-align:center; font-size:9pt; margin-bottom:16px; }
-    .f-section { font-size:10pt; font-weight:bold; text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid #000; margin:14px 0 8px; padding-bottom:2px; }
-    .f-row { display:flex; align-items:flex-end; margin-bottom:8px; gap:8px; font-size:11pt; }
-    .f-label { flex-shrink:0; width:160px; }
+    .f-section { font-size:10pt; font-weight:bold; text-transform:uppercase; letter-spacing:.5px; border-bottom:1.5px solid #000; margin:9px 0 4px; padding-bottom:2px; }
+    .f-subsec { font-size:9.5pt; font-weight:bold; margin:4px 0 2px; color:#222; }
+    .f-row { display:flex; align-items:flex-end; margin-bottom:3px; gap:6px; font-size:9.5pt; }
+    .f-label { flex-shrink:0; width:150px; }
     .f-sep { flex-shrink:0; }
-    .f-line { flex:1; border-bottom:1px solid #555; min-height:18px; }
-    .f-row-half { display:flex; gap:16px; }
+    .f-line { flex:1; border-bottom:1px solid #555; min-height:14px; }
+    .f-fill { flex:1; border-bottom:1px dotted #555; min-height:14px; padding:0 4px; font-size:9.5pt; line-height:1.35; word-break:break-word; }
+    .f-row-half { display:flex; gap:14px; }
     .f-row-half .f-row { flex:1; }
+    .f-row-half .f-label { width:112px; }
+    .f-chkrow { display:flex; flex-wrap:wrap; gap:5px 16px; margin:3px 0 2px; font-size:9.5pt; }
+    .f-chk-item { display:inline-flex; align-items:center; gap:5px; }
+    .f-chk { display:inline-flex; align-items:center; justify-content:center; width:13px; height:13px; border:1.2px solid #333; font-size:9px; line-height:1; flex-shrink:0; }
+    .f-chk.on { background:#198754; border-color:#198754; color:#fff; }
     @media print { @page { size: A4; margin: 0; } body { print-color-adjust: exact; } }
 </style></head><body>
 <div class="page">
     <div class="kop">
-        <h2>Smks Laboratorium Jakarta</h2>
-        <p><?= htmlspecialchars($sch_alamat) ?></p>
+        <img src="<?= htmlspecialchars($asset_base) ?>/assets/img/kop-surat.png" alt="Kop SMKS Laboratorium Jakarta">
     </div>
 
     <h3>SURAT PERNYATAAN TANGGUNG JAWAB MUTLAK</h3>
@@ -1056,17 +1081,20 @@ function cetakSPTJM(p) {
     <p style="margin-bottom:12px;">Yang bertanda tangan di bawah ini:</p>
     <div class="identitas">
         <table>
-            <tr><td>Nama Orang Tua/Wali</td><td>:</td><td><strong>${namaWali}</strong></td></tr>
-            <tr><td>Alamat</td><td>:</td><td>${alamatWali}</td></tr>
+            <tr><td>Nama Orang Tua/Wali</td><td>:</td><td>${namaWali}</td></tr>
+            <tr><td>NIK</td><td>:</td><td>${gNik}</td></tr>
+            <tr><td>Alamat</td><td>:</td><td>${gAlamat}</td></tr>
+            <tr><td>No. HP</td><td>:</td><td>${gHp}</td></tr>
         </table>
     </div>
 
     <p style="margin-bottom:12px;">Selaku orang tua/wali dari:</p>
     <div class="identitas">
         <table>
-            <tr><td>Nama Peserta Didik</td><td>:</td><td><strong>${p.nama || '...........'}</strong></td></tr>
-            <tr><td>NISN</td><td>:</td><td>${p.nisn || '...........'}</td></tr>
+            <tr><td>Nama Peserta Didik</td><td>:</td><td>${p.nama || dot}</td></tr>
+            <tr><td>NISN</td><td>:</td><td>${p.nisn || dot}</td></tr>
             <tr><td>Tempat, Tanggal Lahir</td><td>:</td><td>${ttlStr}</td></tr>
+            <tr><td>Asal Sekolah</td><td>:</td><td>${p.asal_sekolah || dot}</td></tr>
         </table>
     </div>
 
@@ -1094,115 +1122,74 @@ function cetakSPTJM(p) {
 <script>window.onload = function() { window.print(); }<\/script>
 </body></html>`;
 
-    // Halaman 2: Formulir Pendaftaran kosong (diisi siswa di kertas)
-    const jurShort = <?= json_encode(JURUSAN_SHORT, JSON_UNESCAPED_UNICODE) ?>;
-    const jurLabel = jurShort[p.jurusan] || p.jurusan || '...........';
-
-    const formulirPage = `
+    // Halaman paling depan: Surat Keterangan Penerimaan Murid Baru — terisi otomatis
+    const suratPage = `
 <div class="page">
     <div class="kop">
-        <h2>SMKS Laboratorium Jakarta</h2>
-        <p><?= htmlspecialchars($sch_alamat) ?></p>
+        <img src="<?= htmlspecialchars($asset_base) ?>/assets/img/kop-surat.png" alt="Kop SMKS Laboratorium Jakarta">
     </div>
-    <div class="form-title">FORMULIR PENDAFTARAN PESERTA DIDIK BARU</div>
-    <div class="form-sub">Tahun Pelajaran 2026/2027</div>
+    <h3>SURAT KETERANGAN PENERIMAAN MURID BARU</h3>
+    <div style="height:6px;"></div>
 
-    <table style="width:100%;border-collapse:collapse;margin-bottom:10px;font-size:10.5pt;">
-        <tr>
-            <td style="width:55%;vertical-align:top;padding-right:8px;">
-                <table style="border-collapse:collapse;width:100%;">
-                    <tr>
-                        <td style="width:120px;padding:2px 4px;">No. Pendaftaran</td>
-                        <td style="width:10px;">:</td>
-                        <td style="border-bottom:1px solid #555;padding:2px 4px;"><strong>${p.no_pendaftaran||''}</strong></td>
-                    </tr>
-                    <tr>
-                        <td style="padding:2px 4px;">Nama Lengkap</td>
-                        <td>:</td>
-                        <td style="border-bottom:1px solid #555;padding:2px 4px;"><strong>${p.nama||''}</strong></td>
-                    </tr>
-                    <tr>
-                        <td style="padding:2px 4px;">NISN</td>
-                        <td>:</td>
-                        <td style="border-bottom:1px solid #555;padding:2px 4px;">${p.nisn||''}</td>
-                    </tr>
-                    <tr>
-                        <td style="padding:2px 4px;">Jurusan</td>
-                        <td>:</td>
-                        <td style="border-bottom:1px solid #555;padding:2px 4px;">${jurLabel}</td>
-                    </tr>
-                </table>
-            </td>
-            <td style="width:45%;vertical-align:top;text-align:center;">
-                <div style="border:1px solid #888;width:90px;height:110px;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:8pt;color:#888;text-align:center;padding:4px;">
-                    Foto<br>3 × 4
-                </div>
-            </td>
-        </tr>
-    </table>
+    <p style="margin-bottom:6px;">Yang bertanda tangan di bawah ini:</p>
+    <div class="identitas"><table>
+        <tr><td>Nama</td><td>:</td><td>${dot}</td></tr>
+        <tr><td>Jabatan</td><td>:</td><td>Kepala Sekolah SMKS Laboratorium Jakarta</td></tr>
+    </table></div>
 
-    <div class="f-section">A. Data Pribadi Calon Peserta Didik</div>
-    <div class="f-row"><span class="f-label">Nama Lengkap</span><span class="f-sep">:</span><span class="f-line"></span></div>
-    <div class="f-row-half">
-        <div class="f-row"><span class="f-label">Jenis Kelamin</span><span class="f-sep">:</span><span class="f-line"></span></div>
-        <div class="f-row"><span class="f-label">Agama</span><span class="f-sep">:</span><span class="f-line"></span></div>
-    </div>
-    <div class="f-row-half">
-        <div class="f-row"><span class="f-label">Tempat Lahir</span><span class="f-sep">:</span><span class="f-line"></span></div>
-        <div class="f-row"><span class="f-label">Tanggal Lahir</span><span class="f-sep">:</span><span class="f-line"></span></div>
-    </div>
-    <div class="f-row"><span class="f-label">NIK</span><span class="f-sep">:</span><span class="f-line"></span></div>
-    <div class="f-row"><span class="f-label">Asal Sekolah (SMP/MTs)</span><span class="f-sep">:</span><span class="f-line"></span></div>
-    <div class="f-row"><span class="f-label">Alamat Rumah</span><span class="f-sep">:</span><span class="f-line"></span></div>
-    <div class="f-row"><span class="f-label">&nbsp;</span><span class="f-sep">&nbsp;</span><span class="f-line"></span></div>
-    <div class="f-row-half">
-        <div class="f-row"><span class="f-label">Kelurahan/Desa</span><span class="f-sep">:</span><span class="f-line"></span></div>
-        <div class="f-row"><span class="f-label">Kecamatan</span><span class="f-sep">:</span><span class="f-line"></span></div>
-    </div>
-    <div class="f-row-half">
-        <div class="f-row"><span class="f-label">Kota/Kabupaten</span><span class="f-sep">:</span><span class="f-line"></span></div>
-        <div class="f-row"><span class="f-label">Kode Pos</span><span class="f-sep">:</span><span class="f-line"></span></div>
-    </div>
-    <div class="f-row-half">
-        <div class="f-row"><span class="f-label">No. Telepon/HP</span><span class="f-sep">:</span><span class="f-line"></span></div>
-        <div class="f-row"><span class="f-label">Email</span><span class="f-sep">:</span><span class="f-line"></span></div>
-    </div>
+    <p style="margin-bottom:6px;">Dengan ini menerangkan bahwa:</p>
+    <div class="identitas"><table>
+        <tr><td>Nama</td><td>:</td><td>${p.nama || dot}</td></tr>
+        <tr><td>Tempat, Tanggal Lahir</td><td>:</td><td>${ttlStr}</td></tr>
+        <tr><td>Asal Sekolah</td><td>:</td><td>${p.asal_sekolah || dot}</td></tr>
+        <tr><td>Nomor Pendaftaran</td><td>:</td><td>${p.no_pendaftaran || dot}</td></tr>
+    </table></div>
 
-    <div class="f-section">B. Data Orang Tua / Wali</div>
-    <div class="f-row"><span class="f-label">Nama Ayah</span><span class="f-sep">:</span><span class="f-line"></span></div>
-    <div class="f-row-half">
-        <div class="f-row"><span class="f-label">Pekerjaan Ayah</span><span class="f-sep">:</span><span class="f-line"></span></div>
-        <div class="f-row"><span class="f-label">No. HP Ayah</span><span class="f-sep">:</span><span class="f-line"></span></div>
-    </div>
-    <div class="f-row"><span class="f-label">Nama Ibu</span><span class="f-sep">:</span><span class="f-line"></span></div>
-    <div class="f-row-half">
-        <div class="f-row"><span class="f-label">Pekerjaan Ibu</span><span class="f-sep">:</span><span class="f-line"></span></div>
-        <div class="f-row"><span class="f-label">No. HP Ibu</span><span class="f-sep">:</span><span class="f-line"></span></div>
-    </div>
-    <div class="f-row"><span class="f-label">Nama Wali (jika ada)</span><span class="f-sep">:</span><span class="f-line"></span></div>
-    <div class="f-row"><span class="f-label">Alamat Orang Tua/Wali</span><span class="f-sep">:</span><span class="f-line"></span></div>
-    <div class="f-row"><span class="f-label">&nbsp;</span><span class="f-sep">&nbsp;</span><span class="f-line"></span></div>
+    <p class="penutup">Berdasarkan hasil seleksi Penerimaan Murid Baru Tahun Pelajaran 2026/2027, nama tersebut di atas <strong>DINYATAKAN LULUS SELEKSI</strong> dan <strong>DITERIMA</strong> sebagai peserta didik baru di:</p>
+    <div class="identitas"><table>
+        <tr><td>Nama Sekolah</td><td>:</td><td>SMKS Laboratorium Jakarta</td></tr>
+        <tr><td>Program Keahlian/Jurusan</td><td>:</td><td>${p.jurusan || dot}</td></tr>
+    </table></div>
 
-    <div class="f-section">C. Pernyataan</div>
-    <p style="font-size:10pt;line-height:1.6;text-align:justify;margin-bottom:16px;">
-        Dengan ini saya menyatakan bahwa data yang saya isi di atas adalah benar dan dapat dipertanggungjawabkan.
-        Apabila di kemudian hari terbukti data tidak sesuai, saya bersedia menerima sanksi sesuai ketentuan yang berlaku.
-    </p>
+    <p class="penutup">Selanjutnya, calon peserta didik diharapkan melakukan daftar ulang sesuai jadwal yang telah ditetapkan dengan melengkapi seluruh persyaratan administrasi. Apabila tidak melakukan daftar ulang hingga batas waktu yang ditentukan, maka status penerimaan dapat dinyatakan gugur sesuai ketentuan yang berlaku.</p>
+    <p class="penutup">Demikian surat keterangan ini dibuat untuk dipergunakan sebagaimana mestinya.</p>
 
-    <div class="ttd" style="margin-top:10px;">
-        <div style="width:40%;"></div>
+    <div class="ttd" style="margin-top:18px;">
+        <div style="width:45%;"></div>
         <div class="ttd-box">
-            <div class="label">Jakarta, ___________________</div>
-            <div class="label">Calon Peserta Didik / Orang Tua,</div>
-            <div class="nama" style="min-width:200px;">&nbsp;</div>
+            <div style="margin-bottom:2px;">Jakarta, ${tglSurat}</div>
+            <div style="margin-bottom:4px;">Kepala Sekolah,</div>
+            <div style="font-size:9pt;color:#666;margin-bottom:54px;">(tanda tangan &amp; stempel)</div>
+            <div class="nama" style="min-width:230px;">&nbsp;</div>
+            <div style="font-size:10pt;margin-top:3px;">NIP. .....................................</div>
         </div>
     </div>
 </div>`;
 
-    const fullHtml = html.replace('<script>window.onload', formulirPage + '<script>window.onload');
+    const fullHtml = html.replace('<body>', '<body>' + suratPage);
 
     const w = window.open('', '_blank', 'width=900,height=700');
     w.document.write(fullHtml);
+    w.document.close();
+}
+
+// Cetak Formulir Pendaftaran kosong (2 lembar, dari docx) — tombol di layar pilih meja
+function cetakFormulir() {
+    const base = '<?= htmlspecialchars($asset_base) ?>';
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Formulir Pendaftaran</title>
+<style>
+  @page { size: A4; margin: 0; }
+  html, body { margin: 0; padding: 0; }
+  .page { width: 210mm; margin: 0 auto; page-break-after: always; }
+  .page:last-child { page-break-after: avoid; }
+  .page img { width: 100%; height: auto; display: block; }
+</style></head><body>
+  <div class="page"><img src="${base}/assets/img/formulir-1.png" alt="Formulir Pendaftaran Lembar 1"></div>
+  <div class="page"><img src="${base}/assets/img/formulir-2.png" alt="Formulir Pendaftaran Lembar 2"></div>
+  <script>window.onload = function() { window.print(); }<\/script>
+</body></html>`;
+    const w = window.open('', '_blank', 'width=900,height=700');
+    w.document.write(html);
     w.document.close();
 }
 </script>

@@ -2,6 +2,11 @@
 // Partial bersama: fungsi JS printBukti(r) untuk cetak Bukti Tanda Daftar SPMB.
 // Di-include DI DALAM blok <script> pada admin/pendaftar.php & admin/antrian.php.
 // Butuh $sch_nama & $sch_alamat di scope pemanggil (dari site_settings).
+
+// URL absolut aset — wajib utk gambar kop di popup cetak (about:blank tak punya base relatif)
+$_bukti_scheme = (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off') ? 'https' : 'http';
+$_bukti_dir    = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/');
+$_bukti_asset  = $_bukti_scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $_bukti_dir;
 ?>
 function printBukti(r) {
     const jk   = r.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan';
@@ -20,6 +25,7 @@ function printBukti(r) {
     // Identitas sekolah ikut Konten Website (CMS)
     const SCH_NAMA   = <?= json_encode($sch_nama) ?>;
     const SCH_ALAMAT = <?= json_encode($sch_alamat) ?>;
+    const SCH_LOGO   = <?= json_encode($_bukti_asset . '/assets/img/kop-surat.png') ?>;
     const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const yr = new Date().getFullYear();
     const tahunAjaran = yr + '/' + (yr + 1);
@@ -72,8 +78,7 @@ function printBukti(r) {
     const lembarKlasik = `
       <div class="header">
         ${antri ? `<div class="antri-box"><div class="lbl">Loket</div><div class="num">${antri.nomor}</div>${antri.meja ? `<div class="loket">${antri.meja}</div>` : ''}</div>` : ''}
-        <h2>${esc(SCH_NAMA)}</h2>
-        <p>${esc(SCH_ALAMAT)}</p>
+        <img class="kop-img" src="${SCH_LOGO}" alt="Kop ${esc(SCH_NAMA)}">
         <h2 style="margin-top:8px;font-size:15px;">BUKTI TANDA DAFTAR SPMB</h2>
         <p style="font-size:11px;">Tahun Pelajaran ${tahunAjaran}</p>
       </div>
@@ -130,7 +135,8 @@ function printBukti(r) {
   .header{text-align:center;border-bottom:3px double #333;padding-bottom:12px;margin-bottom:16px;position:relative;}
   .header h2{margin:4px 0;font-size:16px;text-transform:uppercase;letter-spacing:.5px;}
   .header p{margin:2px 0;font-size:12px;}
-  .antri-box{position:absolute;top:0;right:0;border:2px solid #111;border-radius:6px;padding:6px 12px;text-align:center;min-width:96px;}
+  .header .kop-img{width:100%;max-width:100%;display:block;margin:0 auto 4px;}
+  .antri-box{position:absolute;top:0;right:0;background:#fff;border:2px solid #111;border-radius:6px;padding:6px 12px;text-align:center;min-width:96px;z-index:2;}
   .antri-box .lbl{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:#444;}
   .antri-box .num{font-size:20px;font-weight:800;line-height:1.1;}
   .antri-box .loket{font-size:10px;font-weight:bold;margin-top:2px;}
