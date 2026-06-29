@@ -789,7 +789,7 @@ $slist = fn($k, $d = '') => array_values(array_filter(array_map('trim', explode(
             $hasil_live = !empty($g['is_hasil_published']);
             // Ambil data terima untuk kedua kondisi (hasil resmi maupun sedang berjalan)
             $list = [];
-            $diterima = $conn->prepare("SELECT no_pendaftaran, nama, nisn, jurusan FROM pendaftar
+            $diterima = $conn->prepare("SELECT no_pendaftaran, nama, nisn, jurusan, nilai_raport, nilai_tka, nilai_akhir, status FROM pendaftar
                   WHERE gelombang=? AND status='terima' ORDER BY jurusan, nilai_akhir DESC");
             $diterima->execute([$g['gelombang']]);
             $list = $diterima->fetchAll();
@@ -871,25 +871,37 @@ $slist = fn($k, $d = '') => array_values(array_filter(array_map('trim', explode(
                 </div>
 
                 <div class="table-responsive">
-                  <table class="table table-bordered table-hover" id="tbl-<?= $glm_id ?>">
+                  <table class="table table-bordered table-hover align-middle" id="tbl-<?= $glm_id ?>">
                     <thead class="table-dark">
                       <tr>
-                        <th>Nama</th>
-                        <th>NISN</th>
+                        <th class="text-center">TOP</th>
+                        <th>No. Pendaftar</th>
+                        <th>Nama &amp; NISN</th>
                         <th>Jurusan</th>
+                        <th class="text-center">Raport</th>
+                        <th class="text-center">TKA</th>
+                        <th class="text-center">Nilai Akhir</th>
+                        <th class="text-center">Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      <?php foreach ($list as $r):
+                      <?php $rankJur = []; foreach ($list as $r):
                         $kd = $short_j[$r['jurusan']] ?? $r['jurusan'];
+                        $rankJur[$kd] = ($rankJur[$kd] ?? 0) + 1; $top = $rankJur[$kd];
+                        $tka = (float)$r['nilai_tka'];
                       ?>
                         <tr data-jurusan="<?= $kd ?>" data-nama="<?= strtolower(htmlspecialchars($r['nama'])) ?>" data-nisn="<?= htmlspecialchars($r['nisn']) ?>">
-                          <td data-label="Nama" class="fw-semibold"><?= htmlspecialchars($r['nama']) ?></td>
-                          <td data-label="NISN"><?= htmlspecialchars($r['nisn']) ?></td>
-                          <td data-label="Jurusan">
-                            <span class="badge bg-primary"><?= $kd ?></span>
-                            <span class="ms-1 small text-muted d-none d-sm-inline"><?= htmlspecialchars($r['jurusan']) ?></span>
+                          <td data-label="TOP" class="text-center fw-bold"><?= $top ?></td>
+                          <td data-label="No. Pendaftar"><?= htmlspecialchars($r['no_pendaftaran']) ?></td>
+                          <td data-label="Nama &amp; NISN">
+                            <div class="fw-semibold"><?= htmlspecialchars($r['nama']) ?></div>
+                            <div class="small text-muted"><?= htmlspecialchars($r['nisn']) ?></div>
                           </td>
+                          <td data-label="Jurusan"><span class="badge bg-primary"><?= $kd ?></span></td>
+                          <td data-label="Raport" class="text-center"><?= number_format((float)$r['nilai_raport'], 2) ?></td>
+                          <td data-label="TKA" class="text-center"><?= $tka > 0 ? number_format($tka, 2) : '-' ?></td>
+                          <td data-label="Nilai Akhir" class="text-center fw-bold"><?= number_format((float)$r['nilai_akhir'], 2) ?></td>
+                          <td data-label="Status" class="text-center"><span class="badge bg-success">Diterima</span></td>
                         </tr>
                       <?php endforeach; ?>
                     </tbody>
