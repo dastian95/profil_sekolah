@@ -44,6 +44,11 @@ function printBukti(r) {
     if (r.alamat_sekolah) rows.push(['Alamat Sekolah', esc(r.alamat_sekolah)]);
     rows.push(['Sistem Penilaian', esc(sistemLabel)]);
     rows.push(['Tanggal KK',       tglKk]);
+    if (r.no_telp) rows.push(['No. Telepon', esc(r.no_telp)]);
+    const nilaiRaport = parseFloat(r.nilai_raport) || 0;
+    const nilaiAkhir  = parseFloat(r.nilai_akhir)  || 0;
+    if (nilaiRaport > 0) rows.push(['Nilai Sidanira / Raport', `<strong>${nilaiRaport.toFixed(2)}</strong>`]);
+    if (nilaiAkhir  > 0) rows.push(['Nilai Akhir',             `<strong>${nilaiAkhir.toFixed(2)}</strong>`]);
     rows.push(['Tanggal Daftar',   daft]);
 
     // Kelengkapan berkas

@@ -179,61 +179,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'prose
         foreach ($jurusan_list as $jurusan) {
             $all_terima = [];
 
-            if ($gelombang == 1) {
-                // Gelombang 1: satu daftar — nilai akhir → usia
-                $res = $ambilTerima($jurusan, $kuota_glm, 'g1');
-                $all_terima = $res['terima'];
-            } else {
-                // Gelombang 2: Yatim/Piatu & Anak Guru → jarak terdekat
-                //              ABK → nilai_khusus (dinilai manual sekolah)
-                //              Reguler → nilai_akhir (raport+TKA), Duren Sawit diprioritaskan
-                // Jika Reguler tidak cukup isi sisa slot, overflow prioritas masuk
-                $ryp = $ambilTerima($jurusan, 4, 'g2_jarak', 'yatim_piatu');
-                $rag = $ambilTerima($jurusan, 4, 'g2_jarak', 'anak_guru');
-                $rab = $ambilTerima($jurusan, 8, 'g2_abk',   'abk');
-                $special_accepted = count($ryp['terima']) + count($rag['terima']) + count($rab['terima']);
-                $kuota_reguler = max(0, $kuota_glm - $special_accepted);
-                $rr = $ambilTerima($jurusan, $kuota_reguler, 'g2_reguler', 'reguler');
-
-                // Overflow: jika reguler tidak cukup, isi sisa dari prioritas yg belum masuk
-                $overflow_ids = [];
-                if ($rr['unfilled'] > 0) {
-                    $already = array_merge($ryp['terima'], $rag['terima'], $rab['terima'], $rr['terima']);
-                    if ($already) {
-                        $excl = implode(',', array_fill(0, count($already), '?'));
-                        $stOvf = $conn->prepare("SELECT id FROM pendaftar
-                            WHERE gelombang=? AND jurusan=? AND lolos_usia=1 AND is_pinned=0
-                            AND status='diproses' AND is_ditahan=0 AND jalur IN ('yatim_piatu','anak_guru','abk')
-                            AND id NOT IN ({$excl})
-                            ORDER BY COALESCE(jarak_km, 9999) ASC, usia DESC
-                            LIMIT ?");
-                        $stOvf->execute(array_merge([$gelombang, $jurusan], $already, [$rr['unfilled']]));
-                    } else {
-                        $stOvf = $conn->prepare("SELECT id FROM pendaftar
-                            WHERE gelombang=? AND jurusan=? AND lolos_usia=1 AND is_pinned=0
-                            AND status='diproses' AND is_ditahan=0 AND jalur IN ('yatim_piatu','anak_guru','abk')
-                            ORDER BY COALESCE(jarak_km, 9999) ASC, usia DESC
-                            LIMIT ?");
-                        $stOvf->execute([$gelombang, $jurusan, $rr['unfilled']]);
-                    }
-                    $overflow_ids = $stOvf->fetchAll(PDO::FETCH_COLUMN);
-                }
-
-                // Tandai catatan per jalur
-                foreach ([
-                    [$ryp['terima'], 'Diterima jalur Yatim/Piatu'],
-                    [$rag['terima'], 'Diterima jalur Anak Guru'],
-                    [$rab['terima'], 'Diterima jalur ABK'],
-                    [$overflow_ids,  'Diterima jalur Prioritas (overflow)'],
-                ] as [$ids, $cat]) {
-                    if ($ids) {
-                        $in = implode(',', array_fill(0, count($ids), '?'));
-                        $conn->prepare("UPDATE pendaftar SET catatan=? WHERE id IN ({$in})")
-                             ->execute(array_merge([$cat], $ids));
-                    }
-                }
-                $all_terima = array_merge($ryp['terima'], $rag['terima'], $rab['terima'], $rr['terima'], $overflow_ids);
-            }
+            // Semua gelombang: satu daftar — nilai akhir tertinggi → usia tertua
+            $res = $ambilTerima($jurusan, $kuota_glm, 'g1');
+            $all_terima = $res['terima'];
 
             if ($all_terima) {
                 $in = implode(',', array_fill(0, count($all_terima), '?'));
@@ -528,29 +476,10 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
     $gugur_arr = array_values(array_filter($list, fn($r) =>  rank_is_gugur($r, $KK_CUTOFF)));
     $jurusan_id = preg_replace('/[^a-z0-9]/', '', strtolower($short[$jurusan]));
 
-    // Susun segmen: G1 = satu daftar; G2 = empat jalur (3 khusus + Reguler)
-    if ((int)$fGel === 2) {
-        $byJalur = ['yatim_piatu' => [], 'anak_guru' => [], 'abk' => [], 'reguler' => []];
-        foreach ($eligible as $r) {
-            $jl = $r['jalur'] ?? 'reguler';
-            if (!isset($byJalur[$jl])) $jl = 'reguler';
-            $byJalur[$jl][] = $r;
-        }
-        $special_accept = min(4, count($byJalur['yatim_piatu']))
-                        + min(4, count($byJalur['anak_guru']))
-                        + min(8, count($byJalur['abk']));
-        $kuotaR = max(0, $kuota_glm - $special_accept);
-        $segments = [
-            ['key'=>'yatim_piatu','label'=>'Jalur Yatim & Piatu','icon'=>'bi-heart-fill','color'=>'danger','info'=>'jarak','list'=>rank_sort($byJalur['yatim_piatu'],'g2_jarak'),'kuota'=>4],
-            ['key'=>'anak_guru',  'label'=>'Jalur Anak Guru',    'icon'=>'bi-mortarboard-fill','color'=>'warning','info'=>'jarak','list'=>rank_sort($byJalur['anak_guru'],'g2_jarak'),'kuota'=>4],
-            ['key'=>'abk',        'label'=>'Jalur ABK',          'icon'=>'bi-person-wheelchair','color'=>'info','info'=>'abk','list'=>rank_sort($byJalur['abk'],'g2_abk'),'kuota'=>8],
-            ['key'=>'reguler',    'label'=>'Jalur Reguler',      'icon'=>'bi-people-fill','color'=>'success','info'=>'zonasi','list'=>rank_sort($byJalur['reguler'],'g2_reguler'),'kuota'=>$kuotaR],
-        ];
-    } else {
-        $segments = [
-            ['key'=>'g1','label'=>'','icon'=>'','color'=>'success','info'=>'','list'=>rank_sort($eligible,'g1'),'kuota'=>$kuota_glm],
-        ];
-    }
+    // Semua gelombang: satu daftar nilai akhir → usia
+    $segments = [
+        ['key'=>'g1','label'=>'','icon'=>'','color'=>'success','info'=>'','list'=>rank_sort($eligible,'g1'),'kuota'=>$kuota_glm],
+    ];
 
     // Builder badge info untuk kolom Nama
     $kel_ds_labels = array_keys(KELURAHAN_ZONASI['Duren Sawit'] ?? []);
