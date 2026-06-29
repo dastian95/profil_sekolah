@@ -425,6 +425,9 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
         </div>
     </div>
     <div class="d-flex gap-2 flex-wrap">
+        <button type="button" class="btn btn-outline-primary btn-sm" onclick="cetakFormulir()">
+            <i class="bi bi-printer me-1"></i>Cetak Formulir
+        </button>
         <a href="superadmin_dashboard.php?page=daftar_ulang&action=export_csv" class="btn btn-success btn-sm">
             <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export CSV Semua
         </a>
@@ -444,9 +447,6 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
 <div class="text-center mb-4">
     <h5 class="fw-bold text-muted">Pilih meja Daftar Ulang untuk memulai sesi</h5>
     <p class="text-muted small">Setiap meja melayani satu jurusan. Konfigurasikan meja DU di halaman Kelola Meja.</p>
-    <button type="button" class="btn btn-outline-primary" onclick="cetakFormulir()">
-        <i class="bi bi-printer me-1"></i>Cetak Formulir Pendaftaran (Kosong)
-    </button>
 </div>
 <?php if (empty($mejas_aktif)): ?>
 <div class="alert alert-warning text-center">
