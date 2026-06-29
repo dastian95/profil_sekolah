@@ -99,6 +99,61 @@ try {
     }
 } catch (Throwable) {}
 
+// ── Print Per Hari (early exit) — output HTML cetak gabungan, dikelompokkan per jurusan ──
+if (($_GET['action'] ?? '') === 'print_perhari') {
+    $tgl = $_GET['tanggal'] ?? date('Y-m-d');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tgl)) $tgl = date('Y-m-d');
+
+    $stmt = $conn->prepare("SELECT no_pendaftaran, nama, nisn, jenis_kelamin, jurusan, status
+        FROM pendaftar WHERE created_at >= ? AND created_at <= ? ORDER BY jurusan, created_at ASC");
+    $stmt->execute([$tgl . ' 01:00:00', $tgl . ' 21:00:00']);
+    $rows = $stmt->fetchAll();
+    log_admin_action($conn, 'PRINT_PERHARI', "Print harian $tgl: ".count($rows)." baris");
+
+    $stCol = [
+        'terima'=>['#166534','#d1fae5'], 'gugur'=>['#991b1b','#fee2e2'],
+        'diproses'=>['#92400e','#fef3c7'], 'lengkap'=>['#0e7490','#cffafe'], 'ditahan'=>['#374151','#e5e7eb'],
+    ];
+    $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+
+    $tbody = ''; $no = 0;
+    foreach ($rows as $r) {
+        $no++;
+        $sc = $stCol[$r['status']] ?? ['#333','#f8f8f8'];
+        $kd = JURUSAN_SHORT[$r['jurusan']] ?? $r['jurusan'];
+        $tbody .= '<tr><td style="text-align:center;">'.$no.'</td>'
+            .'<td>'.$h($r['no_pendaftaran']).'</td><td>'.$h($r['nama']).'</td><td>'.$h($r['nisn'] ?: '—').'</td>'
+            .'<td style="text-align:center;">'.$h($r['jenis_kelamin']).'</td>'
+            .'<td style="text-align:center;">'.$h($kd).'</td>'
+            .'<td style="text-align:center;background:'.$sc[1].';color:'.$sc[0].';font-weight:700;">'.$h($r['status']).'</td></tr>';
+    }
+    if ($tbody === '') $tbody = '<tr><td colspan="7" style="text-align:center;color:#999;">Tidak ada pendaftar pada tanggal ini</td></tr>';
+
+    while (ob_get_level() > 0) ob_end_clean();
+    echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Laporan Harian '.$h($tgl).'</title><style>'
+        .'@page{size:A4;margin:12mm 12mm 14mm;}'
+        .'body{font-family:"Segoe UI",Arial,sans-serif;color:#111;margin:0;}'
+        .'.print-kop{border-bottom:3px double #000;margin-bottom:12px;padding-bottom:8px;}'
+        .'.print-kop h5{font-size:1.05rem;font-weight:800;margin:0 0 2px;}'
+        .'.print-kop small{font-size:.78rem;color:#333;}'
+        .'.print-meta{margin-top:6px;font-size:.8rem;}'
+        .'table{width:100%;border-collapse:collapse;font-size:.82rem;}'
+        .'th,td{border:1px solid #555;padding:4px 7px;}'
+        .'thead{display:table-header-group;}thead th{background:#e9ecef;font-weight:700;text-align:center;}'
+        .'tbody tr{page-break-inside:avoid;}'
+        .'.print-foot{text-align:right;font-size:.72rem;color:#666;margin-top:8px;}'
+        .'@media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact;}}'
+        .'</style></head><body>'
+        .'<div class="print-kop"><h5>'.$h($sch_nama).'</h5><small>'.$h($sch_alamat).'</small>'
+        .'<div class="print-meta"><strong>Laporan Pendaftaran Harian — '.$h(date('d F Y', strtotime($tgl))).'</strong>'
+        .' &nbsp;|&nbsp; Dicetak: '.date('d F Y H:i').' &nbsp;|&nbsp; Jumlah: <strong>'.count($rows).'</strong> pendaftar</div></div>'
+        .'<table><thead><tr><th>#</th><th>No. Pendaftaran</th><th>Nama</th><th>NISN</th><th>L/P</th><th>Jurusan</th><th>Status</th></tr></thead>'
+        .'<tbody>'.$tbody.'</tbody></table>'
+        .'<div class="print-foot">*** Dokumen dicetak dari sistem SPMB '.$h($sch_nama).' ***</div>'
+        .'<script>window.onload=function(){window.print();}<\/script></body></html>';
+    exit;
+}
+
 // ── Query: per gelombang × status ────────────────────────────────────────────
 $glm_stats = [];
 try {
@@ -340,12 +395,14 @@ $status_labels_all = [
         <!-- Export Per Hari -->
         <form method="GET" action="superadmin_dashboard.php" class="d-flex flex-wrap gap-2 align-items-center no-print ms-md-auto" target="_blank">
             <input type="hidden" name="page" value="laporan">
-            <input type="hidden" name="action" value="export_perhari">
             <label class="small fw-semibold text-muted mb-0 me-1">Per Hari:</label>
             <input type="date" name="tanggal" class="form-control form-control-sm" style="max-width:160px;"
                    value="<?= date('Y-m-d') ?>" max="<?= date('Y-m-d') ?>">
-            <button type="submit" class="btn btn-primary btn-sm">
+            <button type="submit" name="action" value="export_perhari" class="btn btn-primary btn-sm">
                 <i class="bi bi-calendar-day me-1"></i>Export Per Hari (.xlsx)
+            </button>
+            <button type="submit" name="action" value="print_perhari" class="btn btn-info btn-sm">
+                <i class="bi bi-printer me-1"></i>Print Per Hari
             </button>
         </form>
     </div>
