@@ -413,7 +413,11 @@ $status_labels_all = [
                 <?php endforeach; ?>
                 <td class="text-center"><?= $total_all ?></td>
                 <td class="text-center"><?= $total_all > 0 ? round($total_terima/$total_all*100) : 0 ?>%</td>
-                <td class="no-print"></td>
+                <td class="text-center no-print">
+                    <button class="btn btn-sm btn-dark py-0 px-2" onclick="printAllJurusan()" title="Cetak daftar siswa diterima — semua jurusan">
+                        <i class="bi bi-printer me-1"></i>Diterima 4 Jurusan
+                    </button>
+                </td>
             </tr>
         </tfoot>
     </table>
@@ -427,6 +431,7 @@ const PRINT_DATA   = <?= json_encode($print_data, JSON_HEX_TAG|JSON_HEX_APOS|JSO
 const SCH_NAMA     = <?= json_encode($sch_nama) ?>;
 const SCH_ALAMAT   = <?= json_encode($sch_alamat) ?>;
 const JURUSAN_LIST = <?= json_encode(JURUSAN_LIST) ?>;
+const JUR_SHORT    = <?= json_encode(JURUSAN_SHORT, JSON_UNESCAPED_UNICODE) ?>;
 
 const STATUS_COLOR = {
     'terima':   '#166534',
@@ -496,6 +501,59 @@ function printJurusan(jurusan, mode) {
       </tr>
     </thead>
     <tbody>${tbody || `<tr><td colspan="${colspan}" style="text-align:center;color:#999;">Tidak ada data</td></tr>`}</tbody>
+  </table>
+  <div class="print-foot">*** Dokumen dicetak dari sistem SPMB ${esc(SCH_NAMA)} ***</div>
+  <script>window.onload = function(){ window.print(); }<\/script>
+</body></html>`;
+
+    const w = window.open('', '_blank', 'width=900,height=700');
+    w.document.write(html);
+    w.document.close();
+}
+
+// Cetak daftar siswa DITERIMA seluruh jurusan sekaligus — kolom NISN, Nama, Jurusan
+function printAllJurusan() {
+    const now = new Date().toLocaleString('id-ID', {dateStyle:'long', timeStyle:'short'});
+    const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+    let tbody = '', no = 0;
+    JURUSAN_LIST.forEach(jur => {
+        const rows = (PRINT_DATA[jur] && PRINT_DATA[jur].terima) || [];
+        rows.forEach(r => {
+            no++;
+            tbody += `<tr>
+                <td style="text-align:center;">${no}</td>
+                <td>${esc(r.nisn) || '—'}</td>
+                <td>${esc(r.nama)}</td>
+                <td>${esc(JUR_SHORT[jur] || jur)}</td>
+            </tr>`;
+        });
+    });
+
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Daftar Diterima — Semua Jurusan</title>
+<style>
+  @page { size: A4; margin: 12mm 12mm 14mm; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #111; margin: 0; }
+  .print-kop { border-bottom: 3px double #000; margin-bottom: 12px; padding-bottom: 8px; }
+  .print-kop h5 { font-size: 1.05rem; font-weight: 800; margin: 0 0 2px; }
+  .print-kop small { font-size: .78rem; color: #333; }
+  .print-meta { margin-top: 6px; font-size: .8rem; }
+  table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  th, td { border: 1px solid #555; padding: 4px 7px; }
+  thead { display: table-header-group; }
+  thead th { background: #e9ecef; font-weight: 700; text-align: center; }
+  tbody tr { page-break-inside: avoid; }
+  tbody tr:nth-child(even) { background: #f6f6f6; }
+  .print-foot { text-align: right; font-size: .72rem; color: #666; margin-top: 8px; }
+</style></head><body>
+  <div class="print-kop">
+    <h5>${esc(SCH_NAMA)}</h5>
+    <small>${esc(SCH_ALAMAT)}</small>
+    <div class="print-meta"><strong>Daftar Siswa Diterima — Semua Jurusan</strong> &nbsp;|&nbsp; Dicetak: ${now} &nbsp;|&nbsp; Jumlah: <strong>${no}</strong> siswa</div>
+  </div>
+  <table>
+    <thead><tr><th>#</th><th>NISN</th><th>Nama</th><th>Jurusan</th></tr></thead>
+    <tbody>${tbody || '<tr><td colspan="4" style="text-align:center;color:#999;">Tidak ada data</td></tr>'}</tbody>
   </table>
   <div class="print-foot">*** Dokumen dicetak dari sistem SPMB ${esc(SCH_NAMA)} ***</div>
   <script>window.onload = function(){ window.print(); }<\/script>
