@@ -147,6 +147,12 @@ try { $conn->exec("ALTER TABLE pendaftar MODIFY COLUMN jalur ENUM('reguler','yat
 try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN nilai_khusus DECIMAL(5,2) NULL"); } catch (PDOException $e) {}
 try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN alamat_sekolah VARCHAR(255) NULL"); } catch (PDOException $e) {}
 try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN raport_mode VARCHAR(20) NOT NULL DEFAULT 'matrix'"); } catch (PDOException $e) {}
+// Kunci Kompetisi: flag "Ditahan" (status kedua) + kolom kunci gelombang
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN is_ditahan TINYINT(1) NOT NULL DEFAULT 0"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE gelombang ADD COLUMN is_locked TINYINT(1) NOT NULL DEFAULT 0"); } catch (PDOException $e) {}
+// Map gelombang terkunci → dipakai INSERT (jadi Ditahan), blokir edit, & badge
+$locked_glm = [];
+try { foreach ($conn->query("SELECT gelombang, is_locked FROM gelombang") as $_lg) { $locked_glm[(int)$_lg['gelombang']] = (int)$_lg['is_locked']; } } catch (Throwable) {}
 // Recalculate nilai_akhir PKBM/Khusus: bobot lama 0.85 → 0.70 (hanya record yang masih pakai bobot lama)
 try { $conn->exec("UPDATE pendaftar SET nilai_akhir = ROUND(nilai_raport * 0.70, 4)
     WHERE sistem_pendidikan IN ('pkbm','khusus') AND nilai_raport > 0
@@ -317,6 +323,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $existing = $cur->fetch();
                     $gel = (int)$existing['gelombang'];
                     $existing_status = $existing['status'] ?? 'diproses';
+                    if (!empty($locked_glm[$gel])) {
+                        $err = 'Gelombang ' . $gel . ' terkunci — data tidak dapat diubah. Buka kunci dulu di Pengaturan Pendaftaran.';
+                        $conn->rollBack();
+                    }
                 }
             }
             if (!$err) { try {
@@ -367,12 +377,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if ($action === 'add') {
                     $no = generateNoPendaftaran($conn, $d['gelombang']);
+                    // Gelombang terkunci → pendaftar baru jadi "Ditahan" (status kedua, tidak ikut peringkat)
+                    $is_ditahan_val = !empty($locked_glm[(int)$d['gelombang']]) ? 1 : 0;
                     $stmt = $conn->prepare("INSERT INTO pendaftar
-                        (no_pendaftaran,gelombang,nama,nisn,tanggal_lahir,usia,jenis_kelamin,asal_sekolah,alamat_sekolah,no_telp,tgl_kk,alamat,kelurahan,jarak_km,status_ortu,buta_warna,jalur,nilai_khusus,jurusan,sistem_pendidikan,nilai_raport,nilai_tka,tka_mtk,tka_bindo,nilai_akhir,lolos_usia,status,raport_mode)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+                        (no_pendaftaran,gelombang,nama,nisn,tanggal_lahir,usia,jenis_kelamin,asal_sekolah,alamat_sekolah,no_telp,tgl_kk,alamat,kelurahan,jarak_km,status_ortu,buta_warna,jalur,nilai_khusus,jurusan,sistem_pendidikan,nilai_raport,nilai_tka,tka_mtk,tka_bindo,nilai_akhir,lolos_usia,status,raport_mode,is_ditahan)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
                     $stmt->execute([$no,$d['gelombang'],$d['nama'],$d['nisn'],$d['tanggal_lahir'],$d['usia'],
                         $d['jenis_kelamin'],$d['asal_sekolah'],$alamat_sekolah,$d['no_telp'],$tgl_kk,$d['alamat'],$kelurahan_sv,$jarak_sv,$status_ortu,$buta_warna,$jalur,$nilai_khusus,$d['jurusan'],
-                        $sistem,$d['nilai_raport'],$d['nilai_tka'],$tka_mtk_sv,$tka_bindo_sv,$d['nilai_akhir'],$d['lolos_usia'],$new_status,$input_mode]);
+                        $sistem,$d['nilai_raport'],$d['nilai_tka'],$tka_mtk_sv,$tka_bindo_sv,$d['nilai_akhir'],$d['lolos_usia'],$new_status,$input_mode,$is_ditahan_val]);
                     $id = (int)$conn->lastInsertId();
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
 
@@ -480,6 +492,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         while (ob_get_level() > 0) ob_end_clean();
         header('Location: ' . $back_dash . '?page=pendaftar&gelombang=' . $ke_glm);
         exit;
+    } elseif ($action === 'lepas_ditahan') {
+        $id  = (int)$_POST['id'];
+        $row = $conn->prepare("SELECT nama, gelombang FROM pendaftar WHERE id=?");
+        $row->execute([$id]); $cur = $row->fetch();
+        if ($cur) {
+            $conn->prepare("UPDATE pendaftar SET is_ditahan=0 WHERE id=?")->execute([$id]);
+            log_admin_action($conn, 'LEPAS_DITAHAN', "Pindahkan {$cur['nama']} ke kompetisi (lepas Ditahan)");
+            $_SESSION['pend_flash_msg'] = "Pendaftar <strong>" . htmlspecialchars($cur['nama']) . "</strong> dipindahkan ke kompetisi (status Ditahan dilepas). Ikut peringkat saat ranking diproses.";
+            $_SESSION['pend_active_gelombang'] = (string)$cur['gelombang'];
+        }
+        while (ob_get_level() > 0) ob_end_clean();
+        header('Location: ' . $back_dash . '?page=pendaftar' . (!empty($_SESSION['pend_active_gelombang']) ? '&gelombang=' . urlencode($_SESSION['pend_active_gelombang']) : ''));
+        exit;
     } elseif ($action === 'del_sekolah') {
         $sk_id = (int)($_POST['sekolah_id'] ?? 0);
         if ($sk_id) {
@@ -558,6 +583,17 @@ $offset = ($page_num - 1) * $per_page;
 $dataStmt = $conn->prepare("SELECT * FROM pendaftar WHERE $whereStr ORDER BY id DESC LIMIT $per_page OFFSET $offset");
 $dataStmt->execute($params);
 $rows = $dataStmt->fetchAll();
+
+// ─── Sub-daftar "Ditahan" — kotak KHUSUS terpisah (lintas paginasi & filter) ──
+// Agar record yang ditahan saat gelombang terkunci TIDAK terlupa diproses.
+$ditahan_rows = [];
+try {
+    $dw = ['is_ditahan=1']; $dp = [];
+    if ($fGelombang) { $dw[] = 'gelombang=?'; $dp[] = $fGelombang; }
+    $dstmt = $conn->prepare("SELECT * FROM pendaftar WHERE " . implode(' AND ', $dw) . " ORDER BY gelombang, jurusan, nilai_akhir DESC, nama");
+    $dstmt->execute($dp);
+    $ditahan_rows = $dstmt->fetchAll();
+} catch (Throwable $e) { $ditahan_rows = []; }
 
 // Hitung jumlah pendaftar per gelombang untuk badge tab
 $s1 = $conn->prepare("SELECT COUNT(*) FROM pendaftar WHERE gelombang=1");
@@ -712,6 +748,48 @@ if ($edit_id_get > 0) {
     </form>
 </div>
 
+<?php if (!empty($ditahan_rows)): ?>
+<div class="card border-warning mb-3 shadow-sm">
+    <div class="card-header bg-warning-subtle d-flex justify-content-between align-items-center flex-wrap gap-1">
+        <span class="fw-bold text-warning-emphasis"><i class="bi bi-pause-circle-fill me-2"></i>Pendaftar Ditahan — <?= count($ditahan_rows) ?> orang<?= $fGelombang ? ' (Gelombang ' . htmlspecialchars($fGelombang) . ')' : '' ?></span>
+        <span class="small text-muted"><i class="bi bi-info-circle me-1"></i>Tidak ikut peringkat sampai ditekan <strong>Pindahkan</strong></span>
+    </div>
+    <div class="card-body p-0">
+    <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light"><tr>
+            <th>No. Daftar</th><th>Nama</th><th>NISN</th><th>Jurusan</th><th class="text-center">Glm</th>
+            <th class="text-center">Nilai Akhir</th><th>Status</th><th class="text-end">Aksi</th>
+        </tr></thead>
+        <tbody>
+        <?php foreach ($ditahan_rows as $dr): $dbadge = STATUS_BADGE[$dr['status']] ?? 'bg-warning text-dark'; ?>
+            <tr>
+                <td><?= htmlspecialchars($dr['no_pendaftaran']) ?></td>
+                <td><?= htmlspecialchars($dr['nama']) ?></td>
+                <td><?= htmlspecialchars($dr['nisn']) ?></td>
+                <td><?= $short[$dr['jurusan']] ?? $dr['jurusan'] ?></td>
+                <td class="text-center"><?= $dr['gelombang'] ?></td>
+                <td class="text-center fw-bold text-success"><?= number_format($dr['nilai_akhir'], 2) ?></td>
+                <td>
+                    <span class="badge <?= $dbadge ?>"><?= STATUS_LABEL[$dr['status']] ?? ucfirst($dr['status']) ?></span>
+                    <span class="badge bg-warning text-dark ms-1"><i class="bi bi-pause-circle me-1"></i>Ditahan</span>
+                </td>
+                <td class="text-end">
+                    <form method="POST" class="d-inline" onsubmit="return confirm('Pindahkan <?= htmlspecialchars(addslashes($dr['nama'])) ?> ke kompetisi? Status Ditahan dilepas, ikut peringkat saat ranking diproses.')">
+                        <input type="hidden" name="action" value="lepas_ditahan">
+                        <input type="hidden" name="id" value="<?= $dr['id'] ?>">
+                        <button type="submit" class="btn btn-sm btn-warning"><i class="bi bi-arrow-right-circle me-1"></i>Pindahkan</button>
+                    </form>
+                </td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+    </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center small">
         <span>Total: <strong><?= $total_rows ?></strong> pendaftar</span>
@@ -767,11 +845,27 @@ if ($edit_id_get > 0) {
                 <td class="text-center"><?= number_format($r['nilai_tka'], 2) ?></td>
                 <td class="text-center fw-bold text-success"><?= number_format($r['nilai_akhir'], 2) ?></td>
                 <td class="text-center"><?= $r['usia'] ?></td>
-                <td><span class="badge <?= $badge ?>"><?= STATUS_LABEL[$r['status']] ?? ucfirst($r['status']) ?></span></td>
+                <td>
+                    <span class="badge <?= $badge ?>"><?= STATUS_LABEL[$r['status']] ?? ucfirst($r['status']) ?></span>
+                    <?php if (!empty($r['is_ditahan'])): ?>
+                    <span class="badge bg-warning text-dark ms-1" title="Ditahan: tidak ikut peringkat (diinput saat gelombang terkunci)"><i class="bi bi-pause-circle me-1"></i>Ditahan</span>
+                    <?php endif; ?>
+                </td>
                 <td class="text-end">
                     <?php $r_print = $r; $r_print['_antrian'] = $antrian_per_pendaftar[$r['id']] ?? null; ?>
                     <button class="btn btn-sm btn-outline-info me-1" onclick='printBukti(<?= json_encode($r_print, JSON_HEX_APOS|JSON_HEX_QUOT) ?>)' title="Cetak Bukti"><i class="bi bi-printer"></i></button>
+                    <?php if (!empty($locked_glm[(int)$r['gelombang']])): ?>
+                    <button type="button" class="btn btn-sm btn-outline-secondary me-1" onclick="alert('Gelombang <?= (int)$r['gelombang'] ?> terkunci — data tidak dapat diubah. Buka kunci dulu di Pengaturan Pendaftaran.')" title="Terkunci — edit dinonaktifkan"><i class="bi bi-lock"></i></button>
+                    <?php else: ?>
                     <button class="btn btn-sm btn-outline-primary me-1" onclick='editForm(<?= json_encode($r_with_raport, JSON_HEX_APOS|JSON_HEX_QUOT) ?>)' title="Edit"><i class="bi bi-pencil"></i></button>
+                    <?php endif; ?>
+                    <?php if (!empty($r['is_ditahan'])): ?>
+                    <form method="POST" class="d-inline me-1" onsubmit="return confirm('Pindahkan <?= htmlspecialchars(addslashes($r['nama'])) ?> ke kompetisi? Status Ditahan dilepas, ikut peringkat berikutnya.')">
+                        <input type="hidden" name="action" value="lepas_ditahan">
+                        <input type="hidden" name="id" value="<?= $r['id'] ?>">
+                        <button type="submit" class="btn btn-sm btn-warning" title="Pindahkan ke kompetisi (lepas Ditahan)"><i class="bi bi-arrow-right-circle"></i></button>
+                    </form>
+                    <?php endif; ?>
                     <?php if (!empty($_SESSION['is_super'])): ?>
                     <?php if ((int)$r['gelombang'] === 1): ?>
                     <form method="POST" class="d-inline me-1" onsubmit="return confirm('Pindahkan <?= htmlspecialchars(addslashes($r['nama'])) ?> ke Gelombang 2?\nNomor pendaftaran akan berubah dan status direset ke Diproses.')">

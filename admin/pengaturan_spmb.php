@@ -21,9 +21,13 @@ foreach ([
     "ALTER TABLE gelombang ADD COLUMN min_tka TINYINT NOT NULL DEFAULT 0 AFTER kuota_glm",
     "ALTER TABLE gelombang ADD COLUMN buta_warna_wajib TINYINT(1) NOT NULL DEFAULT 0 AFTER min_tka",
     "ALTER TABLE gelombang ADD COLUMN pesan_gugur TEXT NULL AFTER buta_warna_wajib",
+    "ALTER TABLE gelombang ADD COLUMN is_locked TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE gelombang ADD COLUMN locked_at DATETIME NULL",
 ] as $_gsql) {
     try { $conn->exec($_gsql); } catch(PDOException) {}
 }
+// "Ditahan" = status KEDUA (flag terpisah), tidak menimpa status kompetisi (diproses/gugur/terima)
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN is_ditahan TINYINT(1) NOT NULL DEFAULT 0"); } catch (PDOException) {}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -77,6 +81,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $conn->prepare("UPDATE gelombang SET is_hasil_published=0, hasil_published_at=NULL WHERE id=?")->execute([$id]);
         log_admin_action($conn, 'UNPUBLISH_HASIL', "Unpublish hasil penerimaan gelombang ID:{$id}");
         $msg = '<div class="alert alert-warning"><i class="bi bi-eye-slash me-2"></i>Daftar hasil penerimaan disembunyikan (banner pengumuman masih tampil).</div>';
+
+    } elseif ($action === 'kunci') {
+        $id = (int)$_POST['id'];
+        $conn->prepare("UPDATE gelombang SET is_locked=1, locked_at=NOW() WHERE id=?")->execute([$id]);
+        log_admin_action($conn, 'KUNCI_GELOMBANG', "Kunci kompetisi gelombang ID:{$id}");
+        $msg = '<div class="alert alert-warning"><i class="bi bi-lock-fill me-2"></i>Gelombang dikunci — peringkat dibekukan, edit data kompetisi diblokir, pendaftar baru jadi <strong>Ditahan</strong>.</div>';
+
+    } elseif ($action === 'buka_kunci') {
+        $id = (int)$_POST['id'];
+        $conn->prepare("UPDATE gelombang SET is_locked=0, locked_at=NULL WHERE id=?")->execute([$id]);
+        log_admin_action($conn, 'BUKA_KUNCI_GELOMBANG', "Buka kunci gelombang ID:{$id}");
+        $msg = '<div class="alert alert-success"><i class="bi bi-unlock me-2"></i>Gelombang dibuka — peringkat &amp; edit data bisa diubah lagi.</div>';
     }
 
     // PRG: redirect setelah POST agar refresh tidak mengulang aksi
@@ -97,6 +113,9 @@ foreach ($gel_rows as $g) {
 
     $s2 = $conn->prepare("SELECT COUNT(*) FROM pendaftar WHERE gelombang=? AND status='terima'");
     $s2->execute([$glm]); $counts[$glm]['diterima'] = (int)$s2->fetchColumn();
+
+    $counts[$glm]['ditahan'] = 0;
+    try { $s4 = $conn->prepare("SELECT COUNT(*) FROM pendaftar WHERE gelombang=? AND is_ditahan=1"); $s4->execute([$glm]); $counts[$glm]['ditahan'] = (int)$s4->fetchColumn(); } catch (Throwable) {}
 
     // Per jurusan: diterima
     foreach (JURUSAN_LIST as $kode => $nama) {
@@ -448,6 +467,41 @@ $first_id = !empty($gel_rows) ? $gel_rows[0]['id'] : 0;
 
                 </div>
             </div><!-- /card status -->
+
+            <!-- ── Kunci Kompetisi ── -->
+            <?php $locked = !empty($g['is_locked']); $ditahan = $counts[$glm]['ditahan'] ?? 0; ?>
+            <div class="card mt-3 border-<?= $locked ? 'danger' : 'secondary' ?>">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <span><i class="bi bi-lock-fill me-2 <?= $locked ? 'text-danger' : 'text-secondary' ?>"></i>Kunci Kompetisi</span>
+                    <?php if ($locked): ?>
+                        <span class="badge bg-danger"><i class="bi bi-lock-fill me-1"></i>Terkunci</span>
+                    <?php else: ?>
+                        <span class="badge bg-success"><i class="bi bi-unlock-fill me-1"></i>Dibuka</span>
+                    <?php endif; ?>
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted mb-3">Saat <strong>terkunci</strong>: peringkat dibekukan, edit data kompetisi diblokir, dan pendaftar baru masuk status <strong>Ditahan</strong> (tidak ikut peringkat). Lapor Diri tetap jalan.</p>
+                    <?php if ($ditahan > 0): ?>
+                    <div class="alert alert-warning py-2 small mb-3"><i class="bi bi-pause-circle me-1"></i><strong><?= $ditahan ?></strong> pendaftar berstatus <strong>Ditahan</strong> di gelombang ini.</div>
+                    <?php endif; ?>
+                    <?php if ($locked): ?>
+                        <form method="POST" onsubmit="return confirm('Buka kunci Gelombang <?= $g['gelombang'] ?>? Peringkat &amp; edit data bisa diubah lagi.')">
+                            <input type="hidden" name="action" value="buka_kunci">
+                            <input type="hidden" name="id" value="<?= $g['id'] ?>">
+                            <button class="btn btn-outline-success w-100"><i class="bi bi-unlock me-1"></i>Buka Kunci Gelombang <?= $g['gelombang'] ?></button>
+                        </form>
+                        <?php if (!empty($g['locked_at'])): ?>
+                        <div class="text-muted small mt-2 text-center"><i class="bi bi-clock-history me-1"></i>Dikunci sejak <?= date('d M Y H:i', strtotime($g['locked_at'])) ?></div>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <form method="POST" onsubmit="return confirm('Kunci Gelombang <?= $g['gelombang'] ?>? Peringkat dibekukan, edit data kompetisi diblokir, dan pendaftar baru jadi Ditahan.')">
+                            <input type="hidden" name="action" value="kunci">
+                            <input type="hidden" name="id" value="<?= $g['id'] ?>">
+                            <button class="btn btn-danger w-100"><i class="bi bi-lock-fill me-1"></i>Kunci Gelombang <?= $g['gelombang'] ?></button>
+                        </form>
+                    <?php endif; ?>
+                </div>
+            </div>
         </div><!-- /col-lg-5 -->
 
     </div><!-- /row -->
