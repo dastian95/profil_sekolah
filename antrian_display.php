@@ -22,8 +22,9 @@ try {
 
     // Antrian yang sedang dipanggil
     $stmt = $conn->prepare("
-        SELECT a.nomor, a.fase, a.dipanggil_at,
-               m.id AS meja_id, m.nomor_meja, m.nama AS nama_meja, m.fase AS meja_fase
+        SELECT a.nomor, a.fase, a.jenis, a.dipanggil_at,
+               m.id AS meja_id, m.nomor_meja, m.nama AS nama_meja, m.fase AS meja_fase,
+               m.jurusan_du
         FROM antrian a JOIN meja m ON m.id = a.meja_id
         WHERE a.tanggal = ? AND a.status = 'dipanggil'
         ORDER BY a.dipanggil_at DESC LIMIT 20");
@@ -740,10 +741,15 @@ let speakQueue = [];     // [{ text, repeatLeft }]
 let speaking   = false;
 let speakStartedAt = 0;  // utk watchdog anti-macet
 
-function announceNumber(num, mejaNama, fase) {
+function announceNumber(num, mejaNama, fase, jenis, jurusanDu) {
     if (!ttsEnabled || !ttsUnlocked) return;
     const spoken = numToSpoken(num);
-    const text   = `Nomor antrian, S S G, ${spoken}, silakan menuju, ${mejaNama}`;
+    let text;
+    if (jenis === 'daftar_ulang') {
+        text = `D U, ${spoken}, silakan menuju, ${mejaNama}`;
+    } else {
+        text = `Nomor antrian, S S G, ${spoken}, silakan menuju, ${mejaNama}`;
+    }
     speakQueue.push({ text, repeatLeft: 2 });
     pumpQueue();
 }
@@ -806,7 +812,7 @@ function processAnnouncements(list) {
     const fresh = list.filter(a => !announcedCalls.has(keyOf(a)));
     fresh.reverse().forEach(a => {
         announcedCalls.add(keyOf(a));
-        announceNumber(a.nomor, a.nama_meja || ('Meja ' + a.nomor_meja), a.fase);
+        announceNumber(a.nomor, a.nama_meja || ('Meja ' + a.nomor_meja), a.fase, a.jenis, a.jurusan_du);
     });
     // Batasi pertumbuhan memori pada acara panjang
     if (announcedCalls.size > 1000) announcedCalls = new Set(list.map(keyOf));
