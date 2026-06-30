@@ -143,92 +143,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'prose
     if (!$g) {
         $msg = '<div class="alert alert-danger">Gelombang tidak ditemukan.</div>';
     } elseif (!empty($g['is_locked'])) {
-        $msg = '<div class="alert alert-danger"><i class="bi bi-lock-fill me-2"></i>Gelombang terkunci — Proses diblokir. Buka kunci dulu di Pengaturan Pendaftaran.</div>';
+        $msg = '<div class="alert alert-danger"><i class="bi bi-lock-fill me-2"></i>Gelombang terkunci — Hitung Ulang diblokir. Buka kunci dulu di Pengaturan Pendaftaran.</div>';
     } else {
-        $kuota_glm = (int)($g['kuota_glm'] ?? round($g['kuota_per_jurusan'] * $g['persen_gelombang'] / 100));
-
-        // Reset semua ke diproses — KECUALI yang Ditahan (status kedua, tidak ikut kompetisi)
-        $conn->prepare("UPDATE pendaftar SET status='diproses', catatan=NULL WHERE gelombang=? AND is_ditahan=0 AND is_undur_diri=0")->execute([$gelombang]);
-
-        // Gugur usia (lewati yang Ditahan)
-        $conn->prepare("UPDATE pendaftar SET status='gugur', catatan='Gugur: usia melebihi 21 tahun'
-                        WHERE gelombang=? AND lolos_usia=0 AND is_ditahan=0 AND is_undur_diri=0")->execute([$gelombang]);
-
-        // Gugur KK Cut-Off: tgl_kk melebihi 15 Juni 2025 (pas 15 Juni masih lolos; kosong tidak digugurkan)
-        // pin = override admin
-        $conn->prepare("UPDATE pendaftar SET status='gugur', catatan='Gugur: tanggal KK melebihi cut-off 15 Juni 2025'
-            WHERE gelombang=? AND tgl_kk IS NOT NULL AND tgl_kk > '2025-06-15'
-            AND is_pinned=0 AND status='diproses' AND is_ditahan=0 AND is_undur_diri=0")->execute([$gelombang]);
-
-        // Gugur TKA di bawah minimum (hanya Reguler — Khusus & PKBM tanpa TKA; pin = override admin)
-        $min_tka = (int)($g['min_tka'] ?? 0);
-        if ($min_tka > 0) {
-            $conn->prepare("UPDATE pendaftar SET status='gugur', catatan=?
-                WHERE gelombang=? AND sistem_pendidikan='reguler' AND nilai_tka < ?
-                AND is_pinned=0 AND status='diproses' AND is_ditahan=0 AND is_undur_diri=0")
-                ->execute(["Gugur: nilai TKA di bawah minimum ({$min_tka})", $gelombang, $min_tka]);
-        }
-
-        // Urutan seleksi per jalur (string konstan — aman dipakai di ORDER BY)
-        $kel_ds_sql = implode(',', array_map(
-            fn($k) => $conn->quote($k), array_keys(KELURAHAN_ZONASI['Duren Sawit'] ?? [])
-        ));
-        $order_by = [
-            'g1'         => 'nilai_akhir DESC, usia DESC',
-            'g2_jarak'   => 'COALESCE(jarak_km, 9999) ASC, usia DESC',
-            'g2_abk'     => 'COALESCE(nilai_khusus, 0) DESC, usia DESC',
-            'g2_reguler' => "(CASE WHEN kelurahan IN ({$kel_ds_sql}) THEN 1 ELSE 0 END) DESC, nilai_akhir DESC, usia DESC",
-        ];
-
-        // Helper: ambil ID terima untuk satu segmen (pinned dijamin lolos lebih dulu)
-        $ambilTerima = function ($jurusan, $kuota, $orderKey, $jalur = null)
-                        use ($conn, $gelombang, $order_by) {
-            $jcond = $jalur ? ' AND jalur=?' : '';
-            $pp = $jalur ? [$gelombang, $jurusan, $jalur] : [$gelombang, $jurusan];
-
-            $stPin = $conn->prepare("SELECT id FROM pendaftar
-                WHERE gelombang=? AND jurusan=? AND lolos_usia=1 AND is_pinned=1 AND status='diproses' AND is_ditahan=0 AND is_undur_diri=0{$jcond}");
-            $stPin->execute($pp);
-            $pinned = $stPin->fetchAll(PDO::FETCH_COLUMN);
-
-            $sisa = max(0, $kuota - count($pinned));
-            $stNorm = $conn->prepare("SELECT id FROM pendaftar
-                WHERE gelombang=? AND jurusan=? AND lolos_usia=1 AND is_pinned=0 AND status='diproses' AND is_ditahan=0 AND is_undur_diri=0{$jcond}
-                ORDER BY {$order_by[$orderKey]}");
-            $stNorm->execute($pp);
-            $normal = $stNorm->fetchAll(PDO::FETCH_COLUMN);
-
-            $terima = array_merge($pinned, array_slice($normal, 0, $sisa));
-            // unfilled = sisa kuota yang tidak terpakai (slot kosong)
-            $unfilled = max(0, $kuota - count($terima));
-            return ['terima' => $terima, 'unfilled' => $unfilled];
-        };
-
-        $total_diterima = 0;
+        // Hitung ulang semua jurusan tanpa mass-reset (aman, incremental)
         foreach ($jurusan_list as $jurusan) {
-            $all_terima = [];
-
-            // Semua gelombang: satu daftar — nilai akhir tertinggi → usia tertua
-            $res = $ambilTerima($jurusan, $kuota_glm, 'g1');
-            $all_terima = $res['terima'];
-
-            if ($all_terima) {
-                $in = implode(',', array_fill(0, count($all_terima), '?'));
-                $conn->prepare("UPDATE pendaftar SET status='terima', catatan=NULL WHERE id IN ($in)")
-                     ->execute($all_terima);
-                $total_diterima += count($all_terima);
-            }
-            // Sisa yang masih 'diproses' (tidak lolos kuota jalur) → gugur
-            $conn->prepare("UPDATE pendaftar SET status='gugur', catatan='Tidak mencapai kuota'
-                WHERE gelombang=? AND jurusan=? AND lolos_usia=1 AND status='diproses' AND is_ditahan=0 AND is_undur_diri=0")
-                 ->execute([$gelombang, $jurusan]);
+            auto_rank_jurusan($conn, $gelombang, $jurusan);
         }
+        $stCount = $conn->prepare("SELECT COUNT(*) FROM pendaftar WHERE gelombang=? AND status='terima' AND is_undur_diri=0");
+        $stCount->execute([$gelombang]);
+        $total_diterima = (int)$stCount->fetchColumn();
 
-        log_admin_action($conn, 'PROSES_RANKING',
-            "Proses penerimaan Gelombang {$gelombang}: {$total_diterima} diterima");
+        log_admin_action($conn, 'HITUNG_ULANG_RANKING',
+            "Hitung ulang Gelombang {$gelombang}: {$total_diterima} diterima");
 
         $msg = "<div class='alert alert-success'><i class='bi bi-check-circle me-2'></i>
-            Proses penerimaan Gelombang <strong>{$gelombang}</strong> selesai.
+            Hitung ulang Gelombang <strong>{$gelombang}</strong> selesai.
             <strong>{$total_diterima}</strong> pendaftar diterima dari seluruh jurusan.</div>";
     }
 
@@ -463,26 +392,17 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
         <?php $g_locked = !empty($g['is_locked']); ?>
         <?php if ($g_locked): ?>
         <span class="btn btn-secondary btn-sm disabled" title="Gelombang terkunci — buka kunci di Pengaturan Pendaftaran">
-            <i class="bi bi-lock-fill me-1"></i>Proses Glm <?= $fGel ?> Terkunci
+            <i class="bi bi-lock-fill me-1"></i>Hitung Ulang Glm <?= $fGel ?> Terkunci
         </span>
         <?php else: ?>
-        <form method="POST" class="d-inline" onsubmit="return confirm('Proses penerimaan Gelombang <?= $fGel ?>?\nStatus semua pendaftar gelombang ini akan dihitung ulang.\nSiswa yang di-PIN tetap dijamin diterima.')">
+        <form method="POST" class="d-inline" onsubmit="return confirm('Hitung ulang ranking Gelombang <?= $fGel ?>?\nStatus semua pendaftar akan dihitung ulang berdasarkan nilai & kuota.')">
             <input type="hidden" name="action" value="proses">
             <input type="hidden" name="gelombang" value="<?= $fGel ?>">
             <button type="submit" class="btn btn-warning btn-sm">
-                <i class="bi bi-calculator me-1"></i>Proses Penerimaan Glm <?= $fGel ?>
+                <i class="bi bi-arrow-repeat me-1"></i>Hitung Ulang Glm <?= $fGel ?>
             </button>
         </form>
         <?php endif; ?>
-
-        <!-- Toggle Auto-Proses -->
-        <div class="d-inline-flex align-items-center gap-2 ms-2 border rounded-pill px-3 py-1 bg-white" style="font-size:.8rem;">
-            <span class="text-muted fw-semibold">Auto</span>
-            <div class="form-check form-switch mb-0">
-                <input class="form-check-input" type="checkbox" id="autoProses" style="cursor:pointer;" title="Proses otomatis setiap 30 detik">
-            </div>
-            <span id="autoStatus" class="text-muted" style="font-size:.72rem;min-width:90px;">Nonaktif</span>
-        </div>
         <?php endif; ?>
     </div>
 </div>
@@ -1091,69 +1011,5 @@ function buildRaportTablePKBM(raport) {
     checkHash();
 })();
 
-// ── Auto-Proses Toggle ────────────────────────────────────────────────────
-(function() {
-    const gel      = <?= (int)($fGel ?? 1) ?>;
-    const dash     = <?= !empty($_SESSION['is_super']) ? "'superadmin_dashboard.php'" : "'admin_dashboard.php'" ?>;
-    const STORE_KEY = 'auto_proses_g' + gel;
-    const INTERVAL  = 30000; // 30 detik
-    let timer = null;
-    let running = false;
 
-    const toggle = document.getElementById('autoProses');
-    const status = document.getElementById('autoStatus');
-    if (!toggle) return;
-
-    function setUI(on) {
-        if (on) {
-            status.innerHTML = '<span class="text-success fw-semibold"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#16a34a;animation:ap-pulse 1s infinite;"></span> Aktif</span>';
-        } else {
-            status.textContent = 'Nonaktif';
-        }
-    }
-
-    function doProses() {
-        if (running) return;
-        running = true;
-        status.innerHTML = '<span class="text-warning">⏳ Memproses…</span>';
-        const fd = new FormData();
-        fd.append('action', 'proses');
-        fd.append('gelombang', gel);
-        fd.append('ajax', '1');
-        fetch(dash + '?page=ranking', { method: 'POST', body: fd })
-            .then(r => r.json())
-            .then(d => {
-                running = false;
-                if (toggle.checked) {
-                    status.innerHTML = `<span class="text-success fw-semibold"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#16a34a;animation:ap-pulse 1s infinite;"></span> Aktif — ${d.time}</span>`;
-                }
-            })
-            .catch(() => { running = false; if (toggle.checked) setUI(true); });
-    }
-
-    function start() {
-        doProses();
-        timer = setInterval(doProses, INTERVAL);
-        setUI(true);
-    }
-    function stop() {
-        clearInterval(timer); timer = null;
-        setUI(false);
-    }
-
-    // Selalu mulai nonaktif — harus klik manual tiap sesi buka halaman
-    // (auto-start bisa reset status siswa tanpa sepengetahuan admin)
-    localStorage.setItem(STORE_KEY, '0');
-
-    toggle.addEventListener('change', () => {
-        if (toggle.checked) { localStorage.setItem(STORE_KEY, '1'); start(); }
-        else                { localStorage.setItem(STORE_KEY, '0'); stop(); }
-    });
-})();
 </script>
-<style>
-@keyframes ap-pulse {
-    0%,100% { opacity:1; transform:scale(1); }
-    50%      { opacity:.4; transform:scale(1.4); }
-}
-</style>

@@ -321,11 +321,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $gel = (int)$gelombang_aktif['gelombang'];
                     }
                 } else {
-                    $cur = $conn->prepare("SELECT gelombang, status FROM pendaftar WHERE id=?");
+                    $cur = $conn->prepare("SELECT gelombang, status, jurusan FROM pendaftar WHERE id=?");
                     $cur->execute([(int)$_POST['id']]);
                     $existing = $cur->fetch();
                     $gel = (int)$existing['gelombang'];
                     $existing_status = $existing['status'] ?? 'diproses';
+                    $prev_jurusan = $existing['jurusan'] ?? '';
                     if (!empty($locked_glm[$gel])) {
                         $err = 'Gelombang ' . $gel . ' terkunci — data tidak dapat diubah. Buka kunci dulu di Pengaturan Pendaftaran.';
                         $conn->rollBack();
@@ -348,9 +349,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'gelombang'     => $gel,
                         'nilai_tka'     => $sistem === 'reguler' ? $nilai_tka_in : 0,
                     ], $rata, $sistem);
-                    // Jangan downgrade hasil seleksi: terima/gugur dipertahankan saat edit
-                    $new_status = ($action === 'edit' && in_array($existing_status, ['terima','gugur'], true))
-                        ? $existing_status : 'lengkap';
+                    // Auto-rank akan langsung hitung ulang setelah simpan
+                    $new_status = 'diproses';
                 } else {
                     // Tab 1 only — hitung usia & lolos_usia saja
                     // ($sistem dari POST dipertahankan — jangan paksa 'reguler' agar
@@ -374,8 +374,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'nilai_akhir'   => 0,
                         'lolos_usia'    => $usia <= 21 ? 1 : 0,
                     ];
-                    // Saat edit: hanya upgrade ke 'lengkap', jangan downgrade dari 'terima'/'gugur'
-                    $new_status = ($action === 'add') ? 'diproses' : $existing_status;
+                    // Auto-rank akan langsung hitung ulang setelah simpan
+                    $new_status = 'diproses';
                 }
 
                 if ($action === 'add') {
@@ -412,6 +412,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     $conn->commit();
+                    // Auto-rank langsung setelah tambah (kecuali ditahan)
+                    if (!$is_ditahan_val) {
+                        auto_rank_jurusan($conn, (int)$d['gelombang'], $d['jurusan']);
+                    }
                     // Auto-tambah sekolah baru ke daftar jika belum ada
                     try {
                         $sk_chk = $conn->prepare("SELECT COUNT(*) FROM sekolah_asal WHERE LOWER(nama)=LOWER(?)");
@@ -421,7 +425,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                  ->execute([$d['asal_sekolah'], $alamat_sekolah]);
                         }
                     } catch (Throwable) {}
-                    log_admin_action($conn, 'TAMBAH_PENDAFTAR', "Tambah pendaftar: {$d['nama']} ({$no}) [{$new_status}]" . ($autolink_note ? ' +autolink antrian' : ''));
+                    log_admin_action($conn, 'TAMBAH_PENDAFTAR', "Tambah pendaftar: {$d['nama']} ({$no}) [auto-rank]" . ($autolink_note ? ' +autolink antrian' : ''));
                     $_SESSION['pend_flash_msg'] = "Pendaftar <strong>{$d['nama']}</strong> berhasil ditambahkan dengan nomor <strong>{$no}</strong>." . $autolink_note;
                     if (!empty($_POST['print_after_save'])) {
                         $_SESSION['pend_print_id'] = $id;
@@ -442,6 +446,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
 
                     $conn->commit();
+                    // Auto-rank setelah edit; kalau jurusan pindah, hitung juga jurusan lama
+                    auto_rank_jurusan($conn, $gel, $d['jurusan']);
+                    if (!empty($prev_jurusan) && $prev_jurusan !== $d['jurusan']) {
+                        auto_rank_jurusan($conn, $gel, $prev_jurusan);
+                    }
                     // Auto-tambah sekolah baru ke daftar jika belum ada
                     try {
                         $sk_chk = $conn->prepare("SELECT COUNT(*) FROM sekolah_asal WHERE LOWER(nama)=LOWER(?)");
@@ -451,7 +460,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                  ->execute([$d['asal_sekolah'], $alamat_sekolah]);
                         }
                     } catch (Throwable) {}
-                    log_admin_action($conn, 'EDIT_PENDAFTAR', "Edit pendaftar ID:{$id} — {$d['nama']} [{$new_status}]");
+                    log_admin_action($conn, 'EDIT_PENDAFTAR', "Edit pendaftar ID:{$id} — {$d['nama']} [auto-rank]");
                     $_SESSION['pend_flash_msg'] = "Data <strong>{$d['nama']}</strong> berhasil diperbarui.";
                     $glm_qs = !empty($_SESSION['pend_active_gelombang']) ? '&gelombang=' . urlencode($_SESSION['pend_active_gelombang']) : '';
                     while (ob_get_level() > 0) ob_end_clean();
@@ -465,10 +474,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } elseif ($action === 'delete') {
         $id = (int)$_POST['id'];
-        $row = $conn->prepare("SELECT nama, no_pendaftaran FROM pendaftar WHERE id=?");
+        $row = $conn->prepare("SELECT nama, no_pendaftaran, gelombang, jurusan FROM pendaftar WHERE id=?");
         $row->execute([$id]);
         $del = $row->fetch();
         $conn->prepare("DELETE FROM pendaftar WHERE id=?")->execute([$id]);
+        if ($del) auto_rank_jurusan($conn, (int)$del['gelombang'], $del['jurusan']);
         log_admin_action($conn, 'HAPUS_PENDAFTAR', "Hapus: {$del['nama']} ({$del['no_pendaftaran']})");
         $_SESSION['pend_flash_msg'] = "Pendaftar <strong>{$del['nama']}</strong> berhasil dihapus.";
         $glm_qs = !empty($_SESSION['pend_active_gelombang']) ? '&gelombang=' . urlencode($_SESSION['pend_active_gelombang']) : '';
@@ -478,7 +488,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'pindah_glm') {
         $id     = (int)$_POST['id'];
         $ke_glm = (int)($_POST['ke_glm'] ?? 2);
-        $row    = $conn->prepare("SELECT nama, no_pendaftaran, gelombang FROM pendaftar WHERE id=?");
+        $row    = $conn->prepare("SELECT nama, no_pendaftaran, gelombang, jurusan FROM pendaftar WHERE id=?");
         $row->execute([$id]);
         $cur = $row->fetch();
         if ($cur && (int)$cur['gelombang'] !== $ke_glm) {
@@ -487,6 +497,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 SET gelombang=?, no_pendaftaran=?, jalur='reguler', status='diproses', catatan=NULL
                 WHERE id=?")
                 ->execute([$ke_glm, $no_baru, $id]);
+            // Hitung ulang gelombang asal (siswa pergi) dan gelombang tujuan (siswa baru masuk)
+            auto_rank_jurusan($conn, (int)$cur['gelombang'], $cur['jurusan']);
+            auto_rank_jurusan($conn, $ke_glm, $cur['jurusan']);
             log_admin_action($conn, 'PINDAH_GELOMBANG',
                 "Pindah {$cur['nama']} ({$cur['no_pendaftaran']}) → Glm {$ke_glm} ({$no_baru})");
             $_SESSION['pend_flash_msg'] = "Pendaftar <strong>{$cur['nama']}</strong> dipindahkan ke Gelombang {$ke_glm} dengan nomor <strong>{$no_baru}</strong>.";
@@ -497,12 +510,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     } elseif ($action === 'lepas_ditahan') {
         $id  = (int)$_POST['id'];
-        $row = $conn->prepare("SELECT nama, gelombang FROM pendaftar WHERE id=?");
+        $row = $conn->prepare("SELECT nama, gelombang, jurusan FROM pendaftar WHERE id=?");
         $row->execute([$id]); $cur = $row->fetch();
         if ($cur) {
             $conn->prepare("UPDATE pendaftar SET is_ditahan=0 WHERE id=?")->execute([$id]);
+            // Langsung hitung ulang setelah siswa masuk kompetisi
+            auto_rank_jurusan($conn, (int)$cur['gelombang'], $cur['jurusan']);
             log_admin_action($conn, 'LEPAS_DITAHAN', "Pindahkan {$cur['nama']} ke kompetisi (lepas Ditahan)");
-            $_SESSION['pend_flash_msg'] = "Pendaftar <strong>" . htmlspecialchars($cur['nama']) . "</strong> dipindahkan ke kompetisi (status Ditahan dilepas). Ikut peringkat saat ranking diproses.";
+            $_SESSION['pend_flash_msg'] = "Pendaftar <strong>" . htmlspecialchars($cur['nama']) . "</strong> dipindahkan ke kompetisi dan langsung diranking.";
             $_SESSION['pend_active_gelombang'] = (string)$cur['gelombang'];
         }
         while (ob_get_level() > 0) ob_end_clean();
