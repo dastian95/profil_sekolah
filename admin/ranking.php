@@ -142,6 +142,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'prose
 
     if (!$g) {
         $msg = '<div class="alert alert-danger">Gelombang tidak ditemukan.</div>';
+    } elseif (!empty($g['is_locked'])) {
+        $msg = '<div class="alert alert-danger"><i class="bi bi-lock-fill me-2"></i>Gelombang terkunci — Proses diblokir. Buka kunci dulu di Pengaturan Pendaftaran.</div>';
     } else {
         $kuota_glm = (int)($g['kuota_glm'] ?? round($g['kuota_per_jurusan'] * $g['persen_gelombang'] / 100));
 
@@ -458,6 +460,12 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
 
     <div class="ms-auto">
         <?php if ($g): ?>
+        <?php $g_locked = !empty($g['is_locked']); ?>
+        <?php if ($g_locked): ?>
+        <span class="btn btn-secondary btn-sm disabled" title="Gelombang terkunci — buka kunci di Pengaturan Pendaftaran">
+            <i class="bi bi-lock-fill me-1"></i>Proses Glm <?= $fGel ?> Terkunci
+        </span>
+        <?php else: ?>
         <form method="POST" class="d-inline" onsubmit="return confirm('Proses penerimaan Gelombang <?= $fGel ?>?\nStatus semua pendaftar gelombang ini akan dihitung ulang.\nSiswa yang di-PIN tetap dijamin diterima.')">
             <input type="hidden" name="action" value="proses">
             <input type="hidden" name="gelombang" value="<?= $fGel ?>">
@@ -465,6 +473,7 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
                 <i class="bi bi-calculator me-1"></i>Proses Penerimaan Glm <?= $fGel ?>
             </button>
         </form>
+        <?php endif; ?>
 
         <!-- Toggle Auto-Proses -->
         <div class="d-inline-flex align-items-center gap-2 ms-2 border rounded-pill px-3 py-1 bg-white" style="font-size:.8rem;">
@@ -486,6 +495,7 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
     Pengumuman: <?= date('d M Y', strtotime($g['tanggal_pengumuman'])) ?> |
     Ambil <strong><?= $kuota_glm ?> terbaik</strong> per jurusan |
     Status publish: <?= $g['is_published'] ? '<span class="badge bg-success">Published</span>' : '<span class="badge bg-secondary">Belum</span>' ?>
+    <?= !empty($g['is_locked']) ? '<span class="badge bg-danger ms-2"><i class="bi bi-lock-fill me-1"></i>Terkunci</span>' : '' ?>
     <span class="ms-3 text-warning fw-semibold"><i class="bi bi-pin-fill me-1"></i>Siswa ber-PIN dijamin diterima & tidak tampil di publik</span>
     <div class="mt-1"><i class="bi bi-info-circle me-1"></i>Urutan: <strong>nilai akhir</strong> tertinggi menang, <strong>usia</strong> tertua penentu seri. KK &gt; 15 Juni 2025 = gugur.</div>
 </div>
