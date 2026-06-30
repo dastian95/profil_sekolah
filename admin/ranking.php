@@ -1048,9 +1048,9 @@ function buildRaportTablePKBM(raport) {
         setUI(false);
     }
 
-    // Restore state dari localStorage
-    const saved = localStorage.getItem(STORE_KEY);
-    if (saved === '1') { toggle.checked = true; start(); }
+    // Selalu mulai nonaktif — harus klik manual tiap sesi buka halaman
+    // (auto-start bisa reset status siswa tanpa sepengetahuan admin)
+    localStorage.setItem(STORE_KEY, '0');
 
     toggle.addEventListener('change', () => {
         if (toggle.checked) { localStorage.setItem(STORE_KEY, '1'); start(); }
