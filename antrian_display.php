@@ -458,7 +458,7 @@ if (isset($_GET['json'])) {
         <div class="pulse-ring"></div>
         <div class="pulse-ring"></div>
         <div class="current-label">Nomor Antrian</div>
-        <div class="current-prefix">SSG</div>
+        <div class="current-prefix" id="current-prefix"><?= ($latest['jenis'] ?? '') === 'daftar_ulang' ? 'DU' : 'SSG' ?></div>
         <div class="current-number" id="current-number"><?= str_pad($latest['nomor'], 3, '0', STR_PAD_LEFT) ?></div>
         <div class="current-desk" id="current-desk">
             <?= htmlspecialchars($latest['nama_meja'] ?: 'Loket ' . $latest['nomor_meja']) ?>
@@ -531,7 +531,7 @@ if (isset($_GET['json'])) {
             $label = $a['nama_meja'] ?: 'Loket ' . $a['nomor_meja'];
         ?>
         <div class="recent-item <?= $i===0?'first-item':'' ?>">
-            <div class="recent-num" style="color:<?= $color ?>">SSG<?= str_pad($a['nomor'],3,'0',STR_PAD_LEFT) ?></div>
+            <div class="recent-num" style="color:<?= $color ?>"><?= ($a['jenis']??'')==='daftar_ulang'?'DU':'SSG' ?><?= str_pad($a['nomor'],3,'0',STR_PAD_LEFT) ?></div>
             <div class="recent-info">
                 <div class="recent-desk"><?= htmlspecialchars($label) ?></div>
                 <div class="recent-time">
@@ -566,7 +566,7 @@ if (isset($_GET['json'])) {
     <div class="meja-card" style="background:<?= $color ?>18;border-color:<?= $color ?>40;">
         <div class="meja-card-left">
             <?php if ($serving): ?>
-            <div class="meja-serving" style="color:<?= $color ?>">SSG<?= str_pad($serving['nomor'],3,'0',STR_PAD_LEFT) ?></div>
+            <div class="meja-serving" style="color:<?= $color ?>"><?= ($serving['jenis']??'')==='daftar_ulang'?'DU':'SSG' ?><?= str_pad($serving['nomor'],3,'0',STR_PAD_LEFT) ?></div>
             <?php else: ?>
             <div class="meja-idle">—</div>
             <?php endif; ?>
@@ -856,8 +856,9 @@ function showBeepIndicator() {
 let lastNumber = <?= $latest ? $latest['nomor'] : 'null' ?>;
 let lastMejaId = <?= $latest ? ($latest['meja_id'] ?? 0) : 'null' ?>;
 const FASE_LABEL = {1: 'Silakan Menuju Loket', 2: 'Silakan Menuju Loket'};
-function pad3(n)   { return String(n).padStart(3,'0'); }
-function fmtNum(n) { return 'SSG' + pad3(n); }
+function pad3(n)          { return String(n).padStart(3,'0'); }
+function prefix(jenis)    { return jenis === 'daftar_ulang' ? 'DU' : 'SSG'; }
+function fmtNum(n, jenis) { return prefix(jenis) + pad3(n); }
 
 // ── Render Selanjutnya ────────────────────────────────────────────────────────
 function renderNextCards(f1, f2) {
@@ -919,7 +920,7 @@ function renderRecentList(list, colors) {
         const label = a.nama_meja || ('Loket ' + a.nomor_meja);
         const time  = a.dipanggil_at ? a.dipanggil_at.substr(11,5) : '';
         return `<div class="recent-item ${i===0?'first-item':''}">
-            <div class="recent-num" style="color:${color}">${fmtNum(a.nomor)}</div>
+            <div class="recent-num" style="color:${color}">${fmtNum(a.nomor, a.jenis)}</div>
             <div class="recent-info">
                 <div class="recent-desk">${label}</div>
                 <div class="recent-time">${time} &nbsp;<span class="fase-badge fase-${a.fase}">F${a.fase}</span></div>
@@ -940,7 +941,7 @@ function renderMejaGrid(data) {
         const s = serving[m.id];
         return `<div class="meja-card" style="background:${color}18;border-color:${color}40;">
             <div class="meja-card-left">
-                ${s ? `<div class="meja-serving" style="color:${color}">${fmtNum(s.nomor)}</div>`
+                ${s ? `<div class="meja-serving" style="color:${color}">${fmtNum(s.nomor, s.jenis)}</div>`
                     : `<div class="meja-idle">—</div>`}
             </div>
             <div>
@@ -967,12 +968,14 @@ function refreshData() {
                     lastNumber = newNum; lastMejaId = newMeja;
                     playBeep(); showBeepIndicator();
                     // Audio panggilan ditangani processAnnouncements (mendukung banyak meja & antre)
-                    const numEl  = document.getElementById('current-number');
-                    const deskEl = document.getElementById('current-desk');
-                    const faseEl = document.getElementById('current-fase');
-                    if (numEl)  { numEl.textContent = pad3(newNum); numEl.classList.add('flash'); setTimeout(() => numEl.classList.remove('flash'), 1200); }
-                    if (deskEl) { deskEl.textContent = latest.nama_meja || ('Loket ' + latest.nomor_meja); }
-                    if (faseEl) { faseEl.textContent = FASE_LABEL[latest.fase] || ''; }
+                    const numEl    = document.getElementById('current-number');
+                    const deskEl   = document.getElementById('current-desk');
+                    const faseEl   = document.getElementById('current-fase');
+                    const prefixEl = document.getElementById('current-prefix');
+                    if (numEl)    { numEl.textContent = pad3(newNum); numEl.classList.add('flash'); setTimeout(() => numEl.classList.remove('flash'), 1200); }
+                    if (deskEl)   { deskEl.textContent = latest.nama_meja || ('Loket ' + latest.nomor_meja); }
+                    if (faseEl)   { faseEl.textContent = FASE_LABEL[latest.fase] || ''; }
+                    if (prefixEl) { prefixEl.textContent = prefix(latest.jenis); }
                 }
             } else if (lastNumber !== null) {
                 lastNumber = null;
