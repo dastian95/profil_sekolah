@@ -310,7 +310,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'batal_du') {
         $pend_id = (int)($_POST['pendaftar_id'] ?? 0);
         if ($pend_id) {
-            $conn->prepare("UPDATE pendaftar SET daftar_ulang=NULL, daftar_ulang_at=NULL WHERE id=? AND status='terima'")
+            // Kolom daftar_ulang NOT NULL → pakai 'belum', BUKAN NULL (kunci kursi lepas)
+            $conn->prepare("UPDATE pendaftar SET daftar_ulang='belum', daftar_ulang_at=NULL WHERE id=? AND status='terima'")
                  ->execute([$pend_id]);
         }
         $redir();

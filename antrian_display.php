@@ -746,7 +746,12 @@ function announceNumber(num, mejaNama, fase, jenis, jurusanDu) {
     const spoken = numToSpoken(num);
     let text;
     if (jenis === 'daftar_ulang') {
-        text = `D U, ${spoken}, silakan menuju, ${mejaNama}`;
+        // DU: nomor dieja per-digit + kode jurusan dieja per-huruf
+        // "D U 0 0 1 R P L, Silakan Menuju, Meja 1"
+        const nDigits = String(num).padStart(3, '0').split('').join(' ');
+        const code    = (String(jurusanDu || '').match(/\(([^)]+)\)/) || ['', ''])[1];
+        const jurPart = code ? code.split('').join(' ') + ', ' : '';
+        text = `D U ${nDigits} ${jurPart}Silakan Menuju, ${mejaNama}`;
     } else {
         text = `Nomor antrian, S S G, ${spoken}, silakan menuju, ${mejaNama}`;
     }

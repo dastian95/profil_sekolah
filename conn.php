@@ -27,78 +27,88 @@ try {
 }
 
 /**
- * Hitung ulang ranking untuk satu jurusan+gelombang secara aman (tanpa mass-reset).
+ * Hitung ulang ranking untuk satu jurusan+gelombang (pure-compute).
  * Langsung assign terima/gugur berdasarkan nilai & kuota saat ini.
+ *
+ * CATATAN: fungsi ini TIDAK membungkus transaksi sendiri dan TIDAK menelan error —
+ * supaya pemanggil (recalc_gelombang) bisa membungkus semua jurusan dalam satu
+ * transaksi all-or-nothing. Jika gagal di tengah → caller rollback → tidak ada
+ * data yang nyangkut setengah jadi.
  */
 function auto_rank_jurusan(PDO $conn, int $gelombang, string $jurusan): void {
-    try {
-        $gcfg = $conn->prepare("SELECT kuota_glm, min_tka FROM gelombang WHERE gelombang=? LIMIT 1");
-        $gcfg->execute([$gelombang]);
-        $g = $gcfg->fetch();
-        if (!$g) return;
+    $gcfg = $conn->prepare("SELECT kuota_glm, min_tka FROM gelombang WHERE gelombang=? LIMIT 1");
+    $gcfg->execute([$gelombang]);
+    $g = $gcfg->fetch();
+    if (!$g) return;
 
-        $kuota   = max(0, (int)$g['kuota_glm']);
-        $min_tka = (int)($g['min_tka'] ?? 0);
+    $kuota   = max(0, (int)$g['kuota_glm']);
+    $min_tka = (int)($g['min_tka'] ?? 0);
 
-        $st = $conn->prepare("SELECT id, lolos_usia, tgl_kk, nilai_tka, sistem_pendidikan,
-                              is_pinned, nilai_akhir, usia
-                              FROM pendaftar
-                              WHERE gelombang=? AND jurusan=? AND is_ditahan=0 AND is_undur_diri=0");
-        $st->execute([$gelombang, $jurusan]);
-        $all = $st->fetchAll();
+    $st = $conn->prepare("SELECT id, lolos_usia, tgl_kk, nilai_tka, sistem_pendidikan,
+                          is_pinned, daftar_ulang, nilai_akhir, usia
+                          FROM pendaftar
+                          WHERE gelombang=? AND jurusan=? AND is_ditahan=0 AND is_undur_diri=0");
+    $st->execute([$gelombang, $jurusan]);
+    $all = $st->fetchAll();
 
-        $hard_gugur = [];
-        $eligible   = [];
-        foreach ($all as $r) {
-            $id = (int)$r['id'];
-            if (!$r['lolos_usia']) {
-                $hard_gugur[$id] = 'Gugur: usia melebihi 21 tahun';
-            } elseif (!empty($r['tgl_kk']) && $r['tgl_kk'] > '2025-06-15' && !$r['is_pinned']) {
-                $hard_gugur[$id] = 'Gugur: tanggal KK melebihi cut-off 15 Juni 2025';
-            } elseif ($min_tka > 0 && $r['sistem_pendidikan'] === 'reguler'
-                      && (float)$r['nilai_tka'] < $min_tka && !$r['is_pinned']) {
-                $hard_gugur[$id] = "Gugur: nilai TKA di bawah minimum ({$min_tka})";
-            } else {
-                $eligible[] = $r;
-            }
+    $hard_gugur = [];
+    $eligible   = [];
+    foreach ($all as $r) {
+        $id = (int)$r['id'];
+        // Kunci kursi (status kedua): PIN admin ATAU sudah/sedang Daftar Ulang.
+        // Siswa yang sudah lapor diri tidak boleh tergeser oleh data baru.
+        $locked = $r['is_pinned']
+               || in_array($r['daftar_ulang'] ?? 'belum', ['proses', 'sudah'], true);
+        $r['_locked'] = $locked ? 1 : 0;
+
+        if (!$r['lolos_usia']) {
+            $hard_gugur[$id] = 'Gugur: usia melebihi 21 tahun';
+        } elseif (!empty($r['tgl_kk']) && $r['tgl_kk'] > '2025-06-15' && !$locked) {
+            $hard_gugur[$id] = 'Gugur: tanggal KK melebihi cut-off 15 Juni 2025';
+        } elseif ($min_tka > 0 && $r['sistem_pendidikan'] === 'reguler'
+                  && (float)$r['nilai_tka'] < $min_tka && !$locked) {
+            $hard_gugur[$id] = "Gugur: nilai TKA di bawah minimum ({$min_tka})";
+        } else {
+            $eligible[] = $r;
         }
+    }
 
-        // Pinned selalu di atas, lalu nilai_akhir DESC, usia DESC
-        usort($eligible, fn($a, $b) =>
-            ((int)$b['is_pinned'] <=> (int)$a['is_pinned'])
-            ?: ((float)$b['nilai_akhir'] <=> (float)$a['nilai_akhir'])
-            ?: ((int)$b['usia'] <=> (int)$a['usia'])
-        );
+    // Kursi terkunci (PIN / sudah Daftar Ulang) selalu di atas, lalu nilai_akhir DESC, usia DESC
+    usort($eligible, fn($a, $b) =>
+        ((int)$b['_locked'] <=> (int)$a['_locked'])
+        ?: ((float)$b['nilai_akhir'] <=> (float)$a['nilai_akhir'])
+        ?: ((int)$b['usia'] <=> (int)$a['usia'])
+    );
 
-        $pinned_count       = count(array_filter($eligible, fn($r) => $r['is_pinned']));
-        $non_pinned_allowed = max(0, $kuota - $pinned_count);
-        $non_pinned_rank    = 0;
-        $terima_ids = [];
-        $gugur_ids  = [];
-        foreach ($eligible as $r) {
-            $id = (int)$r['id'];
-            if ($r['is_pinned']) {
-                $terima_ids[] = $id;
-            } elseif ($non_pinned_rank < $non_pinned_allowed) {
-                $terima_ids[] = $id;
-                $non_pinned_rank++;
-            } else {
-                $gugur_ids[] = $id;
-            }
+    // Kursi terkunci dijamin 'terima' & memakai kuota lebih dulu.
+    $locked_count = count(array_filter($eligible, fn($r) => $r['_locked']));
+    $open_allowed = max(0, $kuota - $locked_count);
+    $open_rank    = 0;
+    $terima_ids = [];
+    $gugur_ids  = [];
+    foreach ($eligible as $r) {
+        $id = (int)$r['id'];
+        if ($r['_locked']) {
+            $terima_ids[] = $id;
+        } elseif ($open_rank < $open_allowed) {
+            $terima_ids[] = $id;
+            $open_rank++;
+        } else {
+            $gugur_ids[] = $id;
         }
+    }
 
-        if ($terima_ids) {
-            $ph = implode(',', array_fill(0, count($terima_ids), '?'));
-            $conn->prepare("UPDATE pendaftar SET status='terima', catatan=NULL WHERE id IN ($ph)")
-                 ->execute($terima_ids);
-        }
-        foreach ($hard_gugur as $id => $note) {
-            $conn->prepare("UPDATE pendaftar SET status='gugur', catatan=? WHERE id=?")->execute([$note, $id]);
-        }
-        if ($gugur_ids) {
-            $ph = implode(',', array_fill(0, count($gugur_ids), '?'));
-            $conn->prepare("UPDATE pendaftar SET status='gugur', catatan='Tidak mencapai kuota' WHERE id IN ($ph)")
-                 ->execute($gugur_ids);
-        }
-    } catch (Throwable) {}
+    if ($terima_ids) {
+        $ph = implode(',', array_fill(0, count($terima_ids), '?'));
+        $conn->prepare("UPDATE pendaftar SET status='terima', catatan=NULL WHERE id IN ($ph)")
+             ->execute($terima_ids);
+    }
+    foreach ($hard_gugur as $id => $note) {
+        $conn->prepare("UPDATE pendaftar SET status='gugur', catatan=? WHERE id=?")->execute([$note, $id]);
+    }
+    if ($gugur_ids) {
+        $ph = implode(',', array_fill(0, count($gugur_ids), '?'));
+        $conn->prepare("UPDATE pendaftar SET status='gugur', catatan='Tidak mencapai kuota' WHERE id IN ($ph)")
+             ->execute($gugur_ids);
+    }
 }

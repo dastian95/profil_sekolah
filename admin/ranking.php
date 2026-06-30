@@ -60,6 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pinda
              ->execute([$ke_glm, $noBaru, $row['id']]);
         $pindah++;
     }
+    // Ranking dihitung di latar (halaman ranking memoke recalc saat dibuka)
     log_admin_action($conn, 'PINDAH_GLM_SEMUA', "Pindah {$pindah} pendaftar gugur Glm {$dari_glm} → Glm {$ke_glm}" . ($jur_fil ? " ({$jur_fil})" : ''));
     $_SESSION['flash_ranking'] = "<div class='alert alert-success'><strong>{$pindah}</strong> pendaftar gugur dipindahkan ke Gelombang {$ke_glm}.</div>";
     while (ob_get_level() > 0) ob_end_clean();
@@ -73,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pinda
     $pgl_id   = (int)$_POST['id'];
     $ke_glm   = (int)($_POST['ke_glm'] ?? 2);
     $fGelRed  = (int)($_POST['gelombang'] ?? $ke_glm);
-    $row      = $conn->prepare("SELECT nama, no_pendaftaran, gelombang FROM pendaftar WHERE id=?");
+    $row      = $conn->prepare("SELECT nama, no_pendaftaran, gelombang, jurusan FROM pendaftar WHERE id=?");
     $row->execute([$pgl_id]);
     $cur = $row->fetch();
     if ($cur && (int)$cur['gelombang'] !== $ke_glm) {
@@ -86,6 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pinda
         $noBaru = $prefP . str_pad($seqP, 4, '0', STR_PAD_LEFT);
         $conn->prepare("UPDATE pendaftar SET gelombang=?, no_pendaftaran=?, jalur='reguler', status='diproses', catatan=NULL WHERE id=?")
              ->execute([$ke_glm, $noBaru, $pgl_id]);
+        // Ranking kedua gelombang dihitung di latar (recalc saat halaman dibuka)
         log_admin_action($conn, 'PINDAH_GELOMBANG',
             "Ranking: pindah {$cur['nama']} ({$cur['no_pendaftaran']}) → Glm {$ke_glm} ({$noBaru})");
         $_SESSION['flash_ranking'] = "<div class='alert alert-success'>Pendaftar <strong>{$cur['nama']}</strong> dipindahkan ke Gelombang {$ke_glm} (<strong>{$noBaru}</strong>).</div>";
@@ -145,31 +147,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'prose
     } elseif (!empty($g['is_locked'])) {
         $msg = '<div class="alert alert-danger"><i class="bi bi-lock-fill me-2"></i>Gelombang terkunci — Hitung Ulang diblokir. Buka kunci dulu di Pengaturan Pendaftaran.</div>';
     } else {
-        // Hitung ulang semua jurusan tanpa mass-reset (aman, incremental)
-        foreach ($jurusan_list as $jurusan) {
-            auto_rank_jurusan($conn, $gelombang, $jurusan);
+        // Paksa hitung ulang transaksional (all-or-nothing) — abaikan throttle
+        try {
+            $total_diterima = recalc_gelombang($conn, $gelombang);
+            rank_mark_run($conn, $gelombang);
+            log_admin_action($conn, 'HITUNG_ULANG_RANKING',
+                "Hitung ulang Gelombang {$gelombang}: {$total_diterima} diterima");
+            $msg = "<div class='alert alert-success'><i class='bi bi-check-circle me-2'></i>
+                Hitung ulang Gelombang <strong>{$gelombang}</strong> selesai.
+                <strong>{$total_diterima}</strong> pendaftar diterima dari seluruh jurusan.</div>";
+        } catch (Throwable $e) {
+            $msg = "<div class='alert alert-danger'><i class='bi bi-exclamation-triangle me-2'></i>
+                Gagal menghitung ulang — data lama tetap aman (otomatis dibatalkan). Coba lagi.</div>";
         }
-        $stCount = $conn->prepare("SELECT COUNT(*) FROM pendaftar WHERE gelombang=? AND status='terima' AND is_undur_diri=0");
-        $stCount->execute([$gelombang]);
-        $total_diterima = (int)$stCount->fetchColumn();
-
-        log_admin_action($conn, 'HITUNG_ULANG_RANKING',
-            "Hitung ulang Gelombang {$gelombang}: {$total_diterima} diterima");
-
-        $msg = "<div class='alert alert-success'><i class='bi bi-check-circle me-2'></i>
-            Hitung ulang Gelombang <strong>{$gelombang}</strong> selesai.
-            <strong>{$total_diterima}</strong> pendaftar diterima dari seluruh jurusan.</div>";
-    }
-
-    // Jika dipanggil via AJAX (auto-proses), kembalikan JSON — jangan redirect
-    if (!empty($_POST['ajax'])) {
-        header('Content-Type: application/json');
-        echo json_encode([
-            'ok'    => true,
-            'total' => $total_diterima ?? 0,
-            'time'  => date('H:i:s'),
-        ]);
-        exit;
     }
 
     // PRG: redirect setelah proses agar refresh tidak mengulang seleksi
@@ -1009,6 +999,19 @@ function buildRaportTablePKBM(raport) {
 
     setInterval(checkHash, 5000);
     checkHash();
+})();
+
+// ── Engine: poke pemrosesan ranking di latar (Lapisan 2) ─────────────────────
+// Halaman ini "Tampilan Utama" — sekaligus penggerak hitung ulang. Poke recalc
+// throttled (server membatasi ~8 detik). Saat status berubah, poller hash di atas
+// otomatis me-reload halaman → tampilan selalu menyusul hasil terbaru.
+(function() {
+    const gel = <?= (int)($fGel ?? 1) ?>;
+    function poke() {
+        fetch('rank_recalc.php?gelombang=' + gel, { cache: 'no-store' }).catch(() => {});
+    }
+    poke();                       // saat halaman dibuka
+    setInterval(poke, 10000);     // selama halaman terbuka — dijauhkan waktunya
 })();
 
 

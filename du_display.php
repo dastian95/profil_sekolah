@@ -275,8 +275,12 @@ function numToSpoken(n) {
 
 function announce(num, jurusanDu, mejaNama) {
     if (!ttsUnlocked) return;
-    const spoken = numToSpoken(num);
-    const text   = `D U, ${spoken}, silakan menuju, ${mejaNama}`;
+    // Nomor dieja per-digit: 1 → "0 0 1"
+    const nDigits = String(num).padStart(3, '0').split('').join(' ');
+    // Kode jurusan diambil dari dalam kurung "(RPL)" lalu dieja: "R P L"
+    const code    = (String(jurusanDu || '').match(/\(([^)]+)\)/) || ['', ''])[1];
+    const jurPart = code ? code.split('').join(' ') + ', ' : '';
+    const text    = `D U ${nDigits} ${jurPart}Silakan Menuju, ${mejaNama}`;
     speakQueue.push({ text, repeatLeft: 2 });
     pumpQueue();
 }

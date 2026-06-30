@@ -412,10 +412,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     $conn->commit();
-                    // Auto-rank langsung setelah tambah (kecuali ditahan)
-                    if (!$is_ditahan_val) {
-                        auto_rank_jurusan($conn, (int)$d['gelombang'], $d['jurusan']);
-                    }
+                    // Lapisan 1: simpan saja. Ranking dihitung di latar (rank_recalc.php)
+                    // yang dipoke halaman daftar setelah redirect — tidak menyentuh request ini.
                     // Auto-tambah sekolah baru ke daftar jika belum ada
                     try {
                         $sk_chk = $conn->prepare("SELECT COUNT(*) FROM sekolah_asal WHERE LOWER(nama)=LOWER(?)");
@@ -446,11 +444,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
 
                     $conn->commit();
-                    // Auto-rank setelah edit; kalau jurusan pindah, hitung juga jurusan lama
-                    auto_rank_jurusan($conn, $gel, $d['jurusan']);
-                    if (!empty($prev_jurusan) && $prev_jurusan !== $d['jurusan']) {
-                        auto_rank_jurusan($conn, $gel, $prev_jurusan);
-                    }
+                    // Lapisan 1: simpan saja (status sudah 'diproses'). Ranking dihitung
+                    // di latar oleh rank_recalc.php yang dipoke halaman daftar setelah redirect.
                     // Auto-tambah sekolah baru ke daftar jika belum ada
                     try {
                         $sk_chk = $conn->prepare("SELECT COUNT(*) FROM sekolah_asal WHERE LOWER(nama)=LOWER(?)");
@@ -478,7 +473,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $row->execute([$id]);
         $del = $row->fetch();
         $conn->prepare("DELETE FROM pendaftar WHERE id=?")->execute([$id]);
-        if ($del) auto_rank_jurusan($conn, (int)$del['gelombang'], $del['jurusan']);
+        // Ranking dihitung di latar (poke recalc dari halaman daftar setelah redirect)
         log_admin_action($conn, 'HAPUS_PENDAFTAR', "Hapus: {$del['nama']} ({$del['no_pendaftaran']})");
         $_SESSION['pend_flash_msg'] = "Pendaftar <strong>{$del['nama']}</strong> berhasil dihapus.";
         $glm_qs = !empty($_SESSION['pend_active_gelombang']) ? '&gelombang=' . urlencode($_SESSION['pend_active_gelombang']) : '';
@@ -497,9 +492,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 SET gelombang=?, no_pendaftaran=?, jalur='reguler', status='diproses', catatan=NULL
                 WHERE id=?")
                 ->execute([$ke_glm, $no_baru, $id]);
-            // Hitung ulang gelombang asal (siswa pergi) dan gelombang tujuan (siswa baru masuk)
-            auto_rank_jurusan($conn, (int)$cur['gelombang'], $cur['jurusan']);
-            auto_rank_jurusan($conn, $ke_glm, $cur['jurusan']);
+            // Ranking kedua gelombang dihitung di latar (poke recalc setelah redirect)
             log_admin_action($conn, 'PINDAH_GELOMBANG',
                 "Pindah {$cur['nama']} ({$cur['no_pendaftaran']}) → Glm {$ke_glm} ({$no_baru})");
             $_SESSION['pend_flash_msg'] = "Pendaftar <strong>{$cur['nama']}</strong> dipindahkan ke Gelombang {$ke_glm} dengan nomor <strong>{$no_baru}</strong>.";
@@ -514,10 +507,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $row->execute([$id]); $cur = $row->fetch();
         if ($cur) {
             $conn->prepare("UPDATE pendaftar SET is_ditahan=0 WHERE id=?")->execute([$id]);
-            // Langsung hitung ulang setelah siswa masuk kompetisi
-            auto_rank_jurusan($conn, (int)$cur['gelombang'], $cur['jurusan']);
+            // Masuk kompetisi → ranking dihitung di latar (poke recalc setelah redirect)
             log_admin_action($conn, 'LEPAS_DITAHAN', "Pindahkan {$cur['nama']} ke kompetisi (lepas Ditahan)");
-            $_SESSION['pend_flash_msg'] = "Pendaftar <strong>" . htmlspecialchars($cur['nama']) . "</strong> dipindahkan ke kompetisi dan langsung diranking.";
+            $_SESSION['pend_flash_msg'] = "Pendaftar <strong>" . htmlspecialchars($cur['nama']) . "</strong> dipindahkan ke kompetisi. Peringkat dihitung otomatis di latar.";
             $_SESSION['pend_active_gelombang'] = (string)$cur['gelombang'];
         }
         while (ob_get_level() > 0) ob_end_clean();
@@ -595,6 +587,15 @@ if (isset($_GET['live_sig'])) {
 $countStmt = $conn->prepare("SELECT COUNT(*) FROM pendaftar WHERE $whereStr");
 $countStmt->execute($params);
 $total_rows = $countStmt->fetchColumn();
+
+// Signature awal (status yang SEDANG dirender) — jadi baseline deteksi perubahan.
+// Tanpa ini, recalc latar yang selesai sebelum cek pertama bikin perubahan luput
+// (admin harus refresh manual).
+$sigInit = $conn->prepare("SELECT COUNT(*) c, COALESCE(MAX(id),0) m, COALESCE(SUM(CRC32(CONCAT(id,status,nilai_akhir))),0) h
+                           FROM pendaftar WHERE $whereStr");
+$sigInit->execute($params);
+$sgInit = $sigInit->fetch(PDO::FETCH_ASSOC);
+$pend_sig_init = $sgInit['c'] . '-' . $sgInit['m'] . '-' . $sgInit['h'];
 $total_pages = max(1, ceil($total_rows / $per_page));
 $offset = ($page_num - 1) * $per_page;
 
@@ -2557,7 +2558,7 @@ document.querySelectorAll('.glm-tab-link').forEach(link => {
 (function () {
     const sigUrl = new URL(window.location.href);
     sigUrl.searchParams.set('live_sig', '1');
-    let liveSig = null, pending = false, badge = null;
+    let liveSig = <?= json_encode($pend_sig_init) ?>, pending = false, badge = null;
 
     function safeToReload() {
         if (document.querySelector('.modal.show')) return false;          // modal terbuka
@@ -2579,7 +2580,6 @@ document.querySelectorAll('.glm-tab-link').forEach(link => {
         try {
             const r = await fetch(sigUrl.toString(), { cache: 'no-store' });
             const j = await r.json();
-            if (liveSig === null) { liveSig = j.sig; return; }
             if (j.sig !== liveSig) { liveSig = j.sig; pending = true; }
         } catch (e) { /* abaikan */ }
         if (pending) { if (safeToReload()) location.reload(); else showBadge(); }
@@ -2587,5 +2587,13 @@ document.querySelectorAll('.glm-tab-link').forEach(link => {
     // Saat modal ditutup, jika ada data tertunda → langsung muat
     document.addEventListener('hidden.bs.modal', () => { if (pending && safeToReload()) location.reload(); });
     setInterval(check, 3000);
+
+    // Poke pemrosesan ranking di latar (Lapisan 2), lalu cek perubahan status.
+    // Setelah simpan/hapus admin mendarat di sini → recalc jalan → status berubah →
+    // halaman auto-muat ulang TANPA perlu refresh manual.
+    const glm = <?= (int)$active_glm ?: 0 ?>; // 0 = semua gelombang
+    fetch('rank_recalc.php?gelombang=' + glm, { cache: 'no-store' })
+        .then(() => { setTimeout(check, 400); })  // beri jeda agar commit selesai
+        .catch(() => {});
 })();
 </script>

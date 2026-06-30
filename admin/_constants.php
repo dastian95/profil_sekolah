@@ -312,3 +312,57 @@ function ensure_sekolah_table(PDO $conn): void {
         }
     } catch (PDOException $e) { /* abaikan bila gagal (mis. permission) */ }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  RANKING — pemrosesan latar (Lapisan 2)
+//  Pola: Simpan (Lapisan 1) tidak menghitung apa-apa. recalc_gelombang() yang
+//  menghitung terima/gugur, dibungkus SATU transaksi (all-or-nothing) supaya
+//  tidak pernah meninggalkan keadaan setengah jadi. Idempoten — boleh diulang
+//  kapan saja, hasil selalu sama. Dijalankan throttled di latar (rank_recalc.php).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Hitung ulang SEMUA jurusan untuk satu gelombang dalam satu transaksi.
+ * Mengembalikan jumlah yang berstatus 'terima'. Lempar exception bila gagal
+ * (sudah otomatis rollback di sini bila transaksi dimiliki fungsi ini).
+ */
+function recalc_gelombang(PDO $conn, int $gelombang): int {
+    // Status kedua 'daftar_ulang' dibaca auto_rank_jurusan — pastikan kolomnya ada.
+    // DDL HARUS di luar transaksi (ALTER memicu implicit commit di MySQL).
+    if (!$conn->inTransaction()) {
+        try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN daftar_ulang ENUM('belum','proses','sudah') NOT NULL DEFAULT 'belum' AFTER catatan"); } catch (Throwable) {}
+    }
+    $own = !$conn->inTransaction();
+    if ($own) $conn->beginTransaction();
+    try {
+        foreach (JURUSAN_LIST as $jur) {
+            auto_rank_jurusan($conn, $gelombang, $jur);
+        }
+        if ($own) $conn->commit();
+    } catch (Throwable $e) {
+        if ($own && $conn->inTransaction()) $conn->rollBack();
+        throw $e;
+    }
+    $st = $conn->prepare("SELECT COUNT(*) FROM pendaftar WHERE gelombang=? AND status='terima' AND is_undur_diri=0");
+    $st->execute([$gelombang]);
+    return (int)$st->fetchColumn();
+}
+
+/** Timestamp UNIX terakhir kali gelombang ini dihitung (0 bila belum pernah). */
+function rank_last_run(PDO $conn, int $gelombang): int {
+    try {
+        $s = $conn->prepare("SELECT setting_value FROM site_settings WHERE setting_key=?");
+        $s->execute(["rank_last_g{$gelombang}"]);
+        return (int)$s->fetchColumn();
+    } catch (Throwable) { return 0; }
+}
+
+/** Catat bahwa gelombang ini baru saja dihitung (untuk throttle). */
+function rank_mark_run(PDO $conn, int $gelombang): void {
+    try {
+        $conn->prepare("INSERT INTO site_settings (setting_key, setting_value, type, label, group_name)
+                        VALUES (?, ?, 'text', 'Rank terakhir', 'System')
+                        ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)")
+             ->execute(["rank_last_g{$gelombang}", (string)time()]);
+    } catch (Throwable) {}
+}
