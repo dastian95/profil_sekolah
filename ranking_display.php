@@ -3,15 +3,17 @@ require_once __DIR__ . '/conn.php';
 require_once __DIR__ . '/admin/_constants.php';
 
 // Baca setting display dari DB — harus di atas semua handler agar $glm_where tersedia
-$rd_speed = 0.7;
-$rd_pause = 2500;
-$rd_glm   = 0; // 0=semua, 1=G1 saja, 2=G2 saja
+$rd_speed     = 0.7;
+$rd_pause     = 2500;
+$rd_glm       = 0; // 0=semua, 1=G1 saja, 2=G2 saja
+$rd_published = 0; // 0=sementara, 1=final/resmi
 try {
-    $st = $conn->query("SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('ranking_scroll_speed','ranking_pause_ms','ranking_display_gelombang')");
+    $st = $conn->query("SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('ranking_scroll_speed','ranking_pause_ms','ranking_display_gelombang','ranking_published')");
     foreach ($st as $r) {
-        if ($r['setting_key'] === 'ranking_scroll_speed')      $rd_speed = (float)$r['setting_value'];
-        if ($r['setting_key'] === 'ranking_pause_ms')          $rd_pause = (int)$r['setting_value'];
-        if ($r['setting_key'] === 'ranking_display_gelombang') $rd_glm   = (int)$r['setting_value'];
+        if ($r['setting_key'] === 'ranking_scroll_speed')      $rd_speed     = (float)$r['setting_value'];
+        if ($r['setting_key'] === 'ranking_pause_ms')          $rd_pause     = (int)$r['setting_value'];
+        if ($r['setting_key'] === 'ranking_display_gelombang') $rd_glm       = (int)$r['setting_value'];
+        if ($r['setting_key'] === 'ranking_published')         $rd_published = (int)$r['setting_value'];
     }
 } catch (Throwable $e) {}
 $glm_where = $rd_glm > 0 ? " AND gelombang = $rd_glm" : "";
@@ -38,7 +40,7 @@ if (isset($_GET['json'])) {
         $rank = 1; foreach ($list as &$item) { $item['peringkat'] = $rank++; } unset($item);
         $result[] = ['jurusan' => $jur, 'short' => JURUSAN_SHORT[$jur] ?? $jur, 'students' => $list];
     }
-    echo json_encode(['groups' => $result, 'time' => date('H:i:s'), 'date' => date('d F Y')]);
+    echo json_encode(['groups' => $result, 'time' => date('H:i:s'), 'date' => date('d F Y'), 'published' => $rd_published]);
     exit;
 }
 
@@ -203,7 +205,11 @@ table.rt tbody td.col-val { text-align:right; }
 </head>
 <body>
 
-<div class="top-title">Peringkat Sementara Sistem Penerimaan Siswa Baru SMKS Laboratorium Jakarta</div>
+<div class="top-title" id="pageTitle">
+    <?= $rd_published
+        ? 'Hasil Penerimaan Siswa Baru SMKS Laboratorium Jakarta'
+        : 'Peringkat Sementara Sistem Penerimaan Siswa Baru SMKS Laboratorium Jakarta' ?>
+</div>
 
 <!-- GRID SEMUA JURUSAN -->
 <div class="grid-area" id="gridArea">
@@ -315,7 +321,17 @@ function autoScroll() {
 function fetchData(){
     fetch('ranking_display.php?json=1')
         .then(r=>r.json())
-        .then(d=>{ groups = d.groups; render(); setScroll(scrollPos); })
+        .then(d=>{
+            groups = d.groups;
+            render();
+            setScroll(scrollPos);
+            const titleEl = document.getElementById('pageTitle');
+            if (titleEl) {
+                titleEl.textContent = d.published
+                    ? 'Hasil Penerimaan Siswa Baru SMKS Laboratorium Jakarta'
+                    : 'Peringkat Sementara Sistem Penerimaan Siswa Baru SMKS Laboratorium Jakarta';
+            }
+        })
         .catch(()=>{});
 }
 

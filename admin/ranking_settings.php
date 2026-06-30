@@ -1,13 +1,26 @@
 <?php
 // ── Auto-migrate default settings ────────────────────────────────────────
 $defaults = [
-    ['ranking_scroll_speed',   '0.7',  'text', 'Kecepatan Scroll Display',    'Ranking Display'],
-    ['ranking_pause_ms',       '2500', 'text', 'Jeda di Atas/Bawah (ms)',     'Ranking Display'],
-    ['ranking_display_gelombang', '0', 'text', 'Gelombang yang ditampilkan',  'Ranking Display'],
+    ['ranking_scroll_speed',      '0.7', 'text', 'Kecepatan Scroll Display',   'Ranking Display'],
+    ['ranking_pause_ms',         '2500', 'text', 'Jeda di Atas/Bawah (ms)',    'Ranking Display'],
+    ['ranking_display_gelombang',   '0', 'text', 'Gelombang yang ditampilkan', 'Ranking Display'],
+    ['ranking_published',           '0', 'text', 'Status Publikasi Hasil',     'Ranking Display'],
 ];
 foreach ($defaults as [$key, $val, $type, $label, $grp]) {
     $conn->prepare("INSERT IGNORE INTO site_settings (setting_key, setting_value, type, label, group_name)
                     VALUES (?, ?, ?, ?, ?)")->execute([$key, $val, $type, $label, $grp]);
+}
+
+// ── Handle publish toggle ─────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'toggle_publish_ranking') {
+    $cur = (int)$conn->query("SELECT setting_value FROM site_settings WHERE setting_key='ranking_published'")->fetchColumn();
+    $new = $cur ? '0' : '1';
+    $conn->prepare("UPDATE site_settings SET setting_value=? WHERE setting_key='ranking_published'")->execute([$new]);
+    $dash = !empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php';
+    $_SESSION['flash_ranking_settings'] = $new === '1' ? 'published' : 'unpublished';
+    while (ob_get_level() > 0) ob_end_clean();
+    header("Location: {$dash}?page=ranking_settings");
+    exit;
 }
 
 // ── Handle save ───────────────────────────────────────────────────────────
@@ -35,9 +48,10 @@ $settings = [];
 foreach ($conn->query("SELECT setting_key, setting_value FROM site_settings WHERE group_name='Ranking Display'") as $r) {
     $settings[$r['setting_key']] = $r['setting_value'];
 }
-$cur_speed = (float)($settings['ranking_scroll_speed'] ?? 0.7);
-$cur_pause = (int)($settings['ranking_pause_ms'] ?? 2500);
-$cur_glm   = $settings['ranking_display_gelombang'] ?? '0';
+$cur_speed     = (float)($settings['ranking_scroll_speed'] ?? 0.7);
+$cur_pause     = (int)($settings['ranking_pause_ms'] ?? 2500);
+$cur_glm       = $settings['ranking_display_gelombang'] ?? '0';
+$cur_published = (int)($settings['ranking_published'] ?? 0);
 
 // Map nilai ke label pilihan
 $speed_label = $cur_speed <= 0.4 ? 'lambat' : ($cur_speed >= 1.0 ? 'cepat' : 'sedang');
@@ -45,7 +59,10 @@ $pause_label = $cur_pause <= 1800 ? 'singkat' : ($cur_pause >= 3500 ? 'lama' : '
 
 $flash = '';
 if (!empty($_SESSION['flash_ranking_settings'])) {
-    $flash = '<div class="alert alert-success d-flex align-items-center gap-2 mb-4"><i class="bi bi-check-circle-fill"></i> Pengaturan berhasil disimpan.</div>';
+    $fv = $_SESSION['flash_ranking_settings'];
+    if ($fv === 'published')   $flash = '<div class="alert alert-success d-flex align-items-center gap-2 mb-4"><i class="bi bi-check-circle-fill"></i> Hasil penerimaan berhasil di-<strong>publish</strong>. Judul display berubah jadi resmi.</div>';
+    elseif ($fv === 'unpublished') $flash = '<div class="alert alert-warning d-flex align-items-center gap-2 mb-4"><i class="bi bi-arrow-counterclockwise"></i> Hasil dikembalikan ke mode <strong>Sementara</strong>.</div>';
+    else $flash = '<div class="alert alert-success d-flex align-items-center gap-2 mb-4"><i class="bi bi-check-circle-fill"></i> Pengaturan berhasil disimpan.</div>';
     unset($_SESSION['flash_ranking_settings']);
 }
 
@@ -153,12 +170,40 @@ $display_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https'
             </div>
         </div>
 
+        <!-- Publish Hasil -->
+        <div class="card shadow-sm mt-4 border-<?= $cur_published ? 'success' : 'warning' ?>">
+            <div class="card-header fw-semibold d-flex align-items-center gap-2 <?= $cur_published ? 'bg-success text-white' : 'bg-warning-subtle' ?>">
+                <i class="bi bi-<?= $cur_published ? 'patch-check-fill' : 'clock-history' ?>"></i>
+                Status Hasil Penerimaan
+                <span class="badge ms-auto <?= $cur_published ? 'bg-white text-success' : 'bg-warning text-dark' ?>">
+                    <?= $cur_published ? 'RESMI / FINAL' : 'SEMENTARA' ?>
+                </span>
+            </div>
+            <div class="card-body">
+                <?php if ($cur_published): ?>
+                <p class="small text-success mb-3"><i class="bi bi-check-circle-fill me-1"></i>
+                    Judul di layar Display sudah berubah jadi <strong>"Hasil Penerimaan Siswa Baru"</strong> (resmi).</p>
+                <?php else: ?>
+                <p class="small text-muted mb-3"><i class="bi bi-info-circle me-1"></i>
+                    Layar Display masih menampilkan judul <strong>"Peringkat Sementara"</strong>. Tekan tombol di bawah saat pendaftaran sudah ditutup dan hasil sudah final.</p>
+                <?php endif; ?>
+                <form method="POST" onsubmit="return confirm('<?= $cur_published ? 'Kembalikan ke mode Sementara?' : 'Publish hasil penerimaan sebagai data FINAL/RESMI?' ?>')">
+                    <input type="hidden" name="action" value="toggle_publish_ranking">
+                    <button type="submit" class="btn w-100 <?= $cur_published ? 'btn-outline-danger' : 'btn-success' ?>">
+                        <i class="bi bi-<?= $cur_published ? 'arrow-counterclockwise' : 'patch-check-fill' ?> me-1"></i>
+                        <?= $cur_published ? 'Kembalikan ke Sementara' : 'Publish Hasil Penerimaan (Final)' ?>
+                    </button>
+                </form>
+            </div>
+        </div>
+
         <div class="card shadow-sm mt-4">
             <div class="card-header bg-white fw-semibold d-flex align-items-center gap-2">
                 <i class="bi bi-gear text-secondary"></i> Setting Aktif
             </div>
             <div class="card-body">
                 <table class="table table-sm table-borderless mb-0">
+                    <tr><td class="text-muted small">Status hasil</td><td class="fw-semibold small"><?= $cur_published ? '<span class="badge bg-success">Resmi / Final</span>' : '<span class="badge bg-warning text-dark">Sementara</span>' ?></td></tr>
                     <tr><td class="text-muted small">Gelombang ditampilkan</td><td class="fw-semibold small"><?= $cur_glm==='1'?'Gelombang 1 saja':($cur_glm==='2'?'Gelombang 2 saja':'Semua (G1+G2)') ?></td></tr>
                     <tr><td class="text-muted small">Kecepatan scroll</td><td class="fw-semibold small"><?= ucfirst($speed_label) ?> (<?= $cur_speed ?>px/frame)</td></tr>
                     <tr><td class="text-muted small">Jeda di tepi</td><td class="fw-semibold small"><?= ucfirst($pause_label) ?> (<?= $cur_pause ?>ms)</td></tr>
