@@ -202,14 +202,14 @@ try {
 $print_data = []; // [jurusan] => ['terima' => [...rows], 'semua' => [...rows]]
 foreach (JURUSAN_LIST as $jFull) {
     try {
-        $stT = $conn->prepare("SELECT no_pendaftaran, nama, nisn, jenis_kelamin, gelombang, asal_sekolah,
+        $stT = $conn->prepare("SELECT no_pendaftaran, nama, nisn, no_telp, jenis_kelamin, gelombang, asal_sekolah,
             nilai_raport, nilai_tka, nilai_akhir, usia, status, catatan
             FROM pendaftar WHERE jurusan=? AND status='terima'
             ORDER BY gelombang, nilai_akhir DESC, usia DESC");
         $stT->execute([$jFull]);
         $print_data[$jFull]['terima'] = $stT->fetchAll();
 
-        $stA = $conn->prepare("SELECT no_pendaftaran, nama, nisn, jenis_kelamin, gelombang, asal_sekolah,
+        $stA = $conn->prepare("SELECT no_pendaftaran, nama, nisn, no_telp, jenis_kelamin, gelombang, asal_sekolah,
             nilai_raport, nilai_tka, nilai_akhir, usia, status, catatan, DATE(created_at) AS tgl
             FROM pendaftar WHERE jurusan=?
             ORDER BY gelombang, status, nilai_akhir DESC, usia DESC");
@@ -522,13 +522,14 @@ function printJurusan(jurusan, mode) {
             <td>${r.no_pendaftaran}</td>
             <td>${r.nama}</td>
             <td>${r.nisn || '—'}</td>
+            <td>${r.no_telp || '—'}</td>
             <td style="text-align:center;">${r.jenis_kelamin}</td>
             <td style="text-align:center;font-weight:700;">${r.nilai_akhir || '—'}</td>
             ${mode !== 'terima' ? `<td style="text-align:center;background:${stBg};color:${stColor};font-weight:700;">${r.status}</td>` : ''}
         </tr>`;
     });
 
-    const colspan = mode !== 'terima' ? 7 : 6;
+    const colspan = mode !== 'terima' ? 8 : 7;
     const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${esc(label)} — ${esc(jurusan)}</title>
 <style>
@@ -555,7 +556,7 @@ function printJurusan(jurusan, mode) {
   <table>
     <thead>
       <tr>
-        <th>#</th><th>No. Pendaftaran</th><th>Nama</th><th>NISN</th><th>L/P</th><th>Nilai Akhir</th>
+        <th>#</th><th>No. Pendaftaran</th><th>Nama</th><th>NISN</th><th>No. Telepon</th><th>L/P</th><th>Nilai Akhir</th>
         ${mode !== 'terima' ? '<th>Status</th>' : ''}
       </tr>
     </thead>
@@ -584,6 +585,7 @@ function printAllJurusan() {
                 <td style="text-align:center;">${i+1}</td>
                 <td>${esc(r.nisn) || '—'}</td>
                 <td>${esc(r.nama)}</td>
+                <td>${esc(r.no_telp) || '—'}</td>
             </tr>`;
         });
         sheets += `<div class="sheet"${idx > 0 ? ' style="page-break-before: always;"' : ''}>
@@ -593,8 +595,8 @@ function printAllJurusan() {
             <div class="print-meta"><strong>Daftar Siswa Diterima — Jurusan ${esc(jur)}</strong> &nbsp;|&nbsp; Dicetak: ${now} &nbsp;|&nbsp; Jumlah: <strong>${rows.length}</strong> siswa</div>
           </div>
           <table>
-            <thead><tr><th>#</th><th>NISN</th><th>Nama</th></tr></thead>
-            <tbody>${tbody || '<tr><td colspan="3" style="text-align:center;color:#999;">Tidak ada data</td></tr>'}</tbody>
+            <thead><tr><th>#</th><th>NISN</th><th>Nama</th><th>No. Telepon</th></tr></thead>
+            <tbody>${tbody || '<tr><td colspan="4" style="text-align:center;color:#999;">Tidak ada data</td></tr>'}</tbody>
           </table>
           <div class="print-foot">*** Dokumen dicetak dari sistem SPMB ${esc(SCH_NAMA)} ***</div>
         </div>`;
