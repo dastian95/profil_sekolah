@@ -1,8 +1,9 @@
 <?php
 // ── Auto-migrate default settings ────────────────────────────────────────
 $defaults = [
-    ['ranking_scroll_speed', '0.7',  'text', 'Kecepatan Scroll Display',    'Ranking Display'],
-    ['ranking_pause_ms',     '2500', 'text', 'Jeda di Atas/Bawah (ms)',     'Ranking Display'],
+    ['ranking_scroll_speed',   '0.7',  'text', 'Kecepatan Scroll Display',    'Ranking Display'],
+    ['ranking_pause_ms',       '2500', 'text', 'Jeda di Atas/Bawah (ms)',     'Ranking Display'],
+    ['ranking_display_gelombang', '0', 'text', 'Gelombang yang ditampilkan',  'Ranking Display'],
 ];
 foreach ($defaults as [$key, $val, $type, $label, $grp]) {
     $conn->prepare("INSERT IGNORE INTO site_settings (setting_key, setting_value, type, label, group_name)
@@ -16,9 +17,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 
     $speed = $speed_map[$_POST['scroll_speed'] ?? 'sedang'] ?? '0.7';
     $pause = $pause_map[$_POST['pause_ms']     ?? 'normal'] ?? '2500';
+    $glm   = in_array($_POST['display_gelombang'] ?? '0', ['0','1','2']) ? $_POST['display_gelombang'] : '0';
 
     $conn->prepare("UPDATE site_settings SET setting_value=? WHERE setting_key='ranking_scroll_speed'")->execute([$speed]);
     $conn->prepare("UPDATE site_settings SET setting_value=? WHERE setting_key='ranking_pause_ms'")->execute([$pause]);
+    $conn->prepare("UPDATE site_settings SET setting_value=? WHERE setting_key='ranking_display_gelombang'")->execute([$glm]);
 
     $dash = !empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php';
     $_SESSION['flash_ranking_settings'] = 'success';
@@ -34,6 +37,7 @@ foreach ($conn->query("SELECT setting_key, setting_value FROM site_settings WHER
 }
 $cur_speed = (float)($settings['ranking_scroll_speed'] ?? 0.7);
 $cur_pause = (int)($settings['ranking_pause_ms'] ?? 2500);
+$cur_glm   = $settings['ranking_display_gelombang'] ?? '0';
 
 // Map nilai ke label pilihan
 $speed_label = $cur_speed <= 0.4 ? 'lambat' : ($cur_speed >= 1.0 ? 'cepat' : 'sedang');
@@ -96,6 +100,23 @@ $display_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https'
                         </div>
                     </div>
 
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Gelombang yang Ditampilkan</label>
+                        <p class="text-muted small mb-2">Pilih data gelombang mana yang muncul di layar Display Peringkat.</p>
+                        <div class="d-flex gap-2">
+                            <?php foreach (['0' => ['Semua','G1 + G2 ditampilkan bersama','bi-collection-fill'],
+                                            '1' => ['Gelombang 1','Hanya siswa diterima G1','bi-1-circle-fill'],
+                                            '2' => ['Gelombang 2','Hanya siswa diterima G2','bi-2-circle-fill']] as $k => [$lbl,$desc,$ic]): ?>
+                            <label class="flex-fill border rounded-3 p-3 text-center <?= $cur_glm===$k?'border-primary bg-primary bg-opacity-10':'' ?>" style="cursor:pointer;">
+                                <input type="radio" name="display_gelombang" value="<?= $k ?>" class="d-none" <?= $cur_glm===$k?'checked':'' ?>>
+                                <i class="bi <?= $ic ?> d-block mb-1 fs-5 <?= $cur_glm===$k?'text-primary':'' ?>"></i>
+                                <div class="fw-semibold small"><?= $lbl ?></div>
+                                <div class="text-muted" style="font-size:.65rem;"><?= $desc ?></div>
+                            </label>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+
                     <button type="submit" class="btn btn-primary px-4">
                         <i class="bi bi-save me-1"></i> Simpan Pengaturan
                     </button>
@@ -138,6 +159,7 @@ $display_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https'
             </div>
             <div class="card-body">
                 <table class="table table-sm table-borderless mb-0">
+                    <tr><td class="text-muted small">Gelombang ditampilkan</td><td class="fw-semibold small"><?= $cur_glm==='1'?'Gelombang 1 saja':($cur_glm==='2'?'Gelombang 2 saja':'Semua (G1+G2)') ?></td></tr>
                     <tr><td class="text-muted small">Kecepatan scroll</td><td class="fw-semibold small"><?= ucfirst($speed_label) ?> (<?= $cur_speed ?>px/frame)</td></tr>
                     <tr><td class="text-muted small">Jeda di tepi</td><td class="fw-semibold small"><?= ucfirst($pause_label) ?> (<?= $cur_pause ?>ms)</td></tr>
                     <tr><td class="text-muted small">Refresh data</td><td class="fw-semibold small">Otomatis setiap 5 detik</td></tr>

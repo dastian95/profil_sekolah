@@ -9,7 +9,7 @@ if (isset($_GET['json'])) {
     try {
         $stmt = $conn->query("
             SELECT nama, nisn, jurusan, nilai_raport, nilai_tka, nilai_akhir, gelombang, is_pinned
-            FROM pendaftar WHERE status = 'terima'
+            FROM pendaftar WHERE status = 'terima'{$glm_where}
             ORDER BY jurusan ASC, nilai_akhir DESC, usia DESC
         ");
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -31,20 +31,23 @@ if (isset($_GET['json'])) {
 // Baca setting display dari DB
 $rd_speed = 0.7;
 $rd_pause = 2500;
+$rd_glm   = 0; // 0=semua, 1=G1 saja, 2=G2 saja
 try {
-    $st = $conn->query("SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('ranking_scroll_speed','ranking_pause_ms')");
+    $st = $conn->query("SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('ranking_scroll_speed','ranking_pause_ms','ranking_display_gelombang')");
     foreach ($st as $r) {
-        if ($r['setting_key'] === 'ranking_scroll_speed') $rd_speed = (float)$r['setting_value'];
-        if ($r['setting_key'] === 'ranking_pause_ms')     $rd_pause = (int)$r['setting_value'];
+        if ($r['setting_key'] === 'ranking_scroll_speed')      $rd_speed = (float)$r['setting_value'];
+        if ($r['setting_key'] === 'ranking_pause_ms')          $rd_pause = (int)$r['setting_value'];
+        if ($r['setting_key'] === 'ranking_display_gelombang') $rd_glm   = (int)$r['setting_value'];
     }
 } catch (Throwable $e) {}
+$glm_where = $rd_glm > 0 ? " AND gelombang = $rd_glm" : "";
 
 // SSR awal
 $groups_init = [];
 try {
     $stmt = $conn->query("
         SELECT nama, nisn, jurusan, nilai_raport, nilai_tka, nilai_akhir, gelombang, is_pinned
-        FROM pendaftar WHERE status = 'terima'
+        FROM pendaftar WHERE status = 'terima'{$glm_where}
         ORDER BY jurusan ASC, nilai_akhir DESC, usia DESC
     ");
     $tmp = []; foreach (JURUSAN_LIST as $j) $tmp[$j] = [];
