@@ -1136,7 +1136,7 @@ function cetakSPTJM(p) {
 
     <p style="margin-bottom:6px;">Yang bertanda tangan di bawah ini:</p>
     <div class="identitas"><table>
-        <tr><td>Nama</td><td>:</td><td>${dot}</td></tr>
+        <tr><td>Nama</td><td>:</td><td>Momon Darmawan, S.Pd, Gr</td></tr>
         <tr><td>Jabatan</td><td>:</td><td>Kepala Sekolah SMKS Laboratorium Jakarta</td></tr>
     </table></div>
 
@@ -1163,8 +1163,8 @@ function cetakSPTJM(p) {
             <div style="margin-bottom:2px;">Jakarta, ${tglSurat}</div>
             <div style="margin-bottom:4px;">Kepala Sekolah,</div>
             <div style="font-size:9pt;color:#666;margin-bottom:54px;">(tanda tangan &amp; stempel)</div>
-            <div class="nama" style="min-width:230px;">&nbsp;</div>
-            <div style="font-size:10pt;margin-top:3px;">NIP. .....................................</div>
+            <div class="nama" style="min-width:230px;">Momon Darmawan, S.Pd, Gr</div>
+            <div style="font-size:10pt;margin-top:3px;"></div>
         </div>
     </div>
 </div>`;

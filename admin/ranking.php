@@ -27,6 +27,8 @@ if (!empty($_SESSION['flash_ranking'])) {
 try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN is_ditahan TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable) {}
 try { $conn->exec("ALTER TABLE gelombang ADD COLUMN is_locked TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable) {}
 try { $conn->exec("ALTER TABLE gelombang ADD COLUMN locked_at DATETIME NULL"); } catch (Throwable) {}
+// Auto-migrate: flag "Mengundurkan Diri / Diterima di Sekolah Lain"
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN is_undur_diri TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable) {}
 
 // Ambil konfigurasi gelombang
 $gel_rows = $conn->query("SELECT * FROM gelombang ORDER BY gelombang")->fetchAll();
@@ -93,6 +95,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pinda
     exit;
 }
 
+// ── Tandai / Lepas Mengundurkan Diri ─────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array(($_POST['action'] ?? ''), ['tandai_undur_diri','lepas_undur_diri'])) {
+    $ud_id  = (int)$_POST['id'];
+    $ud_val = ($_POST['action'] === 'tandai_undur_diri') ? 1 : 0;
+    $row_ud = $conn->prepare("SELECT nama, gelombang FROM pendaftar WHERE id=?");
+    $row_ud->execute([$ud_id]);
+    $cur_ud = $row_ud->fetch();
+    if ($cur_ud) {
+        if ($ud_val === 1) {
+            // Tandai: gugurkan slot + set flag
+            $conn->prepare("UPDATE pendaftar SET is_undur_diri=1, status='gugur', catatan='Mengundurkan diri / diterima di sekolah lain' WHERE id=?")->execute([$ud_id]);
+            log_admin_action($conn, 'UNDUR_DIRI', "Tandai mengundurkan diri: {$cur_ud['nama']}");
+        } else {
+            // Batalkan: kembalikan ke diproses agar bisa ikut Proses berikutnya
+            $conn->prepare("UPDATE pendaftar SET is_undur_diri=0, status='diproses', catatan=NULL WHERE id=?")->execute([$ud_id]);
+            log_admin_action($conn, 'LEPAS_UNDUR_DIRI', "Batalkan undur diri: {$cur_ud['nama']}");
+        }
+    }
+    $fGelRedirect = (int)($_POST['gelombang'] ?? ($cur_ud['gelombang'] ?? 1));
+    $fJurRedirect = urlencode($_POST['jurusan'] ?? '');
+    while (ob_get_level() > 0) ob_end_clean();
+    header('Location: ' . (!empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php') . "?page=ranking&gelombang={$fGelRedirect}&jurusan={$fJurRedirect}");
+    exit;
+}
+
 // ── Pin / Unpin ───────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'pin') {
     $pin_id  = (int)$_POST['pendaftar_id'];
@@ -119,24 +146,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'prose
         $kuota_glm = (int)($g['kuota_glm'] ?? round($g['kuota_per_jurusan'] * $g['persen_gelombang'] / 100));
 
         // Reset semua ke diproses — KECUALI yang Ditahan (status kedua, tidak ikut kompetisi)
-        $conn->prepare("UPDATE pendaftar SET status='diproses', catatan=NULL WHERE gelombang=? AND is_ditahan=0")->execute([$gelombang]);
+        $conn->prepare("UPDATE pendaftar SET status='diproses', catatan=NULL WHERE gelombang=? AND is_ditahan=0 AND is_undur_diri=0")->execute([$gelombang]);
 
         // Gugur usia (lewati yang Ditahan)
         $conn->prepare("UPDATE pendaftar SET status='gugur', catatan='Gugur: usia melebihi 21 tahun'
-                        WHERE gelombang=? AND lolos_usia=0 AND is_ditahan=0")->execute([$gelombang]);
+                        WHERE gelombang=? AND lolos_usia=0 AND is_ditahan=0 AND is_undur_diri=0")->execute([$gelombang]);
 
         // Gugur KK Cut-Off: tgl_kk melebihi 15 Juni 2025 (pas 15 Juni masih lolos; kosong tidak digugurkan)
         // pin = override admin
         $conn->prepare("UPDATE pendaftar SET status='gugur', catatan='Gugur: tanggal KK melebihi cut-off 15 Juni 2025'
             WHERE gelombang=? AND tgl_kk IS NOT NULL AND tgl_kk > '2025-06-15'
-            AND is_pinned=0 AND status='diproses' AND is_ditahan=0")->execute([$gelombang]);
+            AND is_pinned=0 AND status='diproses' AND is_ditahan=0 AND is_undur_diri=0")->execute([$gelombang]);
 
         // Gugur TKA di bawah minimum (hanya Reguler — Khusus & PKBM tanpa TKA; pin = override admin)
         $min_tka = (int)($g['min_tka'] ?? 0);
         if ($min_tka > 0) {
             $conn->prepare("UPDATE pendaftar SET status='gugur', catatan=?
                 WHERE gelombang=? AND sistem_pendidikan='reguler' AND nilai_tka < ?
-                AND is_pinned=0 AND status='diproses' AND is_ditahan=0")
+                AND is_pinned=0 AND status='diproses' AND is_ditahan=0 AND is_undur_diri=0")
                 ->execute(["Gugur: nilai TKA di bawah minimum ({$min_tka})", $gelombang, $min_tka]);
         }
 
@@ -158,13 +185,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'prose
             $pp = $jalur ? [$gelombang, $jurusan, $jalur] : [$gelombang, $jurusan];
 
             $stPin = $conn->prepare("SELECT id FROM pendaftar
-                WHERE gelombang=? AND jurusan=? AND lolos_usia=1 AND is_pinned=1 AND status='diproses' AND is_ditahan=0{$jcond}");
+                WHERE gelombang=? AND jurusan=? AND lolos_usia=1 AND is_pinned=1 AND status='diproses' AND is_ditahan=0 AND is_undur_diri=0{$jcond}");
             $stPin->execute($pp);
             $pinned = $stPin->fetchAll(PDO::FETCH_COLUMN);
 
             $sisa = max(0, $kuota - count($pinned));
             $stNorm = $conn->prepare("SELECT id FROM pendaftar
-                WHERE gelombang=? AND jurusan=? AND lolos_usia=1 AND is_pinned=0 AND status='diproses' AND is_ditahan=0{$jcond}
+                WHERE gelombang=? AND jurusan=? AND lolos_usia=1 AND is_pinned=0 AND status='diproses' AND is_ditahan=0 AND is_undur_diri=0{$jcond}
                 ORDER BY {$order_by[$orderKey]}");
             $stNorm->execute($pp);
             $normal = $stNorm->fetchAll(PDO::FETCH_COLUMN);
@@ -191,7 +218,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'prose
             }
             // Sisa yang masih 'diproses' (tidak lolos kuota jalur) → gugur
             $conn->prepare("UPDATE pendaftar SET status='gugur', catatan='Tidak mencapai kuota'
-                WHERE gelombang=? AND jurusan=? AND lolos_usia=1 AND status='diproses' AND is_ditahan=0")
+                WHERE gelombang=? AND jurusan=? AND lolos_usia=1 AND status='diproses' AND is_ditahan=0 AND is_undur_diri=0")
                  ->execute([$gelombang, $jurusan]);
         }
 
@@ -235,7 +262,7 @@ $all_data = [];
 $db_error = null;
 try {
     foreach ($target_jurusan as $jurusan) {
-        $stmt = $conn->prepare("SELECT * FROM pendaftar WHERE gelombang=? AND jurusan=? AND is_ditahan=0
+        $stmt = $conn->prepare("SELECT * FROM pendaftar WHERE gelombang=? AND jurusan=? AND is_ditahan=0 AND is_undur_diri=0
                                 ORDER BY is_pinned DESC, nilai_akhir DESC");
         $stmt->execute([$fGel, $jurusan]);
         $list = $stmt->fetchAll();
@@ -244,6 +271,11 @@ try {
                                        ORDER BY nilai_akhir DESC");
         $stmtDitahan->execute([$fGel, $jurusan]);
         $list_ditahan = $stmtDitahan->fetchAll();
+
+        $stmtUndur = $conn->prepare("SELECT * FROM pendaftar WHERE gelombang=? AND jurusan=? AND is_undur_diri=1
+                                     ORDER BY nilai_akhir DESC");
+        $stmtUndur->execute([$fGel, $jurusan]);
+        $list_undur = $stmtUndur->fetchAll();
 
         $ids = array_column($list, 'id');
         $raport_map = [];
@@ -256,7 +288,7 @@ try {
                 $raport_map[$row['pendaftar_id']][$row['mata_pelajaran']][(int)$row['semester']] = (float)$row['nilai'];
             }
         }
-        $all_data[$jurusan] = ['list' => $list, 'raport' => $raport_map];
+        $all_data[$jurusan] = ['list' => $list, 'raport' => $raport_map, 'ditahan' => $list_ditahan, 'undur' => $list_undur];
     }
 } catch (PDOException $e) {
     $db_error = $e->getMessage();
@@ -381,6 +413,17 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
                         <i class="bi bi-pin<?= $is_pinned ? '-fill' : '' ?>"></i>
                     </button>
                 </form>
+                <form method="POST" class="d-inline">
+                    <input type="hidden" name="action" value="tandai_undur_diri">
+                    <input type="hidden" name="id" value="<?= $r['id'] ?>">
+                    <input type="hidden" name="gelombang" value="<?= $fGel ?>">
+                    <input type="hidden" name="jurusan" value="<?= htmlspecialchars($fJurusan) ?>">
+                    <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1"
+                            style="font-size:0.75rem" title="Tandai: Diterima di Sekolah Lain / Mengundurkan Diri"
+                            onclick="return confirm('Tandai <?= htmlspecialchars(addslashes($r['nama'])) ?> sebagai Mengundurkan Diri / Diterima di Sekolah Lain?\nSiswa tidak akan ikut peringkat.')">
+                        <i class="bi bi-x-circle"></i>
+                    </button>
+                </form>
                 <?php endif; ?>
             </div>
         </td>
@@ -444,11 +487,7 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
     Ambil <strong><?= $kuota_glm ?> terbaik</strong> per jurusan |
     Status publish: <?= $g['is_published'] ? '<span class="badge bg-success">Published</span>' : '<span class="badge bg-secondary">Belum</span>' ?>
     <span class="ms-3 text-warning fw-semibold"><i class="bi bi-pin-fill me-1"></i>Siswa ber-PIN dijamin diterima & tidak tampil di publik</span>
-    <?php if ((int)$fGel === 1): ?>
     <div class="mt-1"><i class="bi bi-info-circle me-1"></i>Urutan: <strong>nilai akhir</strong> tertinggi menang, <strong>usia</strong> tertua penentu seri. KK &gt; 15 Juni 2025 = gugur.</div>
-    <?php else: ?>
-    <div class="mt-1"><i class="bi bi-info-circle me-1"></i>Kuota prioritas: <strong>Yatim/Piatu</strong> 4 · <strong>Anak Guru</strong> 4 (ranking jarak terdekat) · <strong>ABK</strong> 8 (nilai khusus manual). Sisa ke <strong>Reguler</strong> (Nilai Akhir, Zonasi Duren Sawit unggul). Overflow prioritas isi slot kosong jika Reguler kurang. KK &gt; 15 Juni 2025 = gugur.</div>
-    <?php endif; ?>
 </div>
 <?php endif; ?>
 
@@ -465,9 +504,11 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
 
 <!-- Tabel Ranking per Jurusan -->
 <?php foreach ($target_jurusan as $jurusan):
-    $list      = $all_data[$jurusan]['list'];
-    $raport_map = $all_data[$jurusan]['raport'];
-    $total_j   = count($list);
+    $list         = $all_data[$jurusan]['list'];
+    $raport_map   = $all_data[$jurusan]['raport'];
+    $list_ditahan = $all_data[$jurusan]['ditahan'] ?? [];
+    $list_undur   = $all_data[$jurusan]['undur'] ?? [];
+    $total_j      = count($list);
     $diterima_j = count(array_filter($list, fn($r) => $r['status']==='terima'));
     $pinned_count = count(array_filter($list, fn($r) => $r['is_pinned']));
 
@@ -623,6 +664,48 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
                 <td class="text-center"><?= $r['usia'] ?> thn</td>
                 <td><span class="badge bg-warning text-dark"><?= STATUS_LABEL[$r['status']] ?? $r['status'] ?></span></td>
                 <td></td>
+            </tr>
+            <?php endforeach;
+            endif;
+
+            // ── Mengundurkan Diri / Sekolah Lain — collapsed ─────────────────
+            if (!empty($list_undur)): ?>
+            <tr>
+                <td colspan="11" class="p-0">
+                    <button class="btn btn-sm w-100 rounded-0 py-1 text-danger-emphasis bg-danger bg-opacity-10 border-0 border-top"
+                            style="font-size:0.8rem" onclick="toggleRows('undur-<?= $jurusan_id ?>','chev-undur-<?= $jurusan_id ?>')">
+                        <i class="bi bi-chevron-down me-1" id="chev-undur-<?= $jurusan_id ?>"></i>
+                        <i class="bi bi-x-circle me-1"></i>
+                        <?= count($list_undur) ?> Mengundurkan Diri / Sekolah Lain (tidak ikut peringkat) — klik untuk tampilkan
+                    </button>
+                </td>
+            </tr>
+            <?php foreach ($list_undur as $r): ?>
+            <tr class="undur-<?= $jurusan_id ?>" style="display:none; background:#fff5f5;">
+                <td class="text-center small text-muted">—</td>
+                <td><?= htmlspecialchars($r['no_pendaftaran']) ?></td>
+                <td>
+                    <?= htmlspecialchars($r['nama']) ?>
+                    <span class="badge bg-danger ms-1"><i class="bi bi-x-circle me-1"></i>Sekolah Lain</span>
+                </td>
+                <td><?= htmlspecialchars($r['nisn']) ?></td>
+                <td class="text-center"><?= $r['jenis_kelamin'] ?></td>
+                <td class="text-center"><?= number_format($r['nilai_raport'], 2) ?></td>
+                <td class="text-center"><?= number_format($r['nilai_tka'], 2) ?></td>
+                <td class="text-center text-muted"><?= number_format($r['nilai_akhir'], 2) ?></td>
+                <td class="text-center"><?= $r['usia'] ?> thn</td>
+                <td><span class="badge bg-danger"><?= STATUS_LABEL[$r['status']] ?? $r['status'] ?></span></td>
+                <td>
+                    <form method="POST" class="d-inline">
+                        <input type="hidden" name="action" value="lepas_undur_diri">
+                        <input type="hidden" name="id" value="<?= $r['id'] ?>">
+                        <input type="hidden" name="gelombang" value="<?= $fGel ?>">
+                        <input type="hidden" name="jurusan" value="<?= htmlspecialchars($fJurusan) ?>">
+                        <button type="submit" class="btn btn-xs btn-outline-secondary py-0 px-1" style="font-size:.75rem" title="Kembalikan ke daftar">
+                            <i class="bi bi-arrow-counterclockwise"></i> Batalkan
+                        </button>
+                    </form>
+                </td>
             </tr>
             <?php endforeach;
             endif;

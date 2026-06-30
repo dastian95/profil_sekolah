@@ -119,6 +119,8 @@ try {
 } catch (PDOException $e) {
     $conn->exec("ALTER TABLE pendaftar ADD COLUMN tgl_kk DATE NULL AFTER no_telp");
 }
+// Auto-migrate: tambah kolom no_kk jika belum ada
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN no_kk VARCHAR(20) NULL AFTER tgl_kk"); } catch (PDOException $e) {}
 // Auto-migrate: tambah status 'lengkap' ke enum
 try {
     $conn->exec("ALTER TABLE pendaftar MODIFY COLUMN status ENUM('diproses','lengkap','gugur','terima') NOT NULL DEFAULT 'diproses'");
@@ -211,6 +213,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $err = 'Field wajib belum diisi: ' . implode(', ', $missing);
         } else {
             $tgl_kk = $_POST['tgl_kk'] ?? '';
+            $no_kk  = trim($_POST['no_kk'] ?? '');
             $sistem = in_array($_POST['sistem_pendidikan'] ?? '', ['reguler','pkbm','khusus'])
                 ? $_POST['sistem_pendidikan'] : 'reguler';
 
@@ -380,10 +383,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Gelombang terkunci → pendaftar baru jadi "Ditahan" (status kedua, tidak ikut peringkat)
                     $is_ditahan_val = !empty($locked_glm[(int)$d['gelombang']]) ? 1 : 0;
                     $stmt = $conn->prepare("INSERT INTO pendaftar
-                        (no_pendaftaran,gelombang,nama,nisn,tanggal_lahir,usia,jenis_kelamin,asal_sekolah,alamat_sekolah,no_telp,tgl_kk,alamat,kelurahan,jarak_km,status_ortu,buta_warna,jalur,nilai_khusus,jurusan,sistem_pendidikan,nilai_raport,nilai_tka,tka_mtk,tka_bindo,nilai_akhir,lolos_usia,status,raport_mode,is_ditahan)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+                        (no_pendaftaran,gelombang,nama,nisn,tanggal_lahir,usia,jenis_kelamin,asal_sekolah,alamat_sekolah,no_telp,tgl_kk,no_kk,alamat,kelurahan,jarak_km,status_ortu,buta_warna,jalur,nilai_khusus,jurusan,sistem_pendidikan,nilai_raport,nilai_tka,tka_mtk,tka_bindo,nilai_akhir,lolos_usia,status,raport_mode,is_ditahan)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
                     $stmt->execute([$no,$d['gelombang'],$d['nama'],$d['nisn'],$d['tanggal_lahir'],$d['usia'],
-                        $d['jenis_kelamin'],$d['asal_sekolah'],$alamat_sekolah,$d['no_telp'],$tgl_kk,$d['alamat'],$kelurahan_sv,$jarak_sv,$status_ortu,$buta_warna,$jalur,$nilai_khusus,$d['jurusan'],
+                        $d['jenis_kelamin'],$d['asal_sekolah'],$alamat_sekolah,$d['no_telp'],$tgl_kk,$no_kk ?: null,$d['alamat'],$kelurahan_sv,$jarak_sv,$status_ortu,$buta_warna,$jalur,$nilai_khusus,$d['jurusan'],
                         $sistem,$d['nilai_raport'],$d['nilai_tka'],$tka_mtk_sv,$tka_bindo_sv,$d['nilai_akhir'],$d['lolos_usia'],$new_status,$input_mode,$is_ditahan_val]);
                     $id = (int)$conn->lastInsertId();
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
@@ -431,10 +434,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $id = (int)$_POST['id'];
                     $stmt = $conn->prepare("UPDATE pendaftar SET
                         gelombang=?,nama=?,nisn=?,tanggal_lahir=?,usia=?,jenis_kelamin=?,asal_sekolah=?,alamat_sekolah=?,
-                        no_telp=?,tgl_kk=?,alamat=?,kelurahan=?,jarak_km=?,status_ortu=?,buta_warna=?,jalur=?,nilai_khusus=?,jurusan=?,sistem_pendidikan=?,nilai_raport=?,nilai_tka=?,tka_mtk=?,tka_bindo=?,nilai_akhir=?,lolos_usia=?,status=?,raport_mode=?
+                        no_telp=?,tgl_kk=?,no_kk=?,alamat=?,kelurahan=?,jarak_km=?,status_ortu=?,buta_warna=?,jalur=?,nilai_khusus=?,jurusan=?,sistem_pendidikan=?,nilai_raport=?,nilai_tka=?,tka_mtk=?,tka_bindo=?,nilai_akhir=?,lolos_usia=?,status=?,raport_mode=?
                         WHERE id=?");
                     $stmt->execute([$d['gelombang'],$d['nama'],$d['nisn'],$d['tanggal_lahir'],$d['usia'],
-                        $d['jenis_kelamin'],$d['asal_sekolah'],$alamat_sekolah,$d['no_telp'],$tgl_kk,$d['alamat'],$kelurahan_sv,$jarak_sv,$status_ortu,$buta_warna,$jalur,$nilai_khusus,$d['jurusan'],
+                        $d['jenis_kelamin'],$d['asal_sekolah'],$alamat_sekolah,$d['no_telp'],$tgl_kk,$no_kk ?: null,$d['alamat'],$kelurahan_sv,$jarak_sv,$status_ortu,$buta_warna,$jalur,$nilai_khusus,$d['jurusan'],
                         $sistem,$d['nilai_raport'],$d['nilai_tka'],$tka_mtk_sv,$tka_bindo_sv,$d['nilai_akhir'],$d['lolos_usia'],$new_status,$input_mode,$id]);
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
 
@@ -956,9 +959,8 @@ if ($edit_id_get > 0) {
         <?php $g2_aktif = ($gelombang_aktif && (int)$gelombang_aktif['gelombang'] === 2) || $active_glm === '2'; ?>
         <!-- Tab Navigation -->
         <ul class="nav nav-tabs px-3 pt-2" role="tablist">
-          <li class="nav-item" id="tabJalurNav" style="<?= $g2_aktif ? '' : 'display:none;' ?>">
-            <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#tabJalur"><i class="bi bi-signpost-split-fill me-1"></i> Jalur Seleksi</button>
-          </li>
+          <!-- Tab Jalur Seleksi disembunyikan: G2 kini pakai sistem yang sama dengan G1 -->
+          <li class="nav-item" id="tabJalurNav" style="display:none;">
           <li class="nav-item"><button type="button" class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabDiri"><i class="bi bi-person me-1"></i> Data Diri</button></li>
           <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#tabRaport"><i class="bi bi-table me-1"></i> Detail Raport</button></li>
         </ul>
@@ -1161,6 +1163,10 @@ if ($edit_id_get > 0) {
                 <input type="date" name="tgl_kk" id="fTglKk" class="form-control" value="<?= htmlspecialchars($formData['tgl_kk'] ?? '') ?>" onchange="cekCutoffKk(this.value)">
                 <div id="kkWarning" class="text-danger small mt-1 d-none"><i class="bi bi-x-circle me-1"></i>KK melebihi cut-off 15 Juni 2025.</div>
                 <small class="text-muted">Cut-off: 15 Juni 2025</small>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label fw-semibold">No. KK <span class="text-muted fw-normal">(opsional)</span></label>
+                <input type="text" name="no_kk" id="fNoKk" class="form-control" value="<?= htmlspecialchars($formData['no_kk'] ?? '') ?>" placeholder="16 digit nomor KK" maxlength="20">
               </div>
               <div class="col-md-3">
                 <label class="form-label fw-semibold">
@@ -2283,6 +2289,7 @@ function resetForm() {
     document.getElementById('fJK').value      = 'L';
     document.getElementById('fJurusan').selectedIndex = 0;
     document.getElementById('fTelp').value    = '';
+    const _nkk = document.getElementById('fNoKk'); if (_nkk) _nkk.value = '';
     document.getElementById('fAlamat').value  = '';
     document.getElementById('fTgl').value     = '';
     initAsal('', '');
@@ -2416,6 +2423,8 @@ function editForm(d) {
     document.getElementById('fTkaBindo').value = tkaB;
     const fTglKk = document.getElementById('fTglKk');
     if (fTglKk) { fTglKk.value = d.tgl_kk || ''; cekCutoffKk(d.tgl_kk || ''); }
+    const fNoKk = document.getElementById('fNoKk');
+    if (fNoKk) fNoKk.value = d.no_kk || '';
 
     // Set sistem penilaian
     const sistem = d.sistem_pendidikan || 'reguler';
