@@ -716,13 +716,10 @@ $du_kode_meja    = JURUSAN_SHORT[$du_jurusan_meja ?? ''] ?? '';
                 onclick="showEditPanel(<?= $s['id'] ?>)">
                 <i class="bi bi-pencil"></i>
             </button>
-            <form method="POST" class="d-inline">
-                <input type="hidden" name="action" value="tandai_du_sudah">
-                <input type="hidden" name="pendaftar_id" value="<?= $s['id'] ?>">
-                <button type="submit" class="btn btn-xs btn-success py-0 px-1" style="font-size:.72rem;" title="Tandai Sudah DU">
-                    <i class="bi bi-check-lg"></i>
-                </button>
-            </form>
+            <button type="button" class="btn btn-xs btn-outline-success py-0 px-1" style="font-size:.72rem;" title="Cetak SPTJM + Formulir"
+                onclick="cetakSPTJM(DU_DATA[<?= $s['id'] ?>])">
+                <i class="bi bi-printer"></i>
+            </button>
             <form method="POST" class="d-inline" onsubmit="return confirm('Reset status daftar ulang siswa ini?')">
                 <input type="hidden" name="action" value="batal_du">
                 <input type="hidden" name="pendaftar_id" value="<?= $s['id'] ?>">
@@ -913,6 +910,10 @@ $du_kode_meja    = JURUSAN_SHORT[$du_jurusan_meja ?? ''] ?? '';
 
         <!-- Tombol aksi -->
         <div class="border-top p-3 d-flex gap-2">
+            <button type="submit" form="unlinkDU" class="btn btn-outline-danger btn-sm"
+                    onclick="return confirm('Lepas tautan siswa ini dari nomor antrian? Berguna jika salah pilih siswa. Data DU belum disimpan, jadi aman.')">
+                <i class="bi bi-x-lg me-1"></i>Batal
+            </button>
             <button type="button" class="btn btn-outline-secondary btn-sm"
                     onclick="cetakSPTJM(DU_DATA[<?= (int)$p['id'] ?>])">
                 <i class="bi bi-printer me-1"></i>Cetak SPTJM
@@ -921,6 +922,12 @@ $du_kode_meja    = JURUSAN_SHORT[$du_jurusan_meja ?? ''] ?? '';
                 <i class="bi bi-check-circle me-1"></i>Simpan (→ Proses)
             </button>
         </div>
+    </form>
+    <!-- Form terpisah utk lepas tautan (tidak boleh nested di dalam #formDU) -->
+    <form method="POST" id="unlinkDU">
+        <input type="hidden" name="action" value="link_du">
+        <input type="hidden" name="antrian_id" value="<?= $current['id'] ?>">
+        <input type="hidden" name="pendaftar_id" value="0">
     </form>
     </div>
 </div>
@@ -932,7 +939,11 @@ $du_kode_meja    = JURUSAN_SHORT[$du_jurusan_meja ?? ''] ?? '';
     <div class="card-body">
         <input type="text" class="form-control mb-2" id="searchLink" placeholder="Cari nama siswa...">
         <div style="max-height:300px;overflow-y:auto;">
-        <?php foreach ($diterima_list as $s): ?>
+        <?php foreach ($diterima_list as $s):
+            // Hanya siswa yang BELUM daftar ulang yang boleh dihubungkan ke nomor antrian.
+            // Yang sudah 'proses'/'sudah' sudah pernah DU → jangan tampil di sini.
+            if (($s['daftar_ulang'] ?? 'belum') !== 'belum') continue;
+        ?>
         <form method="POST" class="d-flex align-items-center gap-2 p-2 border-bottom link-item"
               data-s="<?= strtolower(htmlspecialchars($s['nama'])) ?>">
             <input type="hidden" name="action" value="link_du">

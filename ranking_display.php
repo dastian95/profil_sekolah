@@ -132,11 +132,9 @@ body {
 /* ── TABLE ── */
 .col-table-wrap {
     flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
-    scrollbar-width: none;
+    overflow: hidden;          /* STATIS — tidak scroll, semua baris tampil sekaligus */
+    font-size: 16px;           /* anchor; auto-fit JS memperkecil bila 25 baris belum muat */
 }
-.col-table-wrap::-webkit-scrollbar { display: none; }
 
 table.rt {
     width: 100%;
@@ -146,38 +144,37 @@ table.rt {
 table.rt thead th {
     position: sticky; top: 0; z-index: 2;
     background: #f1f5f9;
-    font-size: .6rem; text-transform: uppercase; letter-spacing: 1px;
+    font-size: .58em; text-transform: uppercase; letter-spacing: 1px;
     color: #64748b; font-weight: 700;
-    padding: 7px 8px;
+    padding: .35em .6em;
     border-bottom: 2px solid #e2e8f0;
     white-space: nowrap;
 }
-table.rt thead th.col-no  { width: 36px; text-align:center; }
-table.rt thead th.col-val { width: 62px; text-align:right; }
+table.rt thead th.col-no  { width: 9%;  text-align:center; }
+table.rt thead th.col-val { width: 16%; text-align:right; }
 
 table.rt tbody tr {
     border-bottom: 1px solid #f1f5f9;
-    transition: background .1s;
 }
 table.rt tbody tr:nth-child(even) { background: #f8fafc; }
 table.rt tbody tr.pinned { background: #fffbeb; }
 
 table.rt tbody td {
-    padding: 8px 8px;
-    font-size: .8rem;
+    padding: .2em .55em;
+    font-size: .85em;
     vertical-align: middle;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-table.rt tbody td.col-no  { text-align:center; padding: 6px 4px; }
+table.rt tbody td.col-no  { text-align:center; padding: .2em .15em; }
 table.rt tbody td.col-val { text-align:right; }
 
 /* rank circle */
 .rk {
     display:inline-flex; align-items:center; justify-content:center;
-    width:28px; height:28px; border-radius:50%;
-    font-weight:800; font-size:.78rem;
+    width:1.7em; height:1.7em; border-radius:50%;
+    font-weight:800; font-size:.82em;
     background: #e0e7ff; color: #3730a3;
 }
 .rk.g  { background:linear-gradient(135deg,#d97706,#fbbf24); color:#fff; }
@@ -185,14 +182,14 @@ table.rt tbody td.col-val { text-align:right; }
 .rk.br { background:linear-gradient(135deg,#b45309,#f97316); color:#fff; }
 
 .nm  { font-weight:600; color:#0f172a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; }
-.nsn { font-size:.63rem; color:#94a3b8; font-variant-numeric:tabular-nums; }
+.nsn { font-size:.72em; color:#94a3b8; font-variant-numeric:tabular-nums; }
 .pin-badge {
-    font-size:.52rem; background:#fef3c7; color:#b45309;
+    font-size:.6em; background:#fef3c7; color:#b45309;
     border:1px solid #fde68a; padding:0 4px; border-radius:3px;
     margin-left:4px; vertical-align:middle;
 }
 .va { font-weight:700; font-variant-numeric:tabular-nums; }
-.va.na { color:#059669; font-size:.9rem; }
+.va.na { color:#059669; font-size:1.05em; }
 .va.rp { color:#374151; }
 .va.tk { color:#2563eb; }
 
@@ -262,60 +259,25 @@ function render() {
             </div>${body}
         </div>`;
     }).join('');
+
+    fitColumns();   // sesuaikan ukuran setelah konten dirender
 }
 
-// ── Auto-scroll smooth (ease-in-out near edges) ───────────────────────────
-const MAX_SPEED = <?= $rd_speed ?>;
-const EASE_ZONE = 100;
-const PAUSE_MS  = <?= $rd_pause ?>;
-let scrollPos   = 0;
-let direction   = 1;
-let paused      = false;
-
-function getMaxScroll() {
-    let max = 0;
-    document.querySelectorAll('.col-table-wrap').forEach(el => {
-        max = Math.max(max, el.scrollHeight - el.clientHeight);
-    });
-    return max;
-}
-
-function setScroll(pos) {
-    document.querySelectorAll('.col-table-wrap').forEach(el => el.scrollTop = pos);
-}
-
-function easeSpeed(pos, max) {
-    if (max <= 0) return MAX_SPEED;
-    // Ease hanya mendekati tepi yang dituju (bukan tepi asal)
-    const distToTarget = direction === 1 ? (max - pos) : pos;
-    if (distToTarget >= EASE_ZONE) return MAX_SPEED;
-    const t = distToTarget / EASE_ZONE;
-    return Math.max(0.12, MAX_SPEED * (t * t * (3 - 2 * t)));
-}
-
-function autoScroll() {
-    if (!paused) {
-        const max = getMaxScroll();
-        if (max > 0) {
-            scrollPos += easeSpeed(scrollPos, max) * direction;
-
-            if (scrollPos >= max) {
-                scrollPos = max;
-                setScroll(scrollPos);
-                paused = true;
-                setTimeout(() => { direction = -1; paused = false; }, PAUSE_MS);
-            } else if (scrollPos <= 0) {
-                scrollPos = 0;
-                setScroll(scrollPos);
-                paused = true;
-                setTimeout(() => { direction = 1; paused = false; }, PAUSE_MS);
-            } else {
-                setScroll(scrollPos);
-            }
+// ── Auto-fit: perkecil font tiap kolom sampai semua baris muat (TANPA scroll) ──
+// Banyak siswa → font otomatis mengecil agar 25 baris muat penuh; sedikit siswa
+// → tetap maksimal (18px). Tidak ada lagi gerak naik-turun.
+function fitColumns() {
+    document.querySelectorAll('.col-table-wrap').forEach(w => {
+        let fs = 18;                       // px awal (maksimal)
+        w.style.fontSize = fs + 'px';
+        let guard = 0;
+        while (w.scrollHeight > w.clientHeight + 1 && fs > 6 && guard++ < 60) {
+            fs -= 0.5;
+            w.style.fontSize = fs + 'px';
         }
-    }
-    requestAnimationFrame(autoScroll);
+    });
 }
+window.addEventListener('resize', fitColumns);
 
 // ── Auto-refresh data ──────────────────────────────────────────────────────
 function fetchData(){
@@ -324,7 +286,6 @@ function fetchData(){
         .then(d=>{
             groups = d.groups;
             render();
-            setScroll(scrollPos);
             const titleEl = document.getElementById('pageTitle');
             if (titleEl) {
                 titleEl.textContent = d.published
@@ -336,7 +297,6 @@ function fetchData(){
 }
 
 render();
-autoScroll();
 fetchData();
 setInterval(fetchData, 5000);
 </script>
