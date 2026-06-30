@@ -785,7 +785,21 @@ $slist = fn($k, $d = '') => array_values(array_filter(array_map('trim', explode(
             </div>
           </div>
 
-          <?php else: foreach ($gel_rows as $g):
+          <?php else:
+            // Tab nav — hanya tampil jika lebih dari 1 gelombang
+            if (count($gel_rows) > 1): ?>
+          <div class="d-flex gap-2 mb-4 flex-wrap" id="glm-tabs">
+            <?php foreach ($gel_rows as $gi): ?>
+            <button class="btn btn-lg px-4 fw-semibold glm-tab-btn <?= $gi === reset($gel_rows) ? 'btn-dark' : 'btn-outline-secondary' ?>"
+                    onclick="switchGlmTab('glm<?= $gi['gelombang'] ?>', this)"
+                    data-target="glm<?= $gi['gelombang'] ?>">
+              <i class="bi bi-trophy me-1"></i>Gelombang <?= $gi['gelombang'] ?>
+            </button>
+            <?php endforeach; ?>
+          </div>
+          <?php endif; ?>
+
+          <?php foreach ($gel_rows as $gi_idx => $g):
             $hasil_live = !empty($g['is_hasil_published']);
             // Ambil data terima untuk kedua kondisi (hasil resmi maupun sedang berjalan)
             $list = [];
@@ -793,8 +807,11 @@ $slist = fn($k, $d = '') => array_values(array_filter(array_map('trim', explode(
                   WHERE gelombang=? AND status='terima' ORDER BY jurusan, nilai_akhir DESC");
             $diterima->execute([$g['gelombang']]);
             $list = $diterima->fetchAll();
+            $is_first_tab = ($gi_idx === 0);
           ?>
-            <div class="mb-5" data-aos="fade-up">
+            <div class="mb-5 glm-tab-panel" id="panel-glm<?= $g['gelombang'] ?>"
+                 style="<?= (count($gel_rows) > 1 && !$is_first_tab) ? 'display:none;' : '' ?>"
+                 data-aos="fade-up">
               <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
                 <h4 class="mb-0 fw-bold">Gelombang <?= $g['gelombang'] ?></h4>
                 <?php if ($hasil_live): ?>
@@ -1039,6 +1056,17 @@ $slist = fn($k, $d = '') => array_values(array_filter(array_map('trim', explode(
         });
       });
     });
+
+    // Tab switcher Gelombang
+    function switchGlmTab(panelId, btn) {
+      document.querySelectorAll('.glm-tab-panel').forEach(p => p.style.display = 'none');
+      document.querySelectorAll('.glm-tab-btn').forEach(b => {
+        b.classList.remove('btn-dark'); b.classList.add('btn-outline-secondary');
+      });
+      const panel = document.getElementById('panel-' + panelId);
+      if (panel) panel.style.display = '';
+      btn.classList.remove('btn-outline-secondary'); btn.classList.add('btn-dark');
+    }
 
     // Filter jurusan + search di tabel pengumuman hasil
     function applyPengumumanFilter(glmId) {
