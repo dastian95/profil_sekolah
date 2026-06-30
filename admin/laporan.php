@@ -199,7 +199,7 @@ try {
 } catch (Throwable) {}
 
 // ── Data per jurusan untuk print ─────────────────────────────────────────────
-$print_data = []; // [jurusan] => ['terima' => [...rows], 'semua' => [...rows]]
+$print_data = []; // [jurusan] => ['terima' => [...rows], 'semua' => [...rows], 'cadangan' => [...rows]]
 foreach (JURUSAN_LIST as $jFull) {
     try {
         $stT = $conn->prepare("SELECT no_pendaftaran, nama, nisn, no_telp, jenis_kelamin, gelombang, asal_sekolah,
@@ -208,6 +208,20 @@ foreach (JURUSAN_LIST as $jFull) {
             ORDER BY gelombang, nilai_akhir DESC, usia DESC");
         $stT->execute([$jFull]);
         $print_data[$jFull]['terima'] = $stT->fetchAll();
+
+        // Gugur terbaik untuk melengkapi sampai 30 (cadangan print total)
+        $sisaTerima = count($print_data[$jFull]['terima']);
+        $limitCadangan = max(0, 30 - $sisaTerima);
+        if ($limitCadangan > 0) {
+            $stC = $conn->prepare("SELECT no_pendaftaran, nama, nisn, no_telp, jenis_kelamin, gelombang, asal_sekolah,
+                nilai_raport, nilai_tka, nilai_akhir, usia, status, catatan
+                FROM pendaftar WHERE jurusan=? AND status='gugur' AND is_undur_diri=0
+                ORDER BY nilai_akhir DESC, usia DESC LIMIT ?");
+            $stC->execute([$jFull, $limitCadangan]);
+            $print_data[$jFull]['cadangan'] = $stC->fetchAll();
+        } else {
+            $print_data[$jFull]['cadangan'] = [];
+        }
 
         $stA = $conn->prepare("SELECT no_pendaftaran, nama, nisn, no_telp, jenis_kelamin, gelombang, asal_sekolah,
             nilai_raport, nilai_tka, nilai_akhir, usia, status, catatan, DATE(created_at) AS tgl
@@ -588,11 +602,21 @@ function printAllJurusan() {
                 <td>${esc(r.no_telp) || '—'}</td>
             </tr>`;
         });
+        const cadangan = (PRINT_DATA[jur] && PRINT_DATA[jur].cadangan) || [];
+        cadangan.forEach((r, i) => {
+            tbody += `<tr style="background:#fff0f0;color:#c00;">
+                <td style="text-align:center;">${rows.length + i + 1}</td>
+                <td>${esc(r.nisn) || '—'}</td>
+                <td>${esc(r.nama)} <span style="font-size:.7em;font-weight:700;">[Cadangan]</span></td>
+                <td>${esc(r.no_telp) || '—'}</td>
+            </tr>`;
+        });
+        const totalRows = rows.length + cadangan.length;
         sheets += `<div class="sheet"${idx > 0 ? ' style="page-break-before: always;"' : ''}>
           <div class="print-kop">
             <h5>${esc(SCH_NAMA)}</h5>
             <small>${esc(SCH_ALAMAT)}</small>
-            <div class="print-meta"><strong>Daftar Siswa Diterima — Jurusan ${esc(jur)}</strong> &nbsp;|&nbsp; Dicetak: ${now} &nbsp;|&nbsp; Jumlah: <strong>${rows.length}</strong> siswa</div>
+            <div class="print-meta"><strong>Daftar Siswa Diterima — Jurusan ${esc(jur)}</strong> &nbsp;|&nbsp; Dicetak: ${now} &nbsp;|&nbsp; Diterima: <strong>${rows.length}</strong> | Cadangan: <strong>${cadangan.length}</strong></div>
           </div>
           <table>
             <thead><tr><th>#</th><th>NISN</th><th>Nama</th><th>No. Telepon</th></tr></thead>
