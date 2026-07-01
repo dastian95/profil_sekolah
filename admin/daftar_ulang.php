@@ -1300,7 +1300,7 @@ function cetakSPTJM(p) {
     <p style="margin-bottom:6px;">Dengan ini menerangkan bahwa:</p>
     <div class="identitas"><table>
         <tr><td>Nama</td><td>:</td><td>${p.nama || dot}</td></tr>
-        <tr><td>Tempat, Tanggal Lahir</td><td>:</td><td>${ttlStr}</td></tr>
+        <tr><td>Tanggal Lahir</td><td>:</td><td>${ttlStr}</td></tr>
         <tr><td>Asal Sekolah</td><td>:</td><td>${p.asal_sekolah || dot}</td></tr>
         <tr><td>Nomor Pendaftaran</td><td>:</td><td>${p.no_pendaftaran || dot}</td></tr>
     </table></div>
