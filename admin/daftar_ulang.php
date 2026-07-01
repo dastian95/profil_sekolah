@@ -478,7 +478,7 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
         <button type="button" class="btn btn-outline-primary btn-sm" onclick="cetakFormulir()">
             <i class="bi bi-printer me-1"></i>Cetak Formulir
         </button>
-        <a href="superadmin_dashboard.php?page=daftar_ulang&action=export_csv" class="btn btn-success btn-sm">
+        <a href="<?= !empty($_SESSION['is_super']) ? 'superadmin_dashboard.php' : 'admin_dashboard.php' ?>?page=daftar_ulang&action=export_csv" class="btn btn-success btn-sm">
             <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export CSV Semua
         </a>
         <?php if ($du_meja_id): ?>

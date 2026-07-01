@@ -136,6 +136,7 @@ $tahap_pages_map = [
     'pengumuman'      => ['announcements', 'pengaturan_spmb'],
     'kelola_meja'     => ['meja', 'antrian', 'antrian_display'],
     'kelola_gelombang'=> ['pengaturan_spmb'],
+    'daftar_ulang'    => ['daftar_ulang'],
 ];
 
 // Load semua tahapan + assigned tahapan per admin

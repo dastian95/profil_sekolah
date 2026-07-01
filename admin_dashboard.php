@@ -39,6 +39,7 @@ $all_pages = [
     'ranking'         => ['label' => 'Ranking & Hasil',      'title' => 'Peringkat sementara sistem penerimaan siswa baru SMKS Laboratorium Jakarta', 'icon' => 'bi-trophy-fill', 'group' => 'Manajemen'],
     'ranking_display' => ['label' => 'Display Peringkat',   'icon' => 'bi-tv-fill',              'group' => 'Manajemen'],
     'status_display'  => ['label' => 'Cek Status Siswa',    'icon' => 'bi-search-heart-fill',    'group' => 'Manajemen'],
+    'daftar_ulang'   => ['label' => 'Sesi Daftar Ulang',   'icon' => 'bi-person-check-fill',    'group' => 'Manajemen'],
     'announcements'  => ['label' => 'Pengumuman',           'icon' => 'bi-megaphone-fill',       'group' => 'Manajemen'],
     'pengaturan_spmb'=> ['label' => 'Pengaturan Pendaftaran','icon' => 'bi-sliders',              'group' => 'Konfigurasi'],
     'meja'           => ['label' => 'Kelola Meja',          'icon' => 'bi-layout-split',         'group' => 'Konfigurasi'],
@@ -54,6 +55,7 @@ $tahap_pages = [
     'pengumuman'      => ['announcements', 'pengaturan_spmb'],
     'kelola_meja'     => ['meja', 'antrian', 'antrian_display'],
     'kelola_gelombang'=> ['pengaturan_spmb'],
+    'daftar_ulang'    => ['daftar_ulang'],
 ];
 
 // Filter halaman berdasarkan tahapan yang di-assign ke admin ini
@@ -455,6 +457,7 @@ foreach ($pages as $key => $info) {
         'ranking_settings' => 'admin/ranking_settings.php',
         'announcements'    => 'admin/announcements.php',
         'pengaturan_spmb' => 'admin/pengaturan_spmb.php',
+        'daftar_ulang'    => 'admin/daftar_ulang.php',
         'backup'          => 'admin/backup.php',
         'change_password' => 'admin/change_password.php',
         'kelola_admin'    => 'admin/kelola_admin.php',

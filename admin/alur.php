@@ -10,6 +10,7 @@ const HALAMAN_TERSEDIA = [
     'pendaftar'    => 'Data Pendaftar',
     'antrian'      => 'Meja Antrian',
     'ranking'      => 'Ranking & Hasil',
+    'daftar_ulang' => 'Sesi Daftar Ulang',
     'announcements'=> 'Pengumuman',
     'backup'       => 'Backup / Export',
     'none'         => 'Tanpa Halaman (Offline / Tatap Muka)',
