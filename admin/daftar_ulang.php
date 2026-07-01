@@ -316,6 +316,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $redir();
     }
+
+    // Simpan data DU langsung tanpa antrian — alur seperti Data Pendaftar
+    if ($action === 'simpan_du') {
+        $pend_id = (int)($_POST['pendaftar_id'] ?? 0);
+        if ($pend_id) {
+            $fields_du = [
+                'nis','nik','no_kk','kewarganegaraan','tahun_lulus','kip_kjp_kps',
+                'tempat_lahir','agama','email','anak_ke','alamat_lengkap',
+                'rt','rw','kecamatan','kabupaten','provinsi','kode_pos',
+                'nama_ayah','nik_ayah','pendidikan_ayah','pekerjaan_ayah','penghasilan_ayah','telp_ayah','alamat_ayah',
+                'nama_ibu','nik_ibu','pendidikan_ibu','pekerjaan_ibu','penghasilan_ibu','telp_ibu','alamat_ibu',
+                'nama_wali','hubungan_wali','nik_wali','pendidikan_wali','pekerjaan_wali','penghasilan_wali','telp_wali','alamat_wali',
+            ];
+            $int_fields = ['anak_ke','tahun_lulus'];
+            $conn->beginTransaction();
+            try {
+                $cur = $conn->prepare("SELECT daftar_ulang FROM pendaftar WHERE id=? AND status='terima' LIMIT 1");
+                $cur->execute([$pend_id]);
+                $curRow = $cur->fetch();
+                if ($curRow) {
+                    $set = []; $params_du = [];
+                    if ($curRow['daftar_ulang'] === 'belum') {
+                        $set[] = "daftar_ulang='proses'";
+                        $set[] = "daftar_ulang_at=NOW()";
+                    }
+                    foreach ($fields_du as $f) {
+                        if (array_key_exists($f, $_POST)) {
+                            $v = trim($_POST[$f]);
+                            if (in_array($f, $int_fields)) {
+                                $set[] = "$f=?"; $params_du[] = $v !== '' ? (int)$v : null;
+                            } else {
+                                $set[] = "$f=?"; $params_du[] = $v !== '' ? $v : null;
+                            }
+                        }
+                    }
+                    if ($set) {
+                        $params_du[] = $pend_id;
+                        $conn->prepare("UPDATE pendaftar SET ".implode(', ',$set)." WHERE id=? AND status='terima'")
+                             ->execute($params_du);
+                    }
+                }
+                $conn->commit();
+            } catch(Throwable $e) { $conn->rollBack(); }
+        }
+        $redir();
+    }
 }
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -480,7 +526,7 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
 </div>
 <?php endif; ?>
 
-<!-- ══ TABEL DAFTAR SISWA DITERIMA ══════════════════════════════════════════════ -->
+<!-- ══ LAYOUT LANGSUNG: TABEL + FORM (seperti Data Pendaftar) ════════════════ -->
 <?php
 // Query ulang tanpa filter meja agar tabel selalu tampil semua siswa
 $all_terima = [];
@@ -491,7 +537,11 @@ try {
 $sudah_count = count(array_filter($all_terima, fn($r) => ($r['daftar_ulang'] ?? '') === 'sudah'));
 $belum_count = count($all_terima) - $sudah_count;
 ?>
-<div class="card shadow-sm mb-4" id="tabelDiterimaDU">
+<div class="row g-3 align-items-start">
+
+<!-- Kolom kiri: Tabel siswa -->
+<div class="col-lg-7">
+<div class="card shadow-sm" id="tabelDiterimaDU">
     <div class="card-header bg-white d-flex align-items-center justify-content-between flex-wrap gap-2 py-2">
         <div class="fw-semibold d-flex align-items-center gap-2">
             <i class="bi bi-people-fill text-success"></i>
@@ -503,7 +553,7 @@ $belum_count = count($all_terima) - $sudah_count;
             <?php endif; ?>
         </div>
         <div class="d-flex gap-2 align-items-center flex-wrap">
-            <input type="text" id="cariTabelDU" class="form-control form-control-sm" placeholder="Cari nama / NISN..." style="width:200px;">
+            <input type="text" id="cariTabelDU" class="form-control form-control-sm" placeholder="Cari nama / NISN..." style="width:180px;">
             <div class="btn-group btn-group-sm" id="filterJurTabelDU">
                 <button class="btn btn-outline-secondary active" data-jur="">Semua</button>
                 <?php foreach (JURUSAN_SHORT as $jFull => $jShort): ?>
@@ -516,14 +566,12 @@ $belum_count = count($all_terima) - $sudah_count;
         <table class="table table-sm table-hover mb-0 align-middle" id="tableDU">
             <thead class="table-light">
                 <tr>
-                    <th class="text-center" style="width:42px;">#</th>
+                    <th class="text-center" style="width:36px;">#</th>
                     <th>Nama Siswa</th>
-                    <th>No. Daftar</th>
-                    <th class="text-center">Jurusan</th>
-                    <th class="text-center">Glm</th>
-                    <th class="text-center" style="width:110px;">Status DU</th>
-                    <th class="text-center" style="width:90px;">Tandai DU</th>
-                    <th class="text-center" style="width:60px;">Cetak</th>
+                    <th class="text-center">Jur</th>
+                    <th class="text-center" style="width:90px;">Status DU</th>
+                    <th class="text-center" style="width:80px;">Tandai DU</th>
+                    <th class="text-center" style="width:50px;">Buka</th>
                 </tr>
             </thead>
             <tbody id="tbodyDU">
@@ -531,22 +579,21 @@ $belum_count = count($all_terima) - $sudah_count;
                 $duSt = $s['daftar_ulang'] ?? 'belum';
             ?>
             <tr class="du-tabel-row" data-jur="<?= htmlspecialchars($s['jurusan']) ?>"
-                data-search="<?= strtolower(htmlspecialchars($s['nama'].' '.$s['nisn'].' '.$s['no_pendaftaran'])) ?>">
+                data-search="<?= strtolower(htmlspecialchars($s['nama'].' '.$s['nisn'].' '.$s['no_pendaftaran'])) ?>"
+                data-id="<?= $s['id'] ?>">
                 <td class="text-center text-muted small"><?= $i + 1 ?></td>
                 <td>
                     <div class="fw-semibold small"><?= htmlspecialchars($s['nama']) ?></div>
-                    <div class="text-muted" style="font-size:.7rem;"><?= htmlspecialchars($s['nisn'] ?? '-') ?></div>
+                    <div class="text-muted" style="font-size:.68rem;"><?= htmlspecialchars($s['no_pendaftaran']) ?></div>
                 </td>
-                <td class="small font-monospace"><?= htmlspecialchars($s['no_pendaftaran']) ?></td>
                 <td class="text-center"><span class="badge bg-secondary"><?= JURUSAN_SHORT[$s['jurusan']] ?? '' ?></span></td>
-                <td class="text-center small">G<?= $s['gelombang'] ?></td>
                 <td class="text-center">
                     <?php if ($duSt === 'sudah'): ?>
-                    <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Sudah DU</span>
+                    <span class="badge bg-success" style="font-size:.62rem;"><i class="bi bi-check-circle-fill"></i> Sudah</span>
                     <?php elseif ($duSt === 'proses'): ?>
-                    <span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Proses</span>
+                    <span class="badge bg-warning text-dark" style="font-size:.62rem;"><i class="bi bi-hourglass-split"></i> Proses</span>
                     <?php else: ?>
-                    <span class="badge bg-light text-secondary border">Belum</span>
+                    <span class="badge bg-light text-secondary border" style="font-size:.62rem;">Belum</span>
                     <?php endif; ?>
                 </td>
                 <td class="text-center">
@@ -554,7 +601,7 @@ $belum_count = count($all_terima) - $sudah_count;
                     <form method="POST" class="d-inline" onsubmit="return confirm('Reset status DU siswa ini?')">
                         <input type="hidden" name="action" value="batal_du">
                         <input type="hidden" name="pendaftar_id" value="<?= $s['id'] ?>">
-                        <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" title="Batalkan Sudah DU">
+                        <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1" style="font-size:.72rem;" title="Reset DU">
                             <i class="bi bi-arrow-counterclockwise"></i>
                         </button>
                     </form>
@@ -562,27 +609,207 @@ $belum_count = count($all_terima) - $sudah_count;
                     <form method="POST" class="d-inline">
                         <input type="hidden" name="action" value="tandai_du_sudah">
                         <input type="hidden" name="pendaftar_id" value="<?= $s['id'] ?>">
-                        <button type="submit" class="btn btn-sm btn-success py-0 px-2" title="Tandai Sudah Daftar Ulang">
+                        <button type="submit" class="btn btn-xs btn-success py-0 px-1" style="font-size:.72rem;" title="Tandai Sudah DU">
                             <i class="bi bi-check-lg"></i> DU
                         </button>
                     </form>
                     <?php endif; ?>
                 </td>
                 <td class="text-center">
-                    <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" title="Cetak Surat Keterangan"
-                            onclick="cetakSPTJM(DU_DATA[<?= $s['id'] ?>])">
-                        <i class="bi bi-printer"></i>
+                    <button type="button" class="btn btn-xs btn-outline-primary py-0 px-1" style="font-size:.72rem;" title="Buka form data DU"
+                            onclick="openDuPanel(<?= $s['id'] ?>)">
+                        <i class="bi bi-pencil-square"></i>
                     </button>
                 </td>
             </tr>
             <?php endforeach; ?>
             <?php if (empty($all_terima)): ?>
-            <tr><td colspan="8" class="text-center text-muted py-4"><i class="bi bi-inbox me-2"></i>Belum ada siswa diterima.</td></tr>
+            <tr><td colspan="6" class="text-center text-muted py-4"><i class="bi bi-inbox me-2"></i>Belum ada siswa diterima.</td></tr>
             <?php endif; ?>
             </tbody>
         </table>
     </div>
 </div>
+</div><!-- /col-lg-7 -->
+
+<!-- Kolom kanan: Form DU langsung -->
+<div class="col-lg-5" style="position:sticky;top:74px;">
+
+<datalist id="pekerjaan_list2">
+    <option value="PNS/ASN"><option value="TNI"><option value="POLRI">
+    <option value="Pegawai Swasta"><option value="Wiraswasta"><option value="Pedagang">
+    <option value="Buruh/Karyawan"><option value="Petani"><option value="Nelayan">
+    <option value="Pensiunan"><option value="Ibu Rumah Tangga"><option value="Tidak Bekerja">
+    <option value="Guru/Dosen"><option value="Driver/Ojek Online"><option value="Supir">
+    <option value="Karyawan BUMN"><option value="Tenaga Kesehatan"><option value="Lainnya">
+</datalist>
+<datalist id="penghasilan_list2">
+    <option value="Rp 500.000"><option value="Rp 1.000.000"><option value="Rp 1.500.000">
+    <option value="Rp 2.000.000"><option value="Rp 2.500.000"><option value="Rp 3.000.000">
+    <option value="Rp 4.000.000"><option value="Rp 5.000.000"><option value="Rp 7.500.000">
+    <option value="Rp 10.000.000"><option value="Tidak ada penghasilan"><option value="Lainnya">
+</datalist>
+
+<div id="duPanelPlaceholder" class="card shadow-sm">
+    <div class="card-body text-center py-5 text-muted">
+        <i class="bi bi-person-lines-fill d-block mb-2" style="font-size:2.5rem;opacity:.3;"></i>
+        <div class="small fw-semibold mb-1">Pilih siswa dari tabel</div>
+        <div class="small">Klik <i class="bi bi-pencil-square"></i> untuk isi data daftar ulang</div>
+    </div>
+</div>
+
+<div id="duPanelForm" class="card shadow-sm" style="display:none;">
+    <div class="card-header d-flex align-items-center justify-content-between py-2"
+         style="background:linear-gradient(135deg,#059669,#10b981);color:#fff;">
+        <div>
+            <div class="fw-bold" id="dpf_nama">—</div>
+            <div style="font-size:.75rem;opacity:.85;" id="dpf_sub">—</div>
+        </div>
+        <button type="button" class="btn btn-sm btn-light py-0 px-2 opacity-75" onclick="closeDuPanel()">
+            <i class="bi bi-x-lg"></i>
+        </button>
+    </div>
+    <form method="POST" id="formDuLangsung">
+        <input type="hidden" name="action" value="simpan_du">
+        <input type="hidden" name="pendaftar_id" id="dpf_id">
+        <ul class="nav nav-tabs nav-fill px-3 pt-2 border-bottom-0 bg-light small" id="dpfTabs">
+            <li class="nav-item"><a class="nav-link active py-1" href="#dpf_tab1" data-bs-toggle="tab">A. Data Siswa</a></li>
+            <li class="nav-item"><a class="nav-link py-1" href="#dpf_tab2" data-bs-toggle="tab">B. Orang Tua/Wali</a></li>
+        </ul>
+        <div class="tab-content p-3" style="overflow-y:auto;max-height:calc(100vh - 330px);">
+          <div class="tab-pane fade show active" id="dpf_tab1">
+            <div class="row g-2">
+                <div class="col-12"><label class="form-label mb-0 small">Nama Lengkap</label>
+                    <input class="form-control form-control-sm" id="dpf_namarv" readonly style="background:#f0fdf4;"></div>
+                <div class="col-5"><label class="form-label mb-0 small">NISN</label>
+                    <input class="form-control form-control-sm" id="dpf_nisnrv" readonly style="background:#f0fdf4;"></div>
+                <div class="col-7"><label class="form-label mb-0 small">NIS <span class="text-danger">*</span></label>
+                    <input type="text" name="nis" id="dpf_nis" class="form-control form-control-sm" placeholder="Dari sekolah"></div>
+                <div class="col-4"><label class="form-label mb-0 small">NIK Siswa</label>
+                    <input type="text" name="nik" id="dpf_nik" class="form-control form-control-sm" maxlength="16" inputmode="numeric" pattern="[0-9]*"></div>
+                <div class="col-4"><label class="form-label mb-0 small">No. KK</label>
+                    <input type="text" name="no_kk" id="dpf_no_kk" class="form-control form-control-sm" maxlength="16" inputmode="numeric" pattern="[0-9]*"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Kewarganegaraan</label>
+                    <input type="text" name="kewarganegaraan" id="dpf_kewarganegaraan" class="form-control form-control-sm"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Agama</label>
+                    <select name="agama" id="dpf_agama" class="form-select form-select-sm">
+                        <option value="">— Pilih —</option>
+                        <?php foreach ($agama_opts as $ag): ?><option value="<?=$ag?>"><?=$ag?></option><?php endforeach; ?>
+                    </select></div>
+                <div class="col-4"><label class="form-label mb-0 small">Anak Ke-</label>
+                    <input type="number" name="anak_ke" id="dpf_anak_ke" class="form-control form-control-sm" min="1" max="20"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Tahun Lulus SMP</label>
+                    <input type="number" name="tahun_lulus" id="dpf_tahun_lulus" class="form-control form-control-sm" min="2000" max="2030" placeholder="2025"></div>
+                <div class="col-6"><label class="form-label mb-0 small">Tempat Lahir</label>
+                    <input type="text" name="tempat_lahir" id="dpf_tempat_lahir" class="form-control form-control-sm"></div>
+                <div class="col-6"><label class="form-label mb-0 small">Email</label>
+                    <input type="email" name="email" id="dpf_email" class="form-control form-control-sm"></div>
+                <div class="col-12"><label class="form-label mb-0 small">Alamat Lengkap</label>
+                    <textarea name="alamat_lengkap" id="dpf_alamat_lengkap" class="form-control form-control-sm" rows="2"></textarea></div>
+                <div class="col-2"><label class="form-label mb-0 small">RT</label>
+                    <input type="text" name="rt" id="dpf_rt" class="form-control form-control-sm" maxlength="5" inputmode="numeric"></div>
+                <div class="col-2"><label class="form-label mb-0 small">RW</label>
+                    <input type="text" name="rw" id="dpf_rw" class="form-control form-control-sm" maxlength="5" inputmode="numeric"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Kecamatan</label>
+                    <input type="text" name="kecamatan" id="dpf_kecamatan" class="form-control form-control-sm"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Kabupaten/Kota</label>
+                    <input type="text" name="kabupaten" id="dpf_kabupaten" class="form-control form-control-sm"></div>
+                <div class="col-5"><label class="form-label mb-0 small">Provinsi</label>
+                    <input type="text" name="provinsi" id="dpf_provinsi" class="form-control form-control-sm"></div>
+                <div class="col-3"><label class="form-label mb-0 small">Kode Pos</label>
+                    <input type="text" name="kode_pos" id="dpf_kode_pos" class="form-control form-control-sm" maxlength="10" inputmode="numeric" pattern="[0-9]*"></div>
+                <div class="col-4"><label class="form-label mb-0 small">KIP/KJP/KPS</label>
+                    <input type="text" name="kip_kjp_kps" id="dpf_kip_kjp_kps" class="form-control form-control-sm"></div>
+            </div>
+          </div>
+          <div class="tab-pane fade" id="dpf_tab2">
+            <div class="small fw-bold text-uppercase text-muted mb-2" style="letter-spacing:.5px;">1. Ayah Kandung</div>
+            <div class="row g-2 mb-3">
+                <div class="col-7"><label class="form-label mb-0 small">Nama Ayah</label>
+                    <input type="text" name="nama_ayah" id="dpf_nama_ayah" class="form-control form-control-sm"></div>
+                <div class="col-5"><label class="form-label mb-0 small">NIK Ayah</label>
+                    <input type="text" name="nik_ayah" id="dpf_nik_ayah" class="form-control form-control-sm" maxlength="16" inputmode="numeric" pattern="[0-9]*"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Pendidikan</label>
+                    <select name="pendidikan_ayah" id="dpf_pendidikan_ayah" class="form-select form-select-sm"><option value="">—</option><?php foreach($pend_opts as $po): ?><option value="<?=$po?>"><?=$po?></option><?php endforeach;?></select></div>
+                <div class="col-4"><label class="form-label mb-0 small">Pekerjaan</label>
+                    <input type="text" name="pekerjaan_ayah" id="dpf_pekerjaan_ayah" class="form-control form-control-sm" list="pekerjaan_list2"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Penghasilan/Bln</label>
+                    <input type="text" name="penghasilan_ayah" id="dpf_penghasilan_ayah" class="form-control form-control-sm" list="penghasilan_list2"></div>
+                <div class="col-4"><label class="form-label mb-0 small">No. HP</label>
+                    <input type="text" name="telp_ayah" id="dpf_telp_ayah" class="form-control form-control-sm" inputmode="tel"></div>
+                <div class="col-8"><label class="form-label mb-0 small">Alamat Ayah</label>
+                    <input type="text" name="alamat_ayah" id="dpf_alamat_ayah" class="form-control form-control-sm"></div>
+            </div>
+            <hr class="my-2">
+            <div class="small fw-bold text-uppercase text-muted mb-2" style="letter-spacing:.5px;">2. Ibu Kandung</div>
+            <div class="row g-2 mb-3">
+                <div class="col-7"><label class="form-label mb-0 small">Nama Ibu</label>
+                    <input type="text" name="nama_ibu" id="dpf_nama_ibu" class="form-control form-control-sm"></div>
+                <div class="col-5"><label class="form-label mb-0 small">NIK Ibu</label>
+                    <input type="text" name="nik_ibu" id="dpf_nik_ibu" class="form-control form-control-sm" maxlength="16" inputmode="numeric" pattern="[0-9]*"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Pendidikan</label>
+                    <select name="pendidikan_ibu" id="dpf_pendidikan_ibu" class="form-select form-select-sm"><option value="">—</option><?php foreach($pend_opts as $po): ?><option value="<?=$po?>"><?=$po?></option><?php endforeach;?></select></div>
+                <div class="col-4"><label class="form-label mb-0 small">Pekerjaan</label>
+                    <input type="text" name="pekerjaan_ibu" id="dpf_pekerjaan_ibu" class="form-control form-control-sm" list="pekerjaan_list2"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Penghasilan/Bln</label>
+                    <input type="text" name="penghasilan_ibu" id="dpf_penghasilan_ibu" class="form-control form-control-sm" list="penghasilan_list2"></div>
+                <div class="col-4"><label class="form-label mb-0 small">No. HP</label>
+                    <input type="text" name="telp_ibu" id="dpf_telp_ibu" class="form-control form-control-sm" inputmode="tel"></div>
+                <div class="col-8"><label class="form-label mb-0 small">Alamat Ibu</label>
+                    <input type="text" name="alamat_ibu" id="dpf_alamat_ibu" class="form-control form-control-sm"></div>
+            </div>
+            <hr class="my-2">
+            <div class="small fw-bold text-uppercase text-muted mb-2" style="letter-spacing:.5px;">3. Wali <span class="fw-normal">(jika orang tua tidak ada)</span></div>
+            <div class="row g-2">
+                <div class="col-6"><label class="form-label mb-0 small">Nama Wali</label>
+                    <input type="text" name="nama_wali" id="dpf_nama_wali" class="form-control form-control-sm"></div>
+                <div class="col-6"><label class="form-label mb-0 small">Hubungan</label>
+                    <input type="text" name="hubungan_wali" id="dpf_hubungan_wali" class="form-control form-control-sm"></div>
+                <div class="col-5"><label class="form-label mb-0 small">NIK Wali</label>
+                    <input type="text" name="nik_wali" id="dpf_nik_wali" class="form-control form-control-sm" maxlength="16" inputmode="numeric" pattern="[0-9]*"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Pendidikan</label>
+                    <select name="pendidikan_wali" id="dpf_pendidikan_wali" class="form-select form-select-sm"><option value="">—</option><?php foreach($pend_opts as $po): ?><option value="<?=$po?>"><?=$po?></option><?php endforeach;?></select></div>
+                <div class="col-3"><label class="form-label mb-0 small">No. HP</label>
+                    <input type="text" name="telp_wali" id="dpf_telp_wali" class="form-control form-control-sm" inputmode="tel"></div>
+                <div class="col-5"><label class="form-label mb-0 small">Pekerjaan</label>
+                    <input type="text" name="pekerjaan_wali" id="dpf_pekerjaan_wali" class="form-control form-control-sm" list="pekerjaan_list2"></div>
+                <div class="col-4"><label class="form-label mb-0 small">Penghasilan/Bln</label>
+                    <input type="text" name="penghasilan_wali" id="dpf_penghasilan_wali" class="form-control form-control-sm" list="penghasilan_list2"></div>
+                <div class="col-12"><label class="form-label mb-0 small">Alamat Wali</label>
+                    <input type="text" name="alamat_wali" id="dpf_alamat_wali" class="form-control form-control-sm"></div>
+            </div>
+          </div>
+        </div>
+        <div class="border-top p-3 d-flex gap-2 flex-wrap">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="dpf_cetak_btn">
+                <i class="bi bi-printer me-1"></i>Cetak
+            </button>
+            <button type="submit" class="btn btn-success btn-sm flex-grow-1" id="dpf_submit">
+                <i class="bi bi-check-circle me-1"></i><span id="dpf_submit_label">Simpan (→ Proses)</span>
+            </button>
+            <button type="button" class="btn btn-outline-success btn-sm" id="dpf_tandai_btn" style="display:none;"
+                    onclick="if(confirm('Tandai siswa ini sudah Daftar Ulang?')) document.getElementById('dpf_form_tandai').submit()">
+                <i class="bi bi-check-all me-1"></i>Sudah DU
+            </button>
+            <button type="button" class="btn btn-outline-danger btn-sm" id="dpf_batal_btn" style="display:none;"
+                    onclick="if(confirm('Reset status daftar ulang siswa ini ke Belum?')) document.getElementById('dpf_form_batal').submit()">
+                <i class="bi bi-arrow-counterclockwise"></i>
+            </button>
+        </div>
+    </form>
+    <form method="POST" id="dpf_form_tandai" style="display:none;">
+        <input type="hidden" name="action" value="tandai_du_sudah">
+        <input type="hidden" name="pendaftar_id" id="dpf_form_tandai_id">
+    </form>
+    <form method="POST" id="dpf_form_batal" style="display:none;">
+        <input type="hidden" name="action" value="batal_du">
+        <input type="hidden" name="pendaftar_id" id="dpf_form_batal_id">
+    </form>
+</div>
+
+</div><!-- /col-lg-5 -->
+</div><!-- /row -->
+
 <script>
 (function(){
     const search  = document.getElementById('cariTabelDU');
@@ -1161,6 +1388,80 @@ function hideEditPanel() {
     const holder = document.getElementById('editEmptyPlaceholder');
     if (panel)  panel.style.display  = 'none';
     if (holder) holder.style.display = '';
+}
+
+// ── Form DU Langsung (panel kanan di mode tanpa meja) ─────────────────────────
+function openDuPanel(id) {
+    const p = DU_DATA[id];
+    if (!p) return;
+    const s = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val ?? ''; };
+    const du = p.daftar_ulang || 'belum';
+
+    document.getElementById('dpf_id').value = p.id;
+    document.getElementById('dpf_nama').textContent = p.nama || '—';
+    const jurShort = p.jurusan ? (p.jurusan.match(/\(([^)]+)\)/) || ['',''])[1] || p.jurusan.substring(0,6) : '';
+    const duLabel  = du === 'sudah' ? '✓ Sudah DU' : du === 'proses' ? '⏳ Proses' : 'Belum DU';
+    document.getElementById('dpf_sub').textContent = (p.no_pendaftaran||'') + ' · ' + jurShort + ' · ' + duLabel;
+
+    const nrv = document.getElementById('dpf_namarv');
+    const nisnrv = document.getElementById('dpf_nisnrv');
+    if (nrv) nrv.value = p.nama || '';
+    if (nisnrv) nisnrv.value = p.nisn || '';
+
+    s('dpf_nis', p.nis); s('dpf_nik', p.nik); s('dpf_no_kk', p.no_kk);
+    s('dpf_kewarganegaraan', p.kewarganegaraan || 'WNI');
+    s('dpf_agama', p.agama); s('dpf_anak_ke', p.anak_ke); s('dpf_tahun_lulus', p.tahun_lulus);
+    s('dpf_tempat_lahir', p.tempat_lahir); s('dpf_email', p.email);
+    s('dpf_alamat_lengkap', p.alamat_lengkap || p.alamat);
+    s('dpf_rt', p.rt); s('dpf_rw', p.rw);
+    s('dpf_kecamatan', p.kecamatan); s('dpf_kabupaten', p.kabupaten);
+    s('dpf_provinsi', p.provinsi || 'DKI Jakarta'); s('dpf_kode_pos', p.kode_pos);
+    s('dpf_kip_kjp_kps', p.kip_kjp_kps);
+    s('dpf_nama_ayah', p.nama_ayah); s('dpf_nik_ayah', p.nik_ayah);
+    s('dpf_pendidikan_ayah', p.pendidikan_ayah); s('dpf_pekerjaan_ayah', p.pekerjaan_ayah);
+    s('dpf_penghasilan_ayah', p.penghasilan_ayah); s('dpf_telp_ayah', p.telp_ayah);
+    s('dpf_alamat_ayah', p.alamat_ayah);
+    s('dpf_nama_ibu', p.nama_ibu); s('dpf_nik_ibu', p.nik_ibu);
+    s('dpf_pendidikan_ibu', p.pendidikan_ibu); s('dpf_pekerjaan_ibu', p.pekerjaan_ibu);
+    s('dpf_penghasilan_ibu', p.penghasilan_ibu); s('dpf_telp_ibu', p.telp_ibu);
+    s('dpf_alamat_ibu', p.alamat_ibu);
+    s('dpf_nama_wali', p.nama_wali); s('dpf_hubungan_wali', p.hubungan_wali);
+    s('dpf_nik_wali', p.nik_wali); s('dpf_pendidikan_wali', p.pendidikan_wali);
+    s('dpf_pekerjaan_wali', p.pekerjaan_wali); s('dpf_penghasilan_wali', p.penghasilan_wali);
+    s('dpf_telp_wali', p.telp_wali); s('dpf_alamat_wali', p.alamat_wali);
+
+    const lbl = document.getElementById('dpf_submit_label');
+    if (lbl) lbl.textContent = du === 'belum' ? 'Simpan (→ Proses)' : 'Update Data';
+
+    const tandaiBtn = document.getElementById('dpf_tandai_btn');
+    const batalBtn  = document.getElementById('dpf_batal_btn');
+    if (tandaiBtn) tandaiBtn.style.display = du === 'proses' ? '' : 'none';
+    if (batalBtn)  batalBtn.style.display  = du !== 'belum'  ? '' : 'none';
+
+    const tId = document.getElementById('dpf_form_tandai_id');
+    const bId = document.getElementById('dpf_form_batal_id');
+    if (tId) tId.value = p.id;
+    if (bId) bId.value = p.id;
+
+    const cetakBtn = document.getElementById('dpf_cetak_btn');
+    if (cetakBtn) cetakBtn.onclick = () => cetakSPTJM(p);
+
+    const firstTab = document.querySelector('#dpfTabs .nav-link');
+    if (firstTab) new bootstrap.Tab(firstTab).show();
+
+    document.getElementById('duPanelPlaceholder').style.display = 'none';
+    document.getElementById('duPanelForm').style.display = '';
+
+    document.querySelectorAll('.du-tabel-row').forEach(tr => tr.classList.remove('table-active'));
+    document.querySelector(`.du-tabel-row[data-id="${id}"]`)?.classList.add('table-active');
+}
+
+function closeDuPanel() {
+    const ph = document.getElementById('duPanelPlaceholder');
+    const pf = document.getElementById('duPanelForm');
+    if (ph) ph.style.display = '';
+    if (pf) pf.style.display = 'none';
+    document.querySelectorAll('.du-tabel-row').forEach(tr => tr.classList.remove('table-active'));
 }
 
 // ── Cetak SPTJM (Surat Pernyataan Tanggung Jawab Mutlak) ──────────────────────
