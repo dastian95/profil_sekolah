@@ -20,7 +20,7 @@ jobs:
       - name: Install lftp
         run: sudo apt-get install -y lftp
 
-      - name: Deploy via SFTP
+      - name: Deploy via FTP
         env:
           HOST: ${{ secrets.FTP_SERVER }}
           USER: ${{ secrets.FTP_USERNAME }}
@@ -28,15 +28,17 @@ jobs:
           DIR:  ${{ secrets.FTP_SERVER_DIR }}
         run: |
           lftp -c "
-            set sftp:auto-confirm yes
-            set net:timeout 20
-            set net:max-retries 5
+            set ftp:ssl-allow yes
+            set ftp:ssl-force no
+            set ftp:ssl-protect-data yes
+            set ssl:verify-certificate no
+            set ftp:passive-mode on
+            set net:timeout 30
+            set net:max-retries 3
             set net:reconnect-interval-base 5
-            set net:reconnect-interval-multiplier 1
-            set net:persist-retries 5
-            set mirror:parallel-transfer-count 2
-            open -u \"$USER\",\"$PASS\" sftp://$HOST
-            mirror --reverse --verbose --ignore-time --no-perms --continue \
+            set mirror:parallel-transfer-count 1
+            open -u \"$USER\",\"$PASS\" ftp://$HOST
+            mirror --reverse --verbose --no-perms \
               --exclude-glob .git \
               --exclude-glob .github \
               --exclude-glob node_modules \
