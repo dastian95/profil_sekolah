@@ -1319,7 +1319,7 @@ function cetakSPTJM(p) {
         <div class="ttd-box">
             <div style="margin-bottom:2px;">Jakarta, ${tglSurat}</div>
             <div style="margin-bottom:4px;">Kepala Sekolah,</div>
-            <div style="font-size:9pt;color:#666;margin-bottom:54px;">(tanda tangan &amp; stempel)</div>
+            <div style="font-size:9pt;color:#666;margin-bottom:54px;"></div>
             <div class="nama" style="min-width:230px;">Momon Darmawan, S.Pd, Gr</div>
             <div style="font-size:10pt;margin-top:3px;"></div>
         </div>
