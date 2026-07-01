@@ -5,6 +5,11 @@ on:
     branches:
       - main
 
+# Jangan biarkan beberapa deploy jalan bertumpuk — batalkan yang lama.
+concurrency:
+  group: deploy-hostinger
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -24,15 +29,18 @@ jobs:
         run: |
           lftp -c "
             set sftp:auto-confirm yes
-            set net:timeout 60
-            set net:max-retries 10
+            set net:timeout 20
+            set net:max-retries 5
             set net:reconnect-interval-base 5
             set net:reconnect-interval-multiplier 1
+            set net:persist-retries 5
+            set mirror:parallel-transfer-count 2
             open -u \"$USER\",\"$PASS\" sftp://$HOST
-            mirror --reverse --verbose \
+            mirror --reverse --verbose --ignore-time --no-perms --continue \
               --exclude-glob .git \
               --exclude-glob .github \
               --exclude-glob node_modules \
+              --exclude-glob .env \
               . \"$DIR\"
             quit
           "
