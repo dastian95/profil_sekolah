@@ -1177,7 +1177,8 @@ function cetakSPTJM(p) {
     gHp      = gHp      || dot;
 
     const tglLahirFmt = p.tanggal_lahir ? new Date(p.tanggal_lahir).toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'}) : '...........';
-    const ttlStr = (p.tempat_lahir || '...........') + ', ' + tglLahirFmt;
+    const ttlStr = tglLahirFmt;
+    const ttlStr2 = (p.tempat_lahir || '...........') + ', ' + tglLahirFmt;
 
     const now = new Date();
     const bulanList = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
@@ -1252,7 +1253,7 @@ function cetakSPTJM(p) {
         <table>
             <tr><td>Nama Peserta Didik</td><td>:</td><td>${p.nama || dot}</td></tr>
             <tr><td>NISN</td><td>:</td><td>${p.nisn || dot}</td></tr>
-            <tr><td>Tempat, Tanggal Lahir</td><td>:</td><td>${ttlStr}</td></tr>
+            <tr><td>Tempat, Tanggal Lahir</td><td>:</td><td>${ttlStr2}</td></tr>
             <tr><td>Asal Sekolah</td><td>:</td><td>${p.asal_sekolah || dot}</td></tr>
         </table>
     </div>
