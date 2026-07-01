@@ -26,7 +26,7 @@ if (isset($_GET['json'])) {
         $stmt = $conn->query("
             SELECT nama, nisn, jurusan, nilai_raport, nilai_tka, nilai_akhir, gelombang, is_pinned
             FROM pendaftar WHERE status = 'terima' AND is_undur_diri=0{$glm_where}
-            ORDER BY jurusan ASC, nilai_akhir DESC, usia DESC
+            ORDER BY jurusan ASC, nilai_akhir DESC, usia DESC, id ASC
         ");
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {}
@@ -50,7 +50,7 @@ try {
     $stmt = $conn->query("
         SELECT nama, nisn, jurusan, nilai_raport, nilai_tka, nilai_akhir, gelombang, is_pinned
         FROM pendaftar WHERE status = 'terima' AND is_undur_diri=0{$glm_where}
-        ORDER BY jurusan ASC, nilai_akhir DESC, usia DESC
+        ORDER BY jurusan ASC, nilai_akhir DESC, usia DESC, id ASC
     ");
     $tmp = []; foreach (JURUSAN_LIST as $j) $tmp[$j] = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) { if (isset($tmp[$r['jurusan']])) $tmp[$r['jurusan']][] = $r; }

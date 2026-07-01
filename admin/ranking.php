@@ -184,17 +184,17 @@ $db_error = null;
 try {
     foreach ($target_jurusan as $jurusan) {
         $stmt = $conn->prepare("SELECT * FROM pendaftar WHERE gelombang=? AND jurusan=? AND is_ditahan=0 AND is_undur_diri=0
-                                ORDER BY is_pinned DESC, nilai_akhir DESC");
+                                ORDER BY is_pinned DESC, nilai_akhir DESC, usia DESC, id ASC");
         $stmt->execute([$fGel, $jurusan]);
         $list = $stmt->fetchAll();
 
         $stmtDitahan = $conn->prepare("SELECT * FROM pendaftar WHERE gelombang=? AND jurusan=? AND is_ditahan=1
-                                       ORDER BY nilai_akhir DESC");
+                                       ORDER BY nilai_akhir DESC, usia DESC, id ASC");
         $stmtDitahan->execute([$fGel, $jurusan]);
         $list_ditahan = $stmtDitahan->fetchAll();
 
         $stmtUndur = $conn->prepare("SELECT * FROM pendaftar WHERE gelombang=? AND jurusan=? AND is_undur_diri=1
-                                     ORDER BY nilai_akhir DESC");
+                                     ORDER BY nilai_akhir DESC, usia DESC, id ASC");
         $stmtUndur->execute([$fGel, $jurusan]);
         $list_undur = $stmtUndur->fetchAll();
 
@@ -235,7 +235,8 @@ function rank_sort(array $list, string $key): array {
         if ($key === 'g1') {
             if ((float)$a['nilai_akhir'] != (float)$b['nilai_akhir'])
                 return (float)$b['nilai_akhir'] <=> (float)$a['nilai_akhir'];
-            return $b['usia'] <=> $a['usia'];
+            // Tiebreaker deterministik: usia DESC, lalu id ASC (cegah urutan acak saat seri)
+            return ($b['usia'] <=> $a['usia']) ?: ((int)$a['id'] <=> (int)$b['id']);
         }
         if ($key === 'g2_jarak') {
             $ja = isset($a['jarak_km']) && $a['jarak_km'] !== null ? (float)$a['jarak_km'] : 9999;

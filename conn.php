@@ -73,11 +73,13 @@ function auto_rank_jurusan(PDO $conn, int $gelombang, string $jurusan): void {
         }
     }
 
-    // Kursi terkunci (PIN / sudah Daftar Ulang) selalu di atas, lalu nilai_akhir DESC, usia DESC
+    // Kursi terkunci (PIN / sudah Daftar Ulang) selalu di atas, lalu nilai_akhir DESC, usia DESC.
+    // Tiebreaker terakhir id ASC → urutan DETERMINISTIK saat semua metrik seri (cegah data "tertukar").
     usort($eligible, fn($a, $b) =>
         ((int)$b['_locked'] <=> (int)$a['_locked'])
         ?: ((float)$b['nilai_akhir'] <=> (float)$a['nilai_akhir'])
         ?: ((int)$b['usia'] <=> (int)$a['usia'])
+        ?: ((int)$a['id'] <=> (int)$b['id'])
     );
 
     // Kursi terkunci dijamin 'terima' & memakai kuota lebih dulu.

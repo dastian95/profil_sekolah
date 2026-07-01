@@ -31,7 +31,7 @@ if (isset($_GET['json'])) {
                         (SELECT COUNT(*)+1 FROM pendaftar p2
                          WHERE p2.jurusan = p.jurusan AND p2.nilai_akhir > p.nilai_akhir) AS peringkat
                  FROM pendaftar p WHERE " . implode(' AND ', $where) . "
-                 ORDER BY p.jurusan ASC, p.nilai_akhir DESC LIMIT 500";
+                 ORDER BY p.jurusan ASC, p.nilai_akhir DESC, p.usia DESC, p.id ASC LIMIT 500";
         $st   = $conn->prepare($sql);
         $st->execute($params);
         echo json_encode(['rows' => $st->fetchAll(PDO::FETCH_ASSOC)]);

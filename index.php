@@ -804,7 +804,7 @@ $slist = fn($k, $d = '') => array_values(array_filter(array_map('trim', explode(
             // Ambil data terima untuk kedua kondisi (hasil resmi maupun sedang berjalan)
             $list = [];
             $diterima = $conn->prepare("SELECT no_pendaftaran, nama, nisn, jurusan, nilai_raport, nilai_tka, nilai_akhir, status FROM pendaftar
-                  WHERE gelombang=? AND status='terima' ORDER BY jurusan, nilai_akhir DESC");
+                  WHERE gelombang=? AND status='terima' ORDER BY jurusan, nilai_akhir DESC, usia DESC, id ASC");
             $diterima->execute([$g['gelombang']]);
             $list = $diterima->fetchAll();
             $is_first_tab = ($gi_idx === 0);
