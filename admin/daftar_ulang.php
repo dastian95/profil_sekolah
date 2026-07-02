@@ -31,6 +31,19 @@ try { $conn->exec("ALTER TABLE antrian ADD COLUMN jenis ENUM('ppdb','daftar_ulan
 try { $conn->exec("ALTER TABLE antrian ADD COLUMN jurusan_du VARCHAR(100) NOT NULL DEFAULT '' AFTER jenis"); } catch (PDOException $e) {}
 try { $conn->exec("ALTER TABLE antrian DROP INDEX uk_tanggal_jenis_nomor_fase"); } catch (PDOException $e) {}
 try { $conn->exec("ALTER TABLE antrian ADD UNIQUE KEY uk_tanggal_jenis_nomor_fase_jur (tanggal, jenis, nomor, fase, jurusan_du)"); } catch (PDOException $e) {}
+// Backfill SEKALI: tiket DU lama (dibuat sebelum kolom jurusan_du ada, isinya '')
+// diisi ulang dari meja/pendaftar-nya — supaya hitungan per-jurusan tidak
+// menganggap tiket lama "tidak pernah ada" lalu mengulang dari 1 lagi.
+// Idempoten — WHERE jurusan_du='' otomatis tak menemukan apa-apa di run berikutnya.
+// UPDATE IGNORE: kalau ada baris yang backfill-nya bentrok dgn UNIQUE KEY (nomor
+// sama sudah dipakai di jurusan itu), baris itu DILEWATI — bukan menggagalkan
+// seluruh backfill. Kolom 'nomor' tidak pernah disentuh (nomor aktif TIDAK berubah).
+try { $conn->exec("UPDATE IGNORE antrian a JOIN meja m ON m.id=a.meja_id
+                    SET a.jurusan_du=m.jurusan_du
+                    WHERE a.jenis='daftar_ulang' AND a.jurusan_du='' AND m.jurusan_du IS NOT NULL AND m.jurusan_du<>''"); } catch (Throwable $e) {}
+try { $conn->exec("UPDATE IGNORE antrian a JOIN pendaftar p ON p.id=a.pendaftar_id
+                    SET a.jurusan_du=p.jurusan
+                    WHERE a.jenis='daftar_ulang' AND a.jurusan_du='' AND a.meja_id IS NULL"); } catch (Throwable $e) {}
 
 // Kolom tambahan pendaftar untuk data lengkap siswa (sesuai Formulir Pendaftaran)
 $new_cols = [
@@ -272,6 +285,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $redir();
     }
 
+    // Panggil dengan nomor pilihan sendiri (manual), tetap per-jurusan & sistem sama
+    if ($action === 'mulai_du_manual') {
+        $nomor_manual = (int)($_POST['nomor_manual'] ?? 0);
+        if ($nomor_manual < 1 || $nomor_manual > 99) {
+            $_SESSION['flash_du'] = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-1"></i>Nomor harus antara 1-99.</div>';
+            $redir();
+        }
+        $mulai_jur = '';
+        foreach ($mejas_aktif as $m) { if ((int)$m['id'] === $du_meja_id) { $mulai_jur = $m['jurusan_du'] ?? ''; break; } }
+        $conn->beginTransaction();
+        try {
+            $cek = $conn->prepare("SELECT id FROM antrian WHERE tanggal=? AND jenis='daftar_ulang' AND meja_id=? AND status='dipanggil'");
+            $cek->execute([$today, $du_meja_id]);
+            if ($cek->fetch()) {
+                $conn->rollBack();
+                $_SESSION['flash_du'] = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-1"></i>Sudah ada nomor aktif di meja ini.</div>';
+                $redir();
+            }
+            $conn->prepare("INSERT INTO antrian (tanggal, jenis, jurusan_du, nomor, status, meja_id, dipanggil_at) VALUES (?, 'daftar_ulang', ?, ?, 'dipanggil', ?, NOW(3))")
+                 ->execute([$today, $mulai_jur, $nomor_manual, $du_meja_id]);
+            $conn->commit();
+        } catch(Throwable $e) {
+            if ($conn->inTransaction()) $conn->rollBack();
+            $dupe = ($e->getCode() === '23000');
+            $_SESSION['flash_du'] = $dupe
+                ? '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-1"></i>Nomor '.$nomor_manual.' sudah dipakai untuk jurusan ini hari ini. Coba nomor lain.</div>'
+                : '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-1"></i>Gagal memanggil nomor. Coba lagi.</div>';
+        }
+        $redir();
+    }
+
     if ($action === 'recall_du') {
         $ant_id = (int)$_POST['antrian_id'];
         $conn->prepare("UPDATE antrian SET dipanggil_at=NOW() WHERE id=? AND meja_id=? AND status='dipanggil'")
@@ -377,6 +421,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// Flash message (PRG) — dipakai action mulai_du_manual utk lapor error/duplikat
+$du_flash_msg = '';
+if (!empty($_SESSION['flash_du'])) {
+    $du_flash_msg = $_SESSION['flash_du'];
+    unset($_SESSION['flash_du']);
+}
+
 // ── State ─────────────────────────────────────────────────────────────────────
 $du_meja_id = (int)($_SESSION['du_meja_id'] ?? 0);
 $du_meja    = null;
@@ -464,6 +515,8 @@ $agama_opts = ['Islam','Kristen','Katolik','Hindu','Buddha','Konghucu','Lainnya'
 .btn-du-start   { background: linear-gradient(135deg,#059669,#34d399); }
 .du-stat-pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 40px; font-weight: 600; font-size: .82rem; }
 </style>
+
+<?= $du_flash_msg ?>
 
 <!-- Header -->
 <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
@@ -899,6 +952,15 @@ $du_kode_meja    = JURUSAN_SHORT[$du_jurusan_meja ?? ''] ?? '';
         <input type="hidden" name="action" value="mulai_du">
         <button class="btn-du-main btn-du-start btn px-5"><i class="bi bi-megaphone me-1"></i>Panggil</button>
     </form>
+    <div class="d-flex align-items-center justify-content-center gap-2 mt-3">
+        <div class="text-muted small">atau</div>
+    </div>
+    <form method="POST" class="d-flex justify-content-center align-items-center gap-2 mt-2">
+        <input type="hidden" name="action" value="mulai_du_manual">
+        <input type="number" name="nomor_manual" class="form-control form-control-sm text-center"
+               style="width:80px;" min="1" max="99" placeholder="1-99" required>
+        <button class="btn btn-outline-success btn-sm"><i class="bi bi-hash me-1"></i>Panggil Nomor Ini</button>
+    </form>
     <div class="mt-2 text-muted small">Siswa datang → klik <strong>Link</strong> di daftar bawah</div>
 </div>
 <?php endif; ?>
@@ -1303,7 +1365,10 @@ $du_kode_meja    = JURUSAN_SHORT[$du_jurusan_meja ?? ''] ?? '';
 
 <script>
 // Data lengkap semua siswa diterima — dipakai oleh bukaEditDU() dan cetakSPTJM()
-const DU_DATA = <?= json_encode(array_column($diterima_list, null, 'id'), JSON_UNESCAPED_UNICODE|JSON_HEX_TAG) ?>;
+// JSON_INVALID_UTF8_SUBSTITUTE + fallback '{}' — cegah SATU record berdata rusak
+// (UTF-8 tak valid dari copy-paste) membuat json_encode return false → "const DU_DATA = ;"
+// (syntax error) → seluruh JS halaman mati → tombol Edit/Cetak tak berfungsi.
+const DU_DATA = <?= json_encode(array_column($diterima_list, null, 'id'), JSON_UNESCAPED_UNICODE|JSON_HEX_TAG|JSON_INVALID_UTF8_SUBSTITUTE) ?: '{}' ?>;
 </script>
 <script>
 // ── Filter jurusan + teks DU (localStorage agar tidak reset saat refresh) ─────
