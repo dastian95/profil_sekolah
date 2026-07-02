@@ -285,7 +285,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $redir();
     }
 
-    // Panggil dengan nomor pilihan sendiri (manual), tetap per-jurusan & sistem sama
+    // Panggil dengan nomor pilihan sendiri (manual), tetap per-jurusan & sistem sama.
+    // Kalau nomor SUDAH ADA (selesai/skip/menunggu) → PANGGIL ULANG tiket itu (aktifkan
+    // kembali) alih-alih menolak — berguna utk memanggil nomor yang tadi terlewat/skip
+    // walau antrian sudah jauh. Data siswa yang sudah tertaut tetap.
     if ($action === 'mulai_du_manual') {
         $nomor_manual = (int)($_POST['nomor_manual'] ?? 0);
         if ($nomor_manual < 1 || $nomor_manual > 99) {
@@ -300,18 +303,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $cek->execute([$today, $du_meja_id]);
             if ($cek->fetch()) {
                 $conn->rollBack();
-                $_SESSION['flash_du'] = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-1"></i>Sudah ada nomor aktif di meja ini.</div>';
+                $_SESSION['flash_du'] = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-1"></i>Sudah ada nomor aktif di meja ini. Selesaikan / Skip dulu.</div>';
                 $redir();
             }
-            $conn->prepare("INSERT INTO antrian (tanggal, jenis, jurusan_du, nomor, status, meja_id, dipanggil_at) VALUES (?, 'daftar_ulang', ?, ?, 'dipanggil', ?, NOW(3))")
-                 ->execute([$today, $mulai_jur, $nomor_manual, $du_meja_id]);
+            // Sudah ada tiket dgn nomor ini utk jurusan ini hari ini?
+            $ex = $conn->prepare("SELECT id FROM antrian WHERE tanggal=? AND jenis='daftar_ulang' AND jurusan_du=? AND nomor=? LIMIT 1");
+            $ex->execute([$today, $mulai_jur, $nomor_manual]);
+            $exId = (int)$ex->fetchColumn();
+            if ($exId) {
+                // Panggil ulang tiket lama — status kembali 'dipanggil' di meja ini
+                $conn->prepare("UPDATE antrian SET status='dipanggil', meja_id=?, dipanggil_at=NOW(3) WHERE id=?")
+                     ->execute([$du_meja_id, $exId]);
+            } else {
+                // Nomor baru — buat tiket baru
+                $conn->prepare("INSERT INTO antrian (tanggal, jenis, jurusan_du, nomor, status, meja_id, dipanggil_at) VALUES (?, 'daftar_ulang', ?, ?, 'dipanggil', ?, NOW(3))")
+                     ->execute([$today, $mulai_jur, $nomor_manual, $du_meja_id]);
+            }
             $conn->commit();
         } catch(Throwable $e) {
             if ($conn->inTransaction()) $conn->rollBack();
-            $dupe = ($e->getCode() === '23000');
-            $_SESSION['flash_du'] = $dupe
-                ? '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-1"></i>Nomor '.$nomor_manual.' sudah dipakai untuk jurusan ini hari ini. Coba nomor lain.</div>'
-                : '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-1"></i>Gagal memanggil nomor. Coba lagi.</div>';
+            $_SESSION['flash_du'] = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-1"></i>Gagal memanggil nomor. Coba lagi.</div>';
         }
         $redir();
     }
@@ -735,7 +746,7 @@ $belum_count = count($all_terima) - $sudah_count;
             <i class="bi bi-x-lg"></i>
         </button>
     </div>
-    <form method="POST" id="formDuLangsung">
+    <form method="POST" id="formDuLangsung" novalidate>
         <input type="hidden" name="action" value="simpan_du">
         <input type="hidden" name="pendaftar_id" id="dpf_id">
         <ul class="nav nav-tabs nav-fill px-3 pt-2 border-bottom-0 bg-light small" id="dpfTabs">
@@ -749,7 +760,7 @@ $belum_count = count($all_terima) - $sudah_count;
                     <input class="form-control form-control-sm" id="dpf_namarv" readonly style="background:#f0fdf4;"></div>
                 <div class="col-5"><label class="form-label mb-0 small">NISN</label>
                     <input class="form-control form-control-sm" id="dpf_nisnrv" readonly style="background:#f0fdf4;"></div>
-                <div class="col-7"><label class="form-label mb-0 small">NIS <span class="text-danger">*</span></label>
+                <div class="col-7"><label class="form-label mb-0 small">NIS <span class="fw-normal text-muted">(opsional)</span></label>
                     <input type="text" name="nis" id="dpf_nis" class="form-control form-control-sm" placeholder="Dari sekolah"></div>
                 <div class="col-4"><label class="form-label mb-0 small">NIK Siswa</label>
                     <input type="text" name="nik" id="dpf_nik" class="form-control form-control-sm" maxlength="16" inputmode="numeric" pattern="[0-9]*"></div>
@@ -1072,7 +1083,7 @@ $du_kode_meja    = JURUSAN_SHORT[$du_jurusan_meja ?? ''] ?? '';
         <div style="font-size:.75rem;opacity:.85;"><?= htmlspecialchars($current_p['no_pendaftaran']) ?> &middot; NISN: <?= htmlspecialchars($current_p['nisn'] ?? '—') ?></div>
     </div>
     <div class="card-body p-0">
-    <form method="POST" id="formDU">
+    <form method="POST" id="formDU" novalidate>
         <input type="hidden" name="action" value="selesai_du">
         <input type="hidden" name="antrian_id" value="<?= $current['id'] ?>">
         <input type="hidden" name="pendaftar_id" value="<?= $current_p['id'] ?>">
@@ -1093,7 +1104,7 @@ $du_kode_meja    = JURUSAN_SHORT[$du_jurusan_meja ?? ''] ?? '';
                     <input class="form-control form-control-sm" value="<?= htmlspecialchars($p['nama']??'') ?>" readonly style="background:#f0fdf4;"></div>
                 <div class="col-3"><label class="form-label mb-0 small">NISN</label>
                     <input class="form-control form-control-sm" value="<?= htmlspecialchars($p['nisn']??'') ?>" readonly style="background:#f0fdf4;"></div>
-                <div class="col-3"><label class="form-label mb-0 small">NIS <span class="text-danger">*</span></label>
+                <div class="col-3"><label class="form-label mb-0 small">NIS <span class="fw-normal text-muted">(opsional)</span></label>
                     <input type="text" name="nis" class="form-control form-control-sm" value="<?= htmlspecialchars($p['nis']??'') ?>" placeholder="Dari sekolah"></div>
 
                 <div class="col-4"><label class="form-label mb-0 small">NIK Siswa</label>
@@ -1148,8 +1159,13 @@ $du_kode_meja    = JURUSAN_SHORT[$du_jurusan_meja ?? ''] ?? '';
 
           <!-- Tab B: Data Orang Tua/Wali -->
           <div class="tab-pane fade" id="du2">
+            <div class="alert alert-info py-2 small mb-3">
+              <i class="bi bi-info-circle me-1"></i>
+              Semua data di bawah <strong>opsional</strong> — isi yang ada saja, <strong>kosongkan</strong> bila tidak ada.
+              Jangan diisi "0". Untuk yatim/piatu/hanya wali, cukup isi bagian yang tersedia.
+            </div>
             <!-- Ayah -->
-            <div class="small fw-bold text-uppercase text-muted mb-2" style="letter-spacing:.5px;">1. Ayah Kandung</div>
+            <div class="small fw-bold text-uppercase text-muted mb-2" style="letter-spacing:.5px;">1. Ayah Kandung <span class="fw-normal text-muted">(opsional)</span></div>
             <div class="row g-2 mb-3">
                 <div class="col-7"><label class="form-label mb-0 small">Nama Lengkap Ayah</label>
                     <input type="text" name="nama_ayah" class="form-control form-control-sm" value="<?= htmlspecialchars($p['nama_ayah']??'') ?>"></div>
@@ -1168,7 +1184,7 @@ $du_kode_meja    = JURUSAN_SHORT[$du_jurusan_meja ?? ''] ?? '';
             </div>
             <hr class="my-2">
             <!-- Ibu -->
-            <div class="small fw-bold text-uppercase text-muted mb-2" style="letter-spacing:.5px;">2. Ibu Kandung</div>
+            <div class="small fw-bold text-uppercase text-muted mb-2" style="letter-spacing:.5px;">2. Ibu Kandung <span class="fw-normal text-muted">(opsional)</span></div>
             <div class="row g-2 mb-3">
                 <div class="col-7"><label class="form-label mb-0 small">Nama Lengkap Ibu</label>
                     <input type="text" name="nama_ibu" class="form-control form-control-sm" value="<?= htmlspecialchars($p['nama_ibu']??'') ?>"></div>
@@ -1280,7 +1296,7 @@ $du_kode_meja    = JURUSAN_SHORT[$du_jurusan_meja ?? ''] ?? '';
             <i class="bi bi-x-lg"></i>
         </button>
     </div>
-    <form method="POST" class="d-flex flex-column" style="min-height:0;flex:1;">
+    <form method="POST" class="d-flex flex-column" style="min-height:0;flex:1;" novalidate>
         <input type="hidden" name="action" value="simpan_edit_du">
         <input type="hidden" name="pendaftar_id" id="ep_pendaftar_id">
         <ul class="nav nav-tabs nav-fill px-3 pt-2 border-bottom-0 bg-light small" id="epTabs">
@@ -1311,7 +1327,11 @@ $du_kode_meja    = JURUSAN_SHORT[$du_jurusan_meja ?? ''] ?? '';
             </div>
           </div>
           <div class="tab-pane fade" id="ep2">
-            <div class="small fw-bold text-uppercase text-muted mb-2">1. Ayah</div>
+            <div class="alert alert-info py-2 small mb-3">
+              <i class="bi bi-info-circle me-1"></i>
+              Semua data orang tua/wali <strong>opsional</strong> — kosongkan bila tidak ada, jangan diisi "0".
+            </div>
+            <div class="small fw-bold text-uppercase text-muted mb-2">1. Ayah <span class="fw-normal text-muted">(opsional)</span></div>
             <div class="row g-2 mb-3">
                 <div class="col-7"><label class="form-label mb-0 small">Nama Ayah</label><input type="text" name="nama_ayah" id="ep_nama_ayah" class="form-control form-control-sm"></div>
                 <div class="col-5"><label class="form-label mb-0 small">NIK Ayah</label><input type="text" name="nik_ayah" id="ep_nik_ayah" class="form-control form-control-sm" maxlength="16" inputmode="numeric" pattern="[0-9]*"></div>
@@ -1545,11 +1565,13 @@ function closeDuPanel() {
 // ── Cetak SPTJM (Surat Pernyataan Tanggung Jawab Mutlak) ──────────────────────
 function cetakSPTJM(p) {
     const dot = '...........';
+    // "0" / "-" dianggap kosong (sisa kebiasaan lama mengisi 0 saat data tak ada)
+    const real = v => { const s = String(v ?? '').trim(); return (s === '' || s === '0' || s === '-') ? '' : s; };
     // Pilih SATU sumber ortu/wali yang konsisten: Wali → Ibu → Ayah
     let namaWali, gNik, gAlamat, gHp;
-    if (p.nama_wali)      { namaWali = p.nama_wali; gNik = p.nik_wali; gAlamat = p.alamat_wali; gHp = p.telp_wali; }
-    else if (p.nama_ibu)  { namaWali = p.nama_ibu;  gNik = p.nik_ibu;  gAlamat = p.alamat_ibu;  gHp = p.telp_ibu; }
-    else if (p.nama_ayah) { namaWali = p.nama_ayah; gNik = p.nik_ayah; gAlamat = p.alamat_ayah; gHp = p.telp_ayah; }
+    if (real(p.nama_wali))      { namaWali = real(p.nama_wali); gNik = real(p.nik_wali); gAlamat = real(p.alamat_wali); gHp = real(p.telp_wali); }
+    else if (real(p.nama_ibu))  { namaWali = real(p.nama_ibu);  gNik = real(p.nik_ibu);  gAlamat = real(p.alamat_ibu);  gHp = real(p.telp_ibu); }
+    else if (real(p.nama_ayah)) { namaWali = real(p.nama_ayah); gNik = real(p.nik_ayah); gAlamat = real(p.alamat_ayah); gHp = real(p.telp_ayah); }
     namaWali = namaWali || dot;
     gNik     = gNik     || dot;
     gAlamat  = gAlamat  || p.kelurahan || dot;
