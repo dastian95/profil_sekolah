@@ -150,6 +150,11 @@ if (isset($_GET['json'])) {
             25%  { transform: scale(1.08); opacity: .7; color: #fde68a; }
             100% { transform: scale(1);    opacity: 1; }
         }
+        .current-jurusan {
+            margin-top: 10px; font-size: 1.6rem; font-weight: 800; letter-spacing: 2px;
+            padding: 6px 26px; border-radius: 50px;
+            background: rgba(16,185,129,.18); border: 1px solid rgba(16,185,129,.5); color: #6ee7b7;
+        }
         .current-desk {
             margin-top: 20px; font-size: 1.4rem; font-weight: 600;
             padding: 10px 32px; border-radius: 50px;
@@ -458,8 +463,13 @@ if (isset($_GET['json'])) {
         <div class="pulse-ring"></div>
         <div class="pulse-ring"></div>
         <div class="current-label">Nomor Antrian</div>
-        <div class="current-prefix" id="current-prefix"><?= ($latest['jenis'] ?? '') === 'daftar_ulang' ? 'DU' : 'SSG' ?></div>
+        <?php
+        $latest_is_du  = ($latest['jenis'] ?? '') === 'daftar_ulang';
+        $latest_jurkod = $latest_is_du ? (JURUSAN_SHORT[$latest['jurusan_du'] ?? ''] ?? ($latest['jurusan_du'] ?? '')) : '';
+        ?>
+        <div class="current-prefix" id="current-prefix"><?= $latest_is_du ? 'DU' : 'SSG' ?></div>
         <div class="current-number" id="current-number"><?= str_pad($latest['nomor'], 3, '0', STR_PAD_LEFT) ?></div>
+        <div class="current-jurusan" id="current-jurusan" style="<?= $latest_jurkod ? '' : 'display:none;' ?>"><?= htmlspecialchars($latest_jurkod) ?></div>
         <div class="current-desk" id="current-desk">
             <?= htmlspecialchars($latest['nama_meja'] ?: 'Loket ' . $latest['nomor_meja']) ?>
         </div>
@@ -861,6 +871,8 @@ function showBeepIndicator() {
 let lastNumber = <?= $latest ? $latest['nomor'] : 'null' ?>;
 let lastMejaId = <?= $latest ? ($latest['meja_id'] ?? 0) : 'null' ?>;
 const FASE_LABEL = {1: 'Silakan Menuju Loket', 2: 'Silakan Menuju Loket'};
+const JURUSAN_SHORT_JS = <?= json_encode(JURUSAN_SHORT, JSON_UNESCAPED_UNICODE) ?>;
+function jurusanKode(jurusanDu) { return JURUSAN_SHORT_JS[jurusanDu] || jurusanDu || ''; }
 function pad3(n)          { return String(n).padStart(3,'0'); }
 function prefix(jenis)    { return jenis === 'daftar_ulang' ? 'DU' : 'SSG'; }
 function fmtNum(n, jenis) { return prefix(jenis) + pad3(n); }
@@ -977,10 +989,17 @@ function refreshData() {
                     const deskEl   = document.getElementById('current-desk');
                     const faseEl   = document.getElementById('current-fase');
                     const prefixEl = document.getElementById('current-prefix');
+                    const jurEl    = document.getElementById('current-jurusan');
                     if (numEl)    { numEl.textContent = pad3(newNum); numEl.classList.add('flash'); setTimeout(() => numEl.classList.remove('flash'), 1200); }
                     if (deskEl)   { deskEl.textContent = latest.nama_meja || ('Loket ' + latest.nomor_meja); }
                     if (faseEl)   { faseEl.textContent = FASE_LABEL[latest.fase] || ''; }
                     if (prefixEl) { prefixEl.textContent = prefix(latest.jenis); }
+                    if (jurEl) {
+                        const isDu = latest.jenis === 'daftar_ulang';
+                        const kode = isDu ? jurusanKode(latest.jurusan_du) : '';
+                        jurEl.textContent = kode;
+                        jurEl.style.display = kode ? '' : 'none';
+                    }
                 }
             } else if (lastNumber !== null) {
                 lastNumber = null;
