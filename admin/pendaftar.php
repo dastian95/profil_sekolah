@@ -147,6 +147,14 @@ try { $conn->exec("UPDATE pendaftar SET jalur='yatim_piatu' WHERE jalur='afirmas
 try { $conn->exec("UPDATE pendaftar SET jalur='reguler' WHERE jalur IN ('zonasi','prestasi')"); } catch (PDOException $e) {}
 try { $conn->exec("ALTER TABLE pendaftar MODIFY COLUMN jalur ENUM('reguler','yatim_piatu','anak_guru','abk') NOT NULL DEFAULT 'reguler'"); } catch (PDOException $e) {}
 try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN nilai_khusus DECIMAL(5,2) NULL"); } catch (PDOException $e) {}
+// Alamat terstruktur (format Kartu Keluarga) — dipakai form pendaftaran & DU (idempoten)
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN alamat_jalan VARCHAR(255) NULL"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN rt VARCHAR(5) NULL"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN rw VARCHAR(5) NULL"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN kecamatan VARCHAR(100) NULL"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN kabupaten VARCHAR(100) NULL"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN provinsi VARCHAR(100) NULL"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN kode_pos VARCHAR(10) NULL"); } catch (PDOException $e) {}
 try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN alamat_sekolah VARCHAR(255) NULL"); } catch (PDOException $e) {}
 try { $conn->exec("ALTER TABLE pendaftar ADD COLUMN raport_mode VARCHAR(20) NOT NULL DEFAULT 'matrix'"); } catch (PDOException $e) {}
 // Kunci Kompetisi: flag "Ditahan" (status kedua) + kolom kunci gelombang
@@ -281,26 +289,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $tka_mtk_sv   = $sistem === 'reguler' ? $tka_mtk   : null;
             $tka_bindo_sv = $sistem === 'reguler' ? $tka_bindo : null;
 
-            // ── Zonasi & status orang tua (section Gelombang 2) ──────────────
-            $kelurahan_in = trim($_POST['kelurahan'] ?? '');
+            // ── Data tambahan + Alamat terstruktur (mengikuti susunan Kartu Keluarga) ──
             $status_ortu  = in_array($_POST['status_ortu'] ?? '', ['tidak','yatim','piatu','yatim_piatu'], true)
                 ? $_POST['status_ortu'] : 'tidak';
             $buta_warna   = in_array($_POST['buta_warna'] ?? '', ['belum','normal','buta_warna_parsial','buta_warna_total'], true)
                 ? $_POST['buta_warna'] : 'belum';
-            $jalur        = in_array($_POST['jalur'] ?? '', ['reguler','yatim_piatu','anak_guru','abk'], true)
-                ? $_POST['jalur'] : 'reguler';
-            $nilai_khusus = ($jalur === 'abk' && ($_POST['nilai_khusus'] ?? '') !== '')
-                ? min(100, max(0, (float)$_POST['nilai_khusus'])) : null;
+            $jalur        = 'reguler';   // sistem jalur G2 dihapus — semua reguler
+            $nilai_khusus = null;
             $alamat_sekolah = trim($_POST['alamat_sekolah'] ?? '') ?: null;
-            $zon          = $kelurahan_in !== '' ? zonasi_lookup($kelurahan_in) : null;
-            $kelurahan_sv = $zon ? $kelurahan_in : null;
-            $jarak_sv     = $zon ? $zon['jarak'] : null;
+            $jarak_sv     = null;        // zonasi/jarak tidak dipakai lagi
 
-            // Alamat: jika kelurahan dipilih, lengkapi otomatis dengan Kel/Kec
-            $alamat_in = trim($_POST['alamat'] ?? '');
-            if ($kelurahan_sv && stripos($alamat_in, $kelurahan_sv) === false) {
-                $alamat_in = trim($alamat_in . ($alamat_in !== '' ? ', ' : '')
-                    . 'Kel. ' . $kelurahan_sv . ', Kec. ' . $zon['kecamatan'] . ', Jakarta Timur');
+            // Komponen alamat (bebas, bisa daerah mana pun)
+            $alamat_jalan = trim($_POST['alamat_jalan'] ?? '');
+            $rt_sv        = trim($_POST['rt'] ?? '')        ?: null;
+            $rw_sv        = trim($_POST['rw'] ?? '')        ?: null;
+            $kelurahan_in = trim($_POST['kelurahan'] ?? '');
+            $kelurahan_sv = $kelurahan_in ?: null;
+            $kec_sv       = trim($_POST['kecamatan'] ?? '') ?: null;
+            $kab_sv       = trim($_POST['kabupaten'] ?? '') ?: null;
+            $prov_sv      = trim($_POST['provinsi'] ?? '')  ?: 'DKI Jakarta';   // default provinsi
+            $pos_sv       = trim($_POST['kode_pos'] ?? '')  ?: null;
+
+            // Rakit alamat lengkap dari komponen (bagian kosong dilewati) → kolom `alamat`
+            $rtrw = ($rt_sv && $rw_sv) ? "RT $rt_sv/RW $rw_sv" : ($rt_sv ? "RT $rt_sv" : ($rw_sv ? "RW $rw_sv" : ''));
+            $ap = [];
+            if ($alamat_jalan !== '')  $ap[] = $alamat_jalan;
+            if ($rtrw !== '')          $ap[] = $rtrw;
+            if ($kelurahan_in !== '')  $ap[] = 'Kel. ' . $kelurahan_in;
+            if ($kec_sv)               $ap[] = 'Kec. ' . $kec_sv;
+            if ($kab_sv)               $ap[] = $kab_sv;
+            $_tail = trim(($prov_sv ?? '') . ' ' . ($pos_sv ?? ''));
+            if ($_tail !== '')         $ap[] = $_tail;
+            $alamat_in = implode(', ', $ap);
+
+            // No. Telepon WAJIB
+            if (trim($_POST['no_telp'] ?? '') === '') {
+                $err = 'No. Telepon wajib diisi.';
             }
 
             $gel = 0;
@@ -390,6 +414,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $sistem,$d['nilai_raport'],$d['nilai_tka'],$tka_mtk_sv,$tka_bindo_sv,$d['nilai_akhir'],$d['lolos_usia'],$new_status,$input_mode,$is_ditahan_val]);
                     $id = (int)$conn->lastInsertId();
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
+                    // Simpan komponen alamat terstruktur (alamat lengkap sudah dirakit ke kolom `alamat`)
+                    try { $conn->prepare("UPDATE pendaftar SET alamat_jalan=?, rt=?, rw=?, kecamatan=?, kabupaten=?, provinsi=?, kode_pos=? WHERE id=?")
+                          ->execute([$alamat_jalan ?: null, $rt_sv, $rw_sv, $kec_sv, $kab_sv, $prov_sv, $pos_sv, $id]); } catch (Throwable $e) {}
 
                     // Auto-link: jika admin sedang melayani nomor antrian yang belum
                     // terhubung pendaftar, hubungkan otomatis ke pendaftar baru ini
@@ -442,6 +469,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $d['jenis_kelamin'],$d['asal_sekolah'],$alamat_sekolah,$d['no_telp'],$tgl_kk,$no_kk ?: null,$d['alamat'],$kelurahan_sv,$jarak_sv,$status_ortu,$buta_warna,$jalur,$nilai_khusus,$d['jurusan'],
                         $sistem,$d['nilai_raport'],$d['nilai_tka'],$tka_mtk_sv,$tka_bindo_sv,$d['nilai_akhir'],$d['lolos_usia'],$new_status,$input_mode,$id]);
                     if ($has_raport) saveRaportMatrix($conn, $id, $matrix, $mapel_active, $sem_active);
+                    // Simpan komponen alamat terstruktur (alamat lengkap sudah dirakit ke kolom `alamat`)
+                    try { $conn->prepare("UPDATE pendaftar SET alamat_jalan=?, rt=?, rw=?, kecamatan=?, kabupaten=?, provinsi=?, kode_pos=? WHERE id=?")
+                          ->execute([$alamat_jalan ?: null, $rt_sv, $rw_sv, $kec_sv, $kab_sv, $prov_sv, $pos_sv, $id]); } catch (Throwable $e) {}
 
                     $conn->commit();
                     // Lapisan 1: simpan saja (status sudah 'diproses'). Ranking dihitung
@@ -1058,8 +1088,8 @@ if ($edit_id_get > 0) {
                 <textarea name="alamat_sekolah" id="fAlamatSekolah" class="form-control bg-light" rows="2" readonly placeholder="Terisi otomatis saat sekolah dipilih"><?= htmlspecialchars($formData['alamat_sekolah'] ?? '') ?></textarea>
               </div>
               <div class="col-md-3">
-                <label class="form-label fw-semibold">No. Telepon</label>
-                <input type="text" name="no_telp" id="fTelp" class="form-control" value="<?= htmlspecialchars($formData['no_telp'] ?? '') ?>" placeholder="08...">
+                <label class="form-label fw-semibold">No. Telepon <span class="text-danger">*</span></label>
+                <input type="text" name="no_telp" id="fTelp" class="form-control" value="<?= htmlspecialchars($formData['no_telp'] ?? '') ?>" placeholder="08..." required>
               </div>
               <div class="col-md-4">
                 <label class="form-label fw-semibold">
@@ -1087,9 +1117,45 @@ if ($edit_id_get > 0) {
                   <?php endforeach; ?>
                 </select>
               </div>
+              <!-- ── Alamat (susunan Kartu Keluarga) — dirakit otomatis ────────── -->
+              <div class="col-12 mt-2">
+                <div class="fw-semibold small text-uppercase text-muted" style="letter-spacing:.4px;"><i class="bi bi-house-door me-1"></i>Alamat (sesuai Kartu Keluarga)</div>
+              </div>
+              <div class="col-md-8">
+                <label class="form-label fw-semibold">Alamat (Jalan, No. Rumah)</label>
+                <input type="text" name="alamat_jalan" id="fAlamatJalan" class="form-control" value="<?= htmlspecialchars($formData['alamat_jalan'] ?? '') ?>" placeholder="Cth: Jl. Merdeka No. 12" oninput="composeAlamat()">
+              </div>
+              <div class="col-6 col-md-2">
+                <label class="form-label fw-semibold">RT</label>
+                <input type="text" name="rt" id="fRt" class="form-control" value="<?= htmlspecialchars($formData['rt'] ?? '') ?>" maxlength="5" inputmode="numeric" oninput="composeAlamat()" onblur="padRtRw(this)">
+              </div>
+              <div class="col-6 col-md-2">
+                <label class="form-label fw-semibold">RW</label>
+                <input type="text" name="rw" id="fRw" class="form-control" value="<?= htmlspecialchars($formData['rw'] ?? '') ?>" maxlength="5" inputmode="numeric" oninput="composeAlamat()" onblur="padRtRw(this)">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Kelurahan / Desa</label>
+                <input type="text" name="kelurahan" id="fKelurahan" class="form-control" value="<?= htmlspecialchars($formData['kelurahan'] ?? '') ?>" oninput="composeAlamat()">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Kecamatan</label>
+                <input type="text" name="kecamatan" id="fKecamatan" class="form-control" value="<?= htmlspecialchars($formData['kecamatan'] ?? '') ?>" oninput="composeAlamat()">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Kabupaten / Kota</label>
+                <input type="text" name="kabupaten" id="fKabupaten" class="form-control" value="<?= htmlspecialchars($formData['kabupaten'] ?? '') ?>" oninput="composeAlamat()">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Provinsi</label>
+                <input type="text" name="provinsi" id="fProvinsi" class="form-control" value="<?= htmlspecialchars($formData['provinsi'] ?: 'DKI Jakarta') ?>" oninput="composeAlamat()">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label fw-semibold">Kode Pos</label>
+                <input type="text" name="kode_pos" id="fKodePos" class="form-control" value="<?= htmlspecialchars($formData['kode_pos'] ?? '') ?>" maxlength="10" inputmode="numeric" oninput="composeAlamat()">
+              </div>
               <div class="col-12">
-                <label class="form-label fw-semibold">Alamat</label>
-                <textarea name="alamat" id="fAlamat" class="form-control" rows="2"><?= htmlspecialchars($formData['alamat'] ?? '') ?></textarea>
+                <label class="form-label fw-semibold small text-muted">Alamat Lengkap <span class="fw-normal">(otomatis dari isian di atas)</span></label>
+                <textarea id="fAlamatPreview" class="form-control bg-light" rows="2" readonly placeholder="Akan terisi otomatis"><?= htmlspecialchars($formData['alamat'] ?? '') ?></textarea>
               </div>
             </div>
 
@@ -2024,7 +2090,30 @@ function setG2Section(gel) {
         }
     }
 }
-document.addEventListener('DOMContentLoaded', () => { updateJarakZonasi(); onJalurChange(); });
+// Rakit alamat lengkap otomatis dari komponen (format KK) → tampil di preview
+function composeAlamat() {
+    const g = id => (document.getElementById(id)?.value || '').trim();
+    const jalan = g('fAlamatJalan'), rt = g('fRt'), rw = g('fRw');
+    const kel = g('fKelurahan'), kec = g('fKecamatan'), kab = g('fKabupaten'), prov = g('fProvinsi'), pos = g('fKodePos');
+    const rtrw = (rt && rw) ? `RT ${rt}/RW ${rw}` : (rt ? `RT ${rt}` : (rw ? `RW ${rw}` : ''));
+    const parts = [];
+    if (jalan) parts.push(jalan);
+    if (rtrw)  parts.push(rtrw);
+    if (kel)   parts.push('Kel. ' + kel);
+    if (kec)   parts.push('Kec. ' + kec);
+    if (kab)   parts.push(kab);
+    const tail = [prov, pos].filter(Boolean).join(' ');
+    if (tail)  parts.push(tail);
+    const out = document.getElementById('fAlamatPreview');
+    if (out) out.value = parts.join(', ');
+}
+// RT/RW: rapikan ke format 3 digit (001, 011, 023) saat selesai mengetik
+function padRtRw(el) {
+    const v = (el.value || '').replace(/\D/g, '');   // ambil angka saja
+    el.value = v === '' ? '' : v.padStart(3, '0');
+    composeAlamat();
+}
+document.addEventListener('DOMContentLoaded', () => { updateJarakZonasi(); onJalurChange(); composeAlamat(); });
 
 // Rata-rata TKA dari 2 mapel (MTK & B.Indonesia) + update field readonly
 function getTkaAvg() {
@@ -2196,7 +2285,10 @@ function resetForm() {
     document.getElementById('fJurusan').selectedIndex = 0;
     document.getElementById('fTelp').value    = '';
     const _nkk = document.getElementById('fNoKk'); if (_nkk) _nkk.value = '';
-    document.getElementById('fAlamat').value  = '';
+    // Kosongkan komponen alamat terstruktur (Provinsi kembali ke default), lalu rakit preview
+    ['fAlamatJalan','fRt','fRw','fKelurahan','fKecamatan','fKabupaten','fKodePos'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    const _prov = document.getElementById('fProvinsi'); if (_prov) _prov.value = 'DKI Jakarta';
+    const _apv = document.getElementById('fAlamatPreview'); if (_apv) _apv.value = '';
     document.getElementById('fTgl').value     = '';
     initAsal('', '');
     document.getElementById('fTkaMtk').value   = '';
@@ -2303,11 +2395,13 @@ function editForm(d) {
     document.getElementById('fTgl').value     = d.tanggal_lahir;
     initAsal(d.asal_sekolah || '', d.alamat_sekolah || '');
     document.getElementById('fTelp').value    = d.no_telp || '';
-    document.getElementById('fAlamat').value  = d.alamat || '';
     document.getElementById('fJurusan').value = d.jurusan;
-    // Zonasi & status ortu — section tampil sesuai gelombang baris ini
-    const _kel = document.getElementById('fKelurahan');
-    if (_kel) _kel.value = d.kelurahan || '';
+    // Alamat terstruktur (format KK) — isi komponen dari data baris, lalu rakit preview
+    const _sa = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
+    _sa('fAlamatJalan', d.alamat_jalan); _sa('fRt', d.rt); _sa('fRw', d.rw);
+    _sa('fKelurahan', d.kelurahan); _sa('fKecamatan', d.kecamatan); _sa('fKabupaten', d.kabupaten);
+    _sa('fProvinsi', d.provinsi || 'DKI Jakarta'); _sa('fKodePos', d.kode_pos);
+    composeAlamat();
     const _so = document.getElementById('fStatusOrtu');
     if (_so) _so.value = d.status_ortu || 'tidak';
     const _jl = document.getElementById('jalur_' + (d.jalur || 'reguler'));
