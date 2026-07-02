@@ -24,6 +24,14 @@ $asset_ver     = (string)(@filemtime(__DIR__ . '/../assets/img/formulir-1.png')
 // Tandai antrian DU supaya tidak campur dengan antrian SPMB
 try { $conn->exec("ALTER TABLE antrian ADD COLUMN jenis ENUM('ppdb','daftar_ulang') NOT NULL DEFAULT 'ppdb' AFTER tanggal"); } catch (PDOException $e) {}
 
+// Nomor DU per-jurusan: snapshot jurusan di tiap tiket antrian, lalu ikutkan di
+// UNIQUE KEY. Kolom NOT NULL DEFAULT '' (bukan NULL) — baris 'ppdb' selalu ''
+// sehingga constraint lama untuk antrian SPMB TIDAK berubah sama sekali
+// (MySQL menganggap NULL selalu "beda", tapi '' tetap dibandingkan biasa).
+try { $conn->exec("ALTER TABLE antrian ADD COLUMN jurusan_du VARCHAR(100) NOT NULL DEFAULT '' AFTER jenis"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE antrian DROP INDEX uk_tanggal_jenis_nomor_fase"); } catch (PDOException $e) {}
+try { $conn->exec("ALTER TABLE antrian ADD UNIQUE KEY uk_tanggal_jenis_nomor_fase_jur (tanggal, jenis, nomor, fase, jurusan_du)"); } catch (PDOException $e) {}
+
 // Kolom tambahan pendaftar untuk data lengkap siswa (sesuai Formulir Pendaftaran)
 $new_cols = [
     "ALTER TABLE pendaftar ADD COLUMN daftar_ulang ENUM('belum','proses','sudah') NOT NULL DEFAULT 'belum' AFTER catatan",
@@ -245,17 +253,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'mulai_du') {
         // Panggil dulu — buat nomor DU baru tanpa siswa (siswa di-link setelah datang)
+        // Nomor dihitung PER JURUSAN meja ini (bukan global) — tiap jurusan mulai dari 1.
+        $mulai_jur = '';
+        foreach ($mejas_aktif as $m) { if ((int)$m['id'] === $du_meja_id) { $mulai_jur = $m['jurusan_du'] ?? ''; break; } }
         $conn->beginTransaction();
         try {
             $cek = $conn->prepare("SELECT id FROM antrian WHERE tanggal=? AND jenis='daftar_ulang' AND meja_id=? AND status='dipanggil'");
             $cek->execute([$today, $du_meja_id]);
             if (!$cek->fetch()) {
-                // Nomor DU global per hari (semua meja DU share satu counter)
-                $maxN = $conn->prepare("SELECT COALESCE(MAX(nomor),0)+1 FROM antrian WHERE tanggal=? AND jenis='daftar_ulang'");
-                $maxN->execute([$today]);
+                $maxN = $conn->prepare("SELECT COALESCE(MAX(nomor),0)+1 FROM antrian WHERE tanggal=? AND jenis='daftar_ulang' AND jurusan_du=?");
+                $maxN->execute([$today, $mulai_jur]);
                 $nomor = (int)$maxN->fetchColumn();
-                $conn->prepare("INSERT INTO antrian (tanggal, jenis, nomor, status, meja_id, dipanggil_at) VALUES (?, 'daftar_ulang', ?, 'dipanggil', ?, NOW(3))")
-                     ->execute([$today, $nomor, $du_meja_id]);
+                $conn->prepare("INSERT INTO antrian (tanggal, jenis, jurusan_du, nomor, status, meja_id, dipanggil_at) VALUES (?, 'daftar_ulang', ?, ?, 'dipanggil', ?, NOW(3))")
+                     ->execute([$today, $mulai_jur, $nomor, $du_meja_id]);
             }
             $conn->commit();
         } catch(Throwable $e) { $conn->rollBack(); }
@@ -277,12 +287,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $cek = $conn->prepare("SELECT id FROM antrian WHERE tanggal=? AND jenis='daftar_ulang' AND pendaftar_id=?");
             $cek->execute([$today, $pend_id]);
             if (!$cek->fetch()) {
-                // Nomor DU berikutnya untuk hari ini
-                $maxN = $conn->prepare("SELECT COALESCE(MAX(nomor),0)+1 FROM antrian WHERE tanggal=? AND jenis='daftar_ulang'");
-                $maxN->execute([$today]);
+                // Nomor per jurusan siswa ini (konsisten dengan alur mulai_du)
+                $pj = $conn->prepare("SELECT jurusan FROM pendaftar WHERE id=?");
+                $pj->execute([$pend_id]);
+                $tambah_jur = $pj->fetchColumn() ?: '';
+                $maxN = $conn->prepare("SELECT COALESCE(MAX(nomor),0)+1 FROM antrian WHERE tanggal=? AND jenis='daftar_ulang' AND jurusan_du=?");
+                $maxN->execute([$today, $tambah_jur]);
                 $nomor = (int)$maxN->fetchColumn();
-                $conn->prepare("INSERT INTO antrian (tanggal, jenis, nomor, status, pendaftar_id) VALUES (?, 'daftar_ulang', ?, 'menunggu', ?)")
-                     ->execute([$today, $nomor, $pend_id]);
+                $conn->prepare("INSERT INTO antrian (tanggal, jenis, jurusan_du, nomor, status, pendaftar_id) VALUES (?, 'daftar_ulang', ?, ?, 'menunggu', ?)")
+                     ->execute([$today, $tambah_jur, $nomor, $pend_id]);
             }
         }
         $redir();
