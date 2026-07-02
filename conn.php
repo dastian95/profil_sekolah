@@ -36,13 +36,12 @@ try {
  * data yang nyangkut setengah jadi.
  */
 function auto_rank_jurusan(PDO $conn, int $gelombang, string $jurusan): void {
-    $gcfg = $conn->prepare("SELECT kuota_glm, min_tka FROM gelombang WHERE gelombang=? LIMIT 1");
+    $gcfg = $conn->prepare("SELECT kuota_glm FROM gelombang WHERE gelombang=? LIMIT 1");
     $gcfg->execute([$gelombang]);
     $g = $gcfg->fetch();
     if (!$g) return;
 
-    $kuota   = max(0, (int)$g['kuota_glm']);
-    $min_tka = (int)($g['min_tka'] ?? 0);
+    $kuota = max(0, (int)$g['kuota_glm']);
 
     $st = $conn->prepare("SELECT id, lolos_usia, tgl_kk, nilai_tka, sistem_pendidikan,
                           is_pinned, daftar_ulang, nilai_akhir, usia
@@ -65,9 +64,6 @@ function auto_rank_jurusan(PDO $conn, int $gelombang, string $jurusan): void {
             $hard_gugur[$id] = 'Gugur: usia melebihi 21 tahun';
         } elseif (!empty($r['tgl_kk']) && $r['tgl_kk'] > '2025-06-15' && !$locked) {
             $hard_gugur[$id] = 'Gugur: tanggal KK melebihi cut-off 15 Juni 2025';
-        } elseif ($min_tka > 0 && $r['sistem_pendidikan'] === 'reguler'
-                  && (float)$r['nilai_tka'] < $min_tka && !$locked) {
-            $hard_gugur[$id] = "Gugur: nilai TKA di bawah minimum ({$min_tka})";
         } else {
             $eligible[] = $r;
         }

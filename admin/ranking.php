@@ -238,27 +238,8 @@ function rank_sort(array $list, string $key): array {
             // Tiebreaker deterministik: usia DESC, lalu id ASC (cegah urutan acak saat seri)
             return ($b['usia'] <=> $a['usia']) ?: ((int)$a['id'] <=> (int)$b['id']);
         }
-        if ($key === 'g2_jarak') {
-            $ja = isset($a['jarak_km']) && $a['jarak_km'] !== null ? (float)$a['jarak_km'] : 9999;
-            $jb = isset($b['jarak_km']) && $b['jarak_km'] !== null ? (float)$b['jarak_km'] : 9999;
-            if ($ja != $jb) return $ja <=> $jb;
-            return $b['usia'] <=> $a['usia'];
-        }
-        if ($key === 'g2_abk') {
-            $nka = (float)($a['nilai_khusus'] ?? 0);
-            $nkb = (float)($b['nilai_khusus'] ?? 0);
-            if ($nka != $nkb) return $nkb <=> $nka;
-            return $b['usia'] <=> $a['usia'];
-        }
-        if ($key === 'g2_reguler') {
-            $kel_ds = array_keys(KELURAHAN_ZONASI['Duren Sawit'] ?? []);
-            $za = in_array($a['kelurahan'] ?? '', $kel_ds, true) ? 1 : 0;
-            $zb = in_array($b['kelurahan'] ?? '', $kel_ds, true) ? 1 : 0;
-            if ($za != $zb) return $zb <=> $za;
-            if ((float)$a['nilai_akhir'] != (float)$b['nilai_akhir'])
-                return (float)$b['nilai_akhir'] <=> (float)$a['nilai_akhir'];
-            return $b['usia'] <=> $a['usia'];
-        }
+        // Cabang jalur G2 (g2_jarak/g2_abk/g2_reguler) diarsipkan di _archive/g2_jalur/
+        // — G2 memakai sistem G1 (nilai akhir). rank_sort hanya dipanggil dgn 'g1'.
         // fallback: raport → usia
         if ((float)$a['nilai_raport'] != (float)$b['nilai_raport'])
             return (float)$b['nilai_raport'] <=> (float)$a['nilai_raport'];
@@ -440,32 +421,12 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
 
     // Semua gelombang: satu daftar nilai akhir → usia
     $segments = [
-        ['key'=>'g1','label'=>'','icon'=>'','color'=>'success','info'=>'','list'=>rank_sort($eligible,'g1'),'kuota'=>$kuota_glm],
+        ['key'=>'g1','label'=>'','icon'=>'','color'=>'success','list'=>rank_sort($eligible,'g1'),'kuota'=>$kuota_glm],
     ];
 
-    // Builder badge info untuk kolom Nama
-    $kel_ds_labels = array_keys(KELURAHAN_ZONASI['Duren Sawit'] ?? []);
-    $mkInfo = function (array $r, string $type) use ($kel_ds_labels): string {
-        if ($type === 'jarak') {
-            $j = isset($r['jarak_km']) && $r['jarak_km'] !== null ? number_format((float)$r['jarak_km'], 2) . ' km' : '—';
-            return '<span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle"><i class="bi bi-geo-alt me-1"></i>' . $j . '</span>';
-        }
-        if ($type === 'zonasi') {
-            $iz = in_array($r['kelurahan'] ?? '', $kel_ds_labels, true);
-            if ($iz) return '<span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle"><i class="bi bi-geo-alt-fill me-1"></i>Zonasi</span>';
-            return '';
-        }
-        if ($type === 'ortu') {
-            $lbl = STATUS_ORTU_LABEL[$r['status_ortu'] ?? 'tidak'] ?? '-';
-            return '<span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle"><i class="bi bi-heart me-1"></i>' . htmlspecialchars($lbl) . '</span>';
-        }
-        if ($type === 'abk') {
-            $nk = $r['nilai_khusus'] ?? null;
-            $nkStr = $nk !== null ? number_format((float)$nk, 2) : '—';
-            return '<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"><i class="bi bi-star me-1"></i>' . $nkStr . '</span>';
-        }
-        return '';
-    };
+    // Badge info per-jalur G2 (jarak/zonasi/ortu/abk) dihapus — G2 memakai sistem G1,
+    // segmen selalu 'info'=>'' sehingga dulu tidak pernah menghasilkan output apa pun.
+    // Kode aslinya diarsipkan di _archive/g2_jalur/.
 ?>
 <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
@@ -520,7 +481,7 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
                 <?php else:
                     $rank = 0;
                     foreach ($top as $r): $rank++;
-                        rank_render_row($r, $rank, $raport_map, $fGel, $fJurusan, 'top', '', $mkInfo($r, $seg['info']));
+                        rank_render_row($r, $rank, $raport_map, $fGel, $fJurusan, 'top');
                     endforeach;
                     if (!empty($below)): ?>
                     <tr>
@@ -534,7 +495,7 @@ function rank_render_row(array $r, int $rank, array $raport_map, int $fGel, stri
                         </td>
                     </tr>
                     <?php foreach ($below as $r): $rank++;
-                        rank_render_row($r, $rank, $raport_map, $fGel, $fJurusan, 'below', 'below-'.$segId, $mkInfo($r, $seg['info']));
+                        rank_render_row($r, $rank, $raport_map, $fGel, $fJurusan, 'below', 'below-'.$segId);
                     endforeach;
                     endif;
                 endif;

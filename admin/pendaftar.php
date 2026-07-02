@@ -972,11 +972,8 @@ if ($edit_id_get > 0) {
         <input type="hidden" name="id" id="formId" value="<?= htmlspecialchars($formId) ?>">
         <input type="hidden" name="form_token" id="formToken" value="<?= htmlspecialchars($form_token) ?>">
 
-        <?php $g2_aktif = ($gelombang_aktif && (int)$gelombang_aktif['gelombang'] === 2) || $active_glm === '2'; ?>
-        <!-- Tab Navigation -->
+        <!-- Tab Navigation (G2 = sistem G1; tab "Jalur Seleksi" diarsipkan di _archive/g2_jalur/) -->
         <ul class="nav nav-tabs px-3 pt-2" role="tablist">
-          <!-- Tab Jalur Seleksi disembunyikan: G2 kini pakai sistem yang sama dengan G1 -->
-          <li class="nav-item" id="tabJalurNav" style="display:none;">
           <li class="nav-item"><button type="button" class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabDiri"><i class="bi bi-person me-1"></i> Data Diri</button></li>
           <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#tabRaport"><i class="bi bi-table me-1"></i> Detail Raport</button></li>
         </ul>
@@ -990,115 +987,8 @@ if ($edit_id_get > 0) {
         <?php endif; ?>
         <div class="tab-content">
 
-          <!-- ── Tab Jalur Seleksi (Gelombang 2) ─────────────────────────── -->
-          <div class="tab-pane fade" id="tabJalur">
-            <div class="border rounded-3 p-3" style="background:#fffbeb;border-color:#fcd34d !important;">
-              <div class="fw-bold small text-uppercase mb-3" style="color:#92400e;letter-spacing:.4px;">
-                <i class="bi bi-signpost-split-fill me-1"></i>Gelombang 2 — Jalur Seleksi
-              </div>
-              <div class="row g-3 mb-2">
-                <div class="col-md-12">
-                  <label class="form-label fw-semibold small mb-1">Jalur Seleksi <span class="text-danger">*</span></label>
-                  <div class="btn-group w-100" role="group" id="jalurGroup">
-                    <?php
-                    $jalur_opts = [
-                      'reguler'     => ['Reguler', 'bi-people-fill', 'Kuota reguler — Zonasi (Duren Sawit) diprioritaskan'],
-                      'yatim_piatu' => ['Yatim/Piatu', 'bi-heart-fill', 'Kuota khusus Yatim &amp; Piatu (maks. 4)'],
-                      'anak_guru'   => ['Anak Guru', 'bi-mortarboard-fill', 'Kuota khusus Anak Guru (maks. 4)'],
-                      'abk'         => ['ABK', 'bi-person-wheelchair', 'Anak Berkebutuhan Khusus (maks. 8)'],
-                    ];
-                    $jalur_cur = $formData['jalur'] ?? 'reguler';
-                    foreach ($jalur_opts as $jl_k => [$jl_l, $jl_i, $jl_d]): ?>
-                    <input type="radio" class="btn-check" name="jalur" id="jalur_<?= $jl_k ?>" value="<?= $jl_k ?>" <?= $jalur_cur === $jl_k ? 'checked' : '' ?> onchange="onJalurChange()">
-                    <label class="btn btn-outline-warning" for="jalur_<?= $jl_k ?>" title="<?= $jl_d ?>">
-                      <i class="bi <?= $jl_i ?> me-1"></i><?= $jl_l ?>
-                    </label>
-                    <?php endforeach; ?>
-                  </div>
-                  <small class="text-muted">Jalur khusus (Yatim/Piatu, Anak Guru, ABK) masing-masing punya kuota tersendiri. Sisa kuota dialihkan ke Reguler.</small>
-                </div>
-              </div>
-              <!-- Kelurahan + Jarak — berlaku untuk SEMUA jalur G2 (dipakai untuk ranking zonasi) -->
-              <div class="border-top pt-3 mb-2">
-                <div class="row g-3">
-                  <div class="col-md-7">
-                    <label class="form-label fw-semibold small mb-1">Kelurahan Domisili (sesuai KK)</label>
-                    <select name="kelurahan" id="fKelurahan" class="form-select form-select-sm" onchange="updateJarakZonasi()">
-                      <option value="" data-jarak="">— Pilih Kelurahan —</option>
-                      <?php foreach (KELURAHAN_ZONASI as $zon_kec => $zon_list): ?>
-                      <optgroup label="Kec. <?= htmlspecialchars($zon_kec) ?>">
-                        <?php foreach ($zon_list as $zon_kel => [$zon_lat, $zon_lng]): ?>
-                        <option value="<?= htmlspecialchars($zon_kel) ?>"
-                                data-jarak="<?= zonasi_jarak_km($zon_lat, $zon_lng) ?>"
-                                <?= ($formData['kelurahan'] ?? '') === $zon_kel ? 'selected' : '' ?>>
-                          <?= htmlspecialchars($zon_kel) ?>
-                        </option>
-                        <?php endforeach; ?>
-                      </optgroup>
-                      <?php endforeach; ?>
-                    </select>
-                    <small class="text-muted">Luar Jakarta Timur? Biarkan kosong, isi alamat manual saja.</small>
-                  </div>
-                  <div class="col-md-5">
-                    <label class="form-label fw-semibold small mb-1">Jarak ke Sekolah</label>
-                    <input type="text" id="fJarak" class="form-control form-control-sm bg-light" readonly placeholder="—">
-                    <small class="text-muted">Garis lurus, otomatis. <strong>Semua jalur</strong> diurutkan jarak terdekat.</small>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Isi berbeda sesuai jalur yang dipilih -->
-
-              <!-- Jalur REGULER -->
-              <div id="jalurBoxReguler" class="border-top pt-3">
-                <div class="fw-semibold small text-uppercase mb-2" style="color:#92400e;"><i class="bi bi-people-fill me-1"></i>Reguler</div>
-                <div class="alert alert-info border small mb-0 py-2">
-                  <i class="bi bi-geo-alt-fill me-1"></i>
-                  Ranking: <strong>Nilai Akhir</strong> (Raport+TKA) — pendaftar dari <strong>Kec. Duren Sawit</strong> diprioritaskan (Zonasi).
-                </div>
-              </div>
-
-              <!-- Jalur YATIM/PIATU -->
-              <div id="jalurBoxYatimPiatu" class="border-top pt-3">
-                <div class="fw-semibold small text-uppercase mb-2" style="color:#92400e;"><i class="bi bi-heart-fill me-1"></i>Yatim &amp; Piatu</div>
-                <div class="row g-3 mb-2">
-                  <div class="col-md-7">
-                    <label class="form-label fw-semibold small mb-1">Status Orang Tua</label>
-                    <select name="status_ortu" id="fStatusOrtu" class="form-select form-select-sm">
-                      <?php foreach (STATUS_ORTU_LABEL as $so_k => $so_l): ?>
-                      <option value="<?= $so_k ?>" <?= ($formData['status_ortu'] ?? 'tidak') === $so_k ? 'selected' : '' ?>><?= htmlspecialchars($so_l) ?></option>
-                      <?php endforeach; ?>
-                    </select>
-                  </div>
-                </div>
-                <small class="text-muted">Kuota maks. 4 slot. Ranking: <strong>jarak terdekat</strong> ke sekolah (isi kelurahan di atas).</small>
-              </div>
-
-              <!-- Jalur ANAK GURU -->
-              <div id="jalurBoxAnakGuru" class="border-top pt-3">
-                <div class="fw-semibold small text-uppercase mb-2" style="color:#92400e;"><i class="bi bi-mortarboard-fill me-1"></i>Anak Guru</div>
-                <div class="alert alert-light border small mb-0 py-2">
-                  <i class="bi bi-info-circle me-1 text-warning"></i>
-                  Kuota maks. <strong>4 slot</strong>. Ranking: <strong>jarak terdekat</strong> ke sekolah (isi kelurahan di atas).
-                  Verifikasi status anak guru dilakukan terpisah oleh pihak sekolah.
-                </div>
-              </div>
-
-              <!-- Jalur ABK -->
-              <div id="jalurBoxAbk" class="border-top pt-3">
-                <div class="fw-semibold small text-uppercase mb-2" style="color:#92400e;"><i class="bi bi-person-wheelchair me-1"></i>ABK (Anak Berkebutuhan Khusus)</div>
-                <div class="row g-3">
-                  <div class="col-md-6">
-                    <label class="form-label fw-semibold small mb-1">Nilai Khusus ABK <span class="text-danger">*</span></label>
-                    <input type="number" name="nilai_khusus" id="fNilaiKhusus" class="form-control form-control-sm"
-                           min="0" max="100" step="0.01" placeholder="0.00"
-                           value="<?= htmlspecialchars($formData['nilai_khusus'] ?? '') ?>">
-                    <small class="text-muted">Kuota maks. 8 slot. Dinilai manual oleh sekolah — ranking berdasarkan nilai ini.</small>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <!-- Tab "Jalur Seleksi (Gelombang 2)" dihapus — G2 memakai sistem G1.
+               Kode aslinya diarsipkan di _archive/g2_jalur/form_tab_jalur.html -->
 
           <!-- ── Tab Data Diri ───────────────────────────────────────────── -->
           <div class="tab-pane fade show active" id="tabDiri">
