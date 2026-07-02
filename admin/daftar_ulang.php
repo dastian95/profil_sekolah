@@ -190,6 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Simpan extended data jika ada
             if ($pend_id) {
                 $fields_du = [
+                    'nama','nisn','jenis_kelamin','tanggal_lahir','asal_sekolah',
                     'nis','nik','no_kk','kewarganegaraan','tahun_lulus','kip_kjp_kps',
                     'tempat_lahir','agama','email','anak_ke','alamat_lengkap',
                     'rt','rw','kelurahan','kecamatan','kabupaten','provinsi','kode_pos','no_telp',
@@ -209,6 +210,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $set[] = "$f=?"; $params_du[] = $v !== '' ? $v : null;
                         }
                     }
+                }
+                // Tanggal lahir diedit di DU → hitung ulang usia & lolos_usia agar ranking tetap konsisten
+                if (!empty($_POST['tanggal_lahir'])) {
+                    try {
+                        $u = (int)(new DateTime($_POST['tanggal_lahir']))->diff(new DateTime())->y;
+                        $set[] = 'usia=?';       $params_du[] = $u;
+                        $set[] = 'lolos_usia=?'; $params_du[] = $u <= 21 ? 1 : 0;
+                    } catch (Throwable $e) {}
                 }
                 $params_du[] = $pend_id;
                 $conn->prepare("UPDATE pendaftar SET ".implode(', ',$set)." WHERE id=? AND status='terima'")
@@ -1101,9 +1110,9 @@ $du_kode_meja    = JURUSAN_SHORT[$du_jurusan_meja ?? ''] ?? '';
             <div class="row g-2">
                 <!-- Data readonly dari SPMB -->
                 <div class="col-6"><label class="form-label mb-0 small">Nama Lengkap</label>
-                    <input class="form-control form-control-sm" value="<?= htmlspecialchars($p['nama']??'') ?>" readonly style="background:#f0fdf4;"></div>
+                    <input type="text" name="nama" class="form-control form-control-sm text-uppercase" value="<?= htmlspecialchars($p['nama']??'') ?>" oninput="this.value=this.value.toUpperCase()"></div>
                 <div class="col-3"><label class="form-label mb-0 small">NISN</label>
-                    <input class="form-control form-control-sm" value="<?= htmlspecialchars($p['nisn']??'') ?>" readonly style="background:#f0fdf4;"></div>
+                    <input type="text" name="nisn" class="form-control form-control-sm" value="<?= htmlspecialchars($p['nisn']??'') ?>" maxlength="20"></div>
                 <div class="col-3"><label class="form-label mb-0 small">NIS <span class="fw-normal text-muted">(opsional)</span></label>
                     <input type="text" name="nis" class="form-control form-control-sm" value="<?= htmlspecialchars($p['nis']??'') ?>" placeholder="Dari sekolah"></div>
 
@@ -1115,7 +1124,10 @@ $du_kode_meja    = JURUSAN_SHORT[$du_jurusan_meja ?? ''] ?? '';
                     <input type="text" name="kewarganegaraan" class="form-control form-control-sm" value="<?= htmlspecialchars($p['kewarganegaraan'] ?: 'WNI') ?>"></div>
 
                 <div class="col-4"><label class="form-label mb-0 small">Jenis Kelamin</label>
-                    <input class="form-control form-control-sm" value="<?= $p['jenis_kelamin']==='L'?'Laki-Laki':'Perempuan' ?>" readonly style="background:#f0fdf4;"></div>
+                    <select name="jenis_kelamin" class="form-select form-select-sm">
+                        <option value="L" <?= ($p['jenis_kelamin']??'')==='L'?'selected':'' ?>>Laki-Laki</option>
+                        <option value="P" <?= ($p['jenis_kelamin']??'')==='P'?'selected':'' ?>>Perempuan</option>
+                    </select></div>
                 <div class="col-4"><label class="form-label mb-0 small">Agama</label>
                     <select name="agama" class="form-select form-select-sm">
                         <option value="">— Pilih —</option>
@@ -1127,7 +1139,7 @@ $du_kode_meja    = JURUSAN_SHORT[$du_jurusan_meja ?? ''] ?? '';
                 <div class="col-5"><label class="form-label mb-0 small">Tempat Lahir</label>
                     <input type="text" name="tempat_lahir" class="form-control form-control-sm" value="<?= htmlspecialchars($p['tempat_lahir']??'') ?>"></div>
                 <div class="col-4"><label class="form-label mb-0 small">Tanggal Lahir</label>
-                    <input class="form-control form-control-sm" value="<?= htmlspecialchars($p['tanggal_lahir']??'') ?>" readonly style="background:#f0fdf4;"></div>
+                    <input type="date" name="tanggal_lahir" class="form-control form-control-sm" value="<?= htmlspecialchars($p['tanggal_lahir']??'') ?>"></div>
                 <div class="col-3"><label class="form-label mb-0 small">Tahun Lulus SMP</label>
                     <input type="number" name="tahun_lulus" class="form-control form-control-sm" value="<?= htmlspecialchars($p['tahun_lulus']??'') ?>" min="2000" max="2030" placeholder="2025"></div>
 
@@ -1151,7 +1163,7 @@ $du_kode_meja    = JURUSAN_SHORT[$du_jurusan_meja ?? ''] ?? '';
                 <div class="col-6"><label class="form-label mb-0 small">Email</label>
                     <input type="email" name="email" class="form-control form-control-sm" value="<?= htmlspecialchars($p['email']??'') ?>"></div>
                 <div class="col-6"><label class="form-label mb-0 small">Asal Sekolah</label>
-                    <input class="form-control form-control-sm" value="<?= htmlspecialchars($p['asal_sekolah']??'') ?>" readonly style="background:#f0fdf4;"></div>
+                    <input type="text" name="asal_sekolah" class="form-control form-control-sm" value="<?= htmlspecialchars($p['asal_sekolah']??'') ?>"></div>
                 <div class="col-6"><label class="form-label mb-0 small">Penerima KIP/KJP/KPS</label>
                     <input type="text" name="kip_kjp_kps" class="form-control form-control-sm" value="<?= htmlspecialchars($p['kip_kjp_kps']??'') ?>" placeholder="Kosongkan jika tidak ada"></div>
             </div>
