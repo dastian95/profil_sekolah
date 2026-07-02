@@ -192,7 +192,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $fields_du = [
                     'nis','nik','no_kk','kewarganegaraan','tahun_lulus','kip_kjp_kps',
                     'tempat_lahir','agama','email','anak_ke','alamat_lengkap',
-                    'rt','rw','kecamatan','kabupaten','provinsi','kode_pos',
+                    'rt','rw','kelurahan','kecamatan','kabupaten','provinsi','kode_pos','no_telp',
                     'nama_ayah','nik_ayah','pendidikan_ayah','pekerjaan_ayah','penghasilan_ayah','telp_ayah','alamat_ayah',
                     'nama_ibu','nik_ibu','pendidikan_ibu','pekerjaan_ibu','penghasilan_ibu','telp_ibu','alamat_ibu',
                     'nama_wali','hubungan_wali','nik_wali','pendidikan_wali','pekerjaan_wali','penghasilan_wali','telp_wali','alamat_wali',
@@ -229,7 +229,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $fields_du = [
                 'nis','nik','no_kk','kewarganegaraan','tahun_lulus','kip_kjp_kps',
                 'tempat_lahir','agama','email','anak_ke','alamat_lengkap',
-                'rt','rw','kecamatan','kabupaten','provinsi','kode_pos',
+                'rt','rw','kelurahan','kecamatan','kabupaten','provinsi','kode_pos','no_telp',
                 'nama_ayah','nik_ayah','pendidikan_ayah','pekerjaan_ayah','penghasilan_ayah','telp_ayah','alamat_ayah',
                 'nama_ibu','nik_ibu','pendidikan_ibu','pekerjaan_ibu','penghasilan_ibu','telp_ibu','alamat_ibu',
                 'nama_wali','hubungan_wali','nik_wali','pendidikan_wali','pekerjaan_wali','penghasilan_wali','telp_wali','alamat_wali',
@@ -392,7 +392,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $fields_du = [
                 'nis','nik','no_kk','kewarganegaraan','tahun_lulus','kip_kjp_kps',
                 'tempat_lahir','agama','email','anak_ke','alamat_lengkap',
-                'rt','rw','kecamatan','kabupaten','provinsi','kode_pos',
+                'rt','rw','kelurahan','kecamatan','kabupaten','provinsi','kode_pos','no_telp',
                 'nama_ayah','nik_ayah','pendidikan_ayah','pekerjaan_ayah','penghasilan_ayah','telp_ayah','alamat_ayah',
                 'nama_ibu','nik_ibu','pendidikan_ibu','pekerjaan_ibu','penghasilan_ibu','telp_ibu','alamat_ibu',
                 'nama_wali','hubungan_wali','nik_wali','pendidikan_wali','pekerjaan_wali','penghasilan_wali','telp_wali','alamat_wali',
@@ -1136,7 +1136,7 @@ $du_kode_meja    = JURUSAN_SHORT[$du_jurusan_meja ?? ''] ?? '';
                 <div class="col-2"><label class="form-label mb-0 small">RT</label><input type="text" name="rt" class="form-control form-control-sm" value="<?= htmlspecialchars($p['rt']??'') ?>" maxlength="5" inputmode="numeric"></div>
                 <div class="col-2"><label class="form-label mb-0 small">RW</label><input type="text" name="rw" class="form-control form-control-sm" value="<?= htmlspecialchars($p['rw']??'') ?>" maxlength="5" inputmode="numeric"></div>
                 <div class="col-4"><label class="form-label mb-0 small">Kelurahan</label>
-                    <input class="form-control form-control-sm" value="<?= htmlspecialchars($p['kelurahan']??'') ?>" readonly style="background:#f0fdf4;"></div>
+                    <input type="text" name="kelurahan" class="form-control form-control-sm" value="<?= htmlspecialchars($p['kelurahan']??'') ?>"></div>
                 <div class="col-4"><label class="form-label mb-0 small">Kecamatan</label>
                     <input type="text" name="kecamatan" class="form-control form-control-sm" value="<?= htmlspecialchars($p['kecamatan']??'') ?>"></div>
                 <div class="col-5"><label class="form-label mb-0 small">Kabupaten/Kota</label>
@@ -1147,7 +1147,7 @@ $du_kode_meja    = JURUSAN_SHORT[$du_jurusan_meja ?? ''] ?? '';
                     <input type="text" name="kode_pos" class="form-control form-control-sm" value="<?= htmlspecialchars($p['kode_pos']??'') ?>" maxlength="10" inputmode="numeric" pattern="[0-9]*"></div>
 
                 <div class="col-6"><label class="form-label mb-0 small">No. HP/WhatsApp</label>
-                    <input class="form-control form-control-sm" value="<?= htmlspecialchars($p['no_telp']??'') ?>" readonly style="background:#f0fdf4;"></div>
+                    <input type="text" name="no_telp" class="form-control form-control-sm" value="<?= htmlspecialchars($p['no_telp']??'') ?>" inputmode="tel"></div>
                 <div class="col-6"><label class="form-label mb-0 small">Email</label>
                     <input type="email" name="email" class="form-control form-control-sm" value="<?= htmlspecialchars($p['email']??'') ?>"></div>
                 <div class="col-6"><label class="form-label mb-0 small">Asal Sekolah</label>
